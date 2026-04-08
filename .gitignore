@@ -1,5 +1,8 @@
 planning.md
 
+# environment variables
+.env
+
 # Logs
 logs
 *.log
