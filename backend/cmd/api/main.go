@@ -1,17 +1,15 @@
 package main
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"ai-student-diagnostic/backend/internal/config"
+	db "ai-student-diagnostic/backend/internal/repository"
+	routes "ai-student-diagnostic/backend/internal/routes"
 )
 
 func main() {
-	router := gin.Default()
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-	router.Run()
+	cfg := config.LoadConfig()
+	db.InitDB(cfg.DBURL)
+
+	r := routes.SetupRouter()
+	r.Run(":8080")
 }
