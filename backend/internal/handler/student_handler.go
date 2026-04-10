@@ -78,10 +78,10 @@ func SubmitAnswers(c *gin.Context) {
 	// insert answers
 	for _, ans := range req.Answers {
 		_, err := database.Exec(`
-			INSERT INTO answer_logs 
-			(question_id, attempt_id, selected_answer, correct_answer, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-		`,
+        INSERT INTO answer_logs 
+        (question_id, attempt_id, selected_answer, correct_answer, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `,
 			ans.QuestionID,
 			attemptID,
 			ans.SelectedAnswer,
@@ -92,15 +92,16 @@ func SubmitAnswers(c *gin.Context) {
 			ans.ChangedAnswer,
 			ans.WasInitiallyWrong,
 		)
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert answer"})
 			return
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"attempt_id": attemptID,
-			"status":     "submitted",
-		})
 	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"attempt_id": attemptID,
+		"status":     "submitted",
+	})
 
 }
