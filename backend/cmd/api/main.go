@@ -36,8 +36,8 @@ func main() {
 
 	runMigrations(cfg.DBURL)
 
-	db.InitDB(cfg.DBURL)
+	conn := db.InitDB(cfg.DBURL)
 
-	r := routes.SetupRouter()
+	r := routes.SetupRouter(conn)
 	r.Run(":8080")
 }

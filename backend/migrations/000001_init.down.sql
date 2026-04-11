@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS attempt_results;
+DROP TABLE IF EXISTS answer_logs;
+DROP TABLE IF EXISTS attempts;
+DROP TABLE IF EXISTS assignments;
+DROP TABLE IF EXISTS questions;
+DROP TABLE IF EXISTS tests;
+DROP TABLE IF EXISTS subjects;
+DROP TABLE IF EXISTS coaches;
+DROP TABLE IF EXISTS students;

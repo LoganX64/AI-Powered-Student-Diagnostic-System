@@ -1,4 +1,4 @@
-package db
+package repository
 
 import (
 	"database/sql"
@@ -9,18 +9,20 @@ import (
 
 var DB *sql.DB
 
-func InitDB(dbURL string) {
+func InitDB(dbURL string) *sql.DB {
 	var err error
+
 	DB, err = sql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatal("Error connecting to the database:", err)
+		log.Fatal(err)
 	}
 
-	if err = DB.Ping(); err != nil {
-		log.Fatal("Error pinging the database:", err)
+	err = DB.Ping()
+	if err != nil {
+		log.Fatal("DB connection failed:", err)
 	}
 
-	log.Println("Successfully connected to the database")
+	return DB
 }
 
 func GetDB() *sql.DB {
