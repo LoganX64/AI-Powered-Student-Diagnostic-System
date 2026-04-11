@@ -2,9 +2,11 @@ package handlers
 
 import (
 	db "ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 )
 
 // login
@@ -34,8 +36,14 @@ func StudentLogin(c *gin.Context) {
 		return
 	}
 
+	token, err := utils.GenerateToken(studentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"student_id": studentID,
+		"access_token": token,
 	})
 }
 
@@ -64,35 +72,84 @@ func SubmitAnswers(c *gin.Context) {
 
 	database := db.GetDB()
 
+	//  Safe extraction
+	studentIDRaw, exists := c.Get("student_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	studentID := studentIDRaw.(int)
+
+	//  Validate assignment ownership
+	var ownerID int
+	err := database.QueryRow(
+		"SELECT student_id FROM assignments WHERE id = $1",
+		req.AssignmentID,
+	).Scan(&ownerID)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment"})
+		return
+	}
+
+	if ownerID != studentID {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "assignment does not belong to student",
+		})
+		return
+	}
+
+	//  Start transaction
+	tx, err := database.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
+		return
+	}
+	defer tx.Rollback()
+
 	//  Create attempt
 	var attemptID int
-	err := database.QueryRow(
+	err = tx.QueryRow(
 		"INSERT INTO attempts (assignment_id) VALUES ($1) RETURNING id",
 		req.AssignmentID,
 	).Scan(&attemptID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create attempt"})
 		return
 	}
 
-	// Prepare SQI inputs
-	var questionMetaList []QuestionMeta
-	var answerLogs []AnswerLog
-
-	//  Process answers
+	//  Collect question IDs
+	var qIDs []int
 	for _, ans := range req.Answers {
+		qIDs = append(qIDs, ans.QuestionID)
+	}
 
+	//  Bulk fetch questions
+	query := `
+		SELECT id, correct_answer, marks, neg_marks, importance, difficulty, type, expected_time
+		FROM questions
+		WHERE id = ANY($1)
+	`
+
+	rows, err := tx.Query(query, pq.Array(qIDs))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
+		return
+	}
+	defer rows.Close()
+
+	// Map questions
+	qMap := make(map[int]QuestionMeta)
+	correctMap := make(map[int]string)
+
+	for rows.Next() {
 		var q QuestionMeta
-		var correctAnswer string
+		var correct string
 
-		err := database.QueryRow(`
-			SELECT id, correct_answer, marks, neg_marks, importance, difficulty, type, expected_time
-			FROM questions
-			WHERE id = $1
-		`, ans.QuestionID).Scan(
+		err := rows.Scan(
 			&q.QuestionID,
-			&correctAnswer,
+			&correct,
 			&q.Marks,
 			&q.NegMarks,
 			&q.Importance,
@@ -100,28 +157,32 @@ func SubmitAnswers(c *gin.Context) {
 			&q.Type,
 			&q.ExpectedTime,
 		)
-
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "question fetch failed"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "question scan failed"})
 			return
 		}
 
-		questionMetaList = append(questionMetaList, q)
+		qMap[q.QuestionID] = q
+		correctMap[q.QuestionID] = correct
+	}
 
-		answerLogs = append(answerLogs, AnswerLog{
-			QuestionID:        ans.QuestionID,
-			SelectedAnswer:    ans.SelectedAnswer,
-			CorrectAnswer:     correctAnswer,
-			TimeSpent:         ans.TimeSpent,
-			MarkedForReview:   ans.MarkedForReview,
-			Revisited:         ans.Revisited,
-			ChangedAnswer:     ans.ChangedAnswer,
-			WasInitiallyWrong: ans.WasInitiallyWrong,
-		})
+	//  Prepare SQI inputs
+	var questionMetaList []QuestionMeta
+	var answerLogs []AnswerLog
 
+	//  Insert answers
+	for _, ans := range req.Answers {
+
+		q, exists := qMap[ans.QuestionID]
+		if !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+			return
+		}
+
+		correctAnswer := correctMap[ans.QuestionID]
 		isCorrect := ans.SelectedAnswer == correctAnswer
 
-		_, err = database.Exec(`
+		_, err = tx.Exec(`
 			INSERT INTO answer_logs 
 			(question_id, attempt_id, selected_answer, is_correct, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -141,13 +202,27 @@ func SubmitAnswers(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert answer"})
 			return
 		}
+
+		// Build SQI input
+		questionMetaList = append(questionMetaList, q)
+
+		answerLogs = append(answerLogs, AnswerLog{
+			QuestionID:        ans.QuestionID,
+			SelectedAnswer:    ans.SelectedAnswer,
+			CorrectAnswer:     correctAnswer,
+			TimeSpent:         ans.TimeSpent,
+			MarkedForReview:   ans.MarkedForReview,
+			Revisited:         ans.Revisited,
+			ChangedAnswer:     ans.ChangedAnswer,
+			WasInitiallyWrong: ans.WasInitiallyWrong,
+		})
 	}
 
-	//  Call SQI Engine
+	//  Calculate SQI
 	result := CalculateSQI(questionMetaList, answerLogs)
 
-	// Store result
-	_, err = database.Exec(`
+	//  Store result
+	_, err = tx.Exec(`
 		INSERT INTO attempt_results (attempt_id, sqi_score)
 		VALUES ($1,$2)
 	`,
@@ -157,6 +232,12 @@ func SubmitAnswers(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store result"})
+		return
+	}
+
+	//  Commit transaction
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 		return
 	}
 
