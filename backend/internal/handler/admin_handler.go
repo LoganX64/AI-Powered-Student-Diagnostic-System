@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"database/sql"
 	"net/http"
 	"strconv"
@@ -89,4 +90,289 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		"average_sqi": avgSQI,
 		"total_tests": len(results),
 	})
+}
+
+// add student
+type CreateStudentRequest struct {
+	Name        string `json:"name" binding:"required"`
+	StudentCode string `json:"student_code" binding:"required"`
+}
+
+func (h *AdminHandler) CreateStudent(c *gin.Context) {
+	var req CreateStudentRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	exists, err := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM students WHERE student_code=$1)",
+		req.StudentCode,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "validation failed"})
+		return
+	}
+
+	if exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "student_code already exists"})
+		return
+	}
+
+	var id int
+	err = h.DB.QueryRow(`
+		INSERT INTO students (name, student_code)
+		VALUES ($1,$2) RETURNING id
+	`, req.Name, req.StudentCode).Scan(&id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create student"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"student_id": id})
+}
+
+// Add Coach
+type CreateCoachRequest struct {
+	Name  string `json:"name" binding:"required"`
+	Email string `json:"email" binding:"required"`
+}
+
+func (h *AdminHandler) CreateCoach(c *gin.Context) {
+	var req CreateCoachRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	exists, _ := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM coaches WHERE email=$1)",
+		req.Email,
+	)
+
+	if exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email already exists"})
+		return
+	}
+
+	var id int
+	err := h.DB.QueryRow(`
+		INSERT INTO coaches (name, email)
+		VALUES ($1,$2) RETURNING id
+	`, req.Name, req.Email).Scan(&id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create coach"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"coach_id": id})
+}
+
+// add subject
+
+type CreateSubjectRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+func (h *AdminHandler) CreateSubject(c *gin.Context) {
+	var req CreateSubjectRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+
+	var id int
+	err := h.DB.QueryRow(`
+		INSERT INTO subjects (name)
+		VALUES ($1) RETURNING id
+	`, req.Name).Scan(&id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create subject"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"subject_id": id})
+}
+
+// create test
+type CreateTestRequest struct {
+	SubjectID int `json:"subject_id" binding:"required"`
+}
+
+func (h *AdminHandler) CreateTest(c *gin.Context) {
+	var req CreateTestRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	exists, _ := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM subjects WHERE id=$1)",
+		req.SubjectID,
+	)
+
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject_id"})
+		return
+	}
+
+	var id int
+	err := h.DB.QueryRow(`
+		INSERT INTO tests (subject_id)
+		VALUES ($1) RETURNING id
+	`, req.SubjectID).Scan(&id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create test"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"test_id": id})
+}
+
+// Add question
+type CreateQuestionRequest struct {
+	TestID        int     `json:"test_id" binding:"required"`
+	CorrectAnswer string  `json:"correct_answer" binding:"required"`
+	Marks         float64 `json:"marks" binding:"required"`
+	NegMarks      float64 `json:"neg_marks" binding:"required"`
+	Importance    string  `json:"importance"`
+	Difficulty    string  `json:"difficulty"`
+	Type          string  `json:"type"`
+	ExpectedTime  float64 `json:"expected_time"`
+}
+
+func (h *AdminHandler) CreateQuestion(c *gin.Context) {
+	var req CreateQuestionRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	exists, _ := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1)",
+		req.TestID,
+	)
+
+	if !exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		return
+	}
+
+	var id int
+	err := h.DB.QueryRow(`
+		INSERT INTO questions 
+		(test_id, correct_answer, marks, neg_marks, importance, difficulty, type, expected_time)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		RETURNING id
+	`,
+		req.TestID,
+		req.CorrectAnswer,
+		req.Marks,
+		req.NegMarks,
+		req.Importance,
+		req.Difficulty,
+		req.Type,
+		req.ExpectedTime,
+	).Scan(&id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create question"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"question_id": id})
+}
+
+// create assignment
+type CreateAssignmentRequest struct {
+	StudentID int `json:"student_id" binding:"required"`
+	TestID    int `json:"test_id" binding:"required"`
+	CoachID   int `json:"coach_id" binding:"required"`
+}
+
+func (h *AdminHandler) CreateAssignment(c *gin.Context) {
+	var req CreateAssignmentRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	// student
+	studentExists, _ := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM students WHERE id=$1)",
+		req.StudentID,
+	)
+
+	// test
+	testExists, _ := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1)",
+		req.TestID,
+	)
+
+	// coach
+	coachExists, _ := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1)",
+		req.CoachID,
+	)
+
+	if !studentExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student_id"})
+		return
+	}
+	if !testExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		return
+	}
+	if !coachExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id"})
+		return
+	}
+
+	duplicate, _ := repository.Exists(
+		h.DB,
+		`SELECT EXISTS(
+		SELECT 1 FROM assignments 
+		WHERE student_id=$1 AND test_id=$2 AND coach_id=$3
+	)`,
+		req.StudentID,
+		req.TestID,
+		req.CoachID,
+	)
+
+	if duplicate {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "assignment already exists",
+		})
+		return
+	}
+
+	var id int
+	err := h.DB.QueryRow(`
+		INSERT INTO assignments (student_id, test_id, coach_id)
+		VALUES ($1,$2,$3) RETURNING id
+	`,
+		req.StudentID,
+		req.TestID,
+		req.CoachID,
+	).Scan(&id)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create assignment"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"assignment_id": id})
 }

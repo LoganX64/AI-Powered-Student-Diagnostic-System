@@ -23,6 +23,13 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 	admin := r.Group("/admin")
 	{
+		admin.POST("/students", adminHandler.CreateStudent)
+		admin.POST("/coaches", adminHandler.CreateCoach)
+		admin.POST("/subjects", adminHandler.CreateSubject)
+		admin.POST("/tests", adminHandler.CreateTest)
+		admin.POST("/questions", adminHandler.CreateQuestion)
+		admin.POST("/assignments", adminHandler.CreateAssignment)
+
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 	}
 	return r
