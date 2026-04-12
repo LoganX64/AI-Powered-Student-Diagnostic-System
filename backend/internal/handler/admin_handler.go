@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -194,7 +195,11 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 	`, req.Name).Scan(&id)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create subject"})
+		if strings.Contains(err.Error(), "duplicate") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "subject already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -213,7 +218,9 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	var req CreateTestRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 
@@ -223,7 +230,11 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 		"SELECT EXISTS(SELECT 1 FROM subjects WHERE id=$1)",
 		req.SubjectID,
 	)
-	if err != nil || !subjectExists {
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !subjectExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject_id"})
 		return
 	}
@@ -234,7 +245,11 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 		"SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1)",
 		req.CoachID,
 	)
-	if err != nil || !coachExists {
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !coachExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id"})
 		return
 	}
@@ -252,7 +267,10 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	).Scan(&id)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create test"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   err.Error(),
+			"message": "failed to create test",
+		})
 		return
 	}
 
@@ -284,7 +302,9 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 	var req CreateQuestionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
 		return
 	}
 
@@ -294,21 +314,45 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		"SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1)",
 		req.TestID,
 	)
-	if err != nil || !exists {
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !exists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
 		return
 	}
+
+	// validate required fields
+	if req.QuestionText == "" ||
+		req.OptionA == "" ||
+		req.OptionB == "" ||
+		req.OptionC == "" ||
+		req.OptionD == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "question_text and all options are required",
+		})
+		return
+	}
+
+	// validate duplicate options
 	if req.OptionA == req.OptionB ||
 		req.OptionA == req.OptionC ||
 		req.OptionA == req.OptionD {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "duplicate options not allowed"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "duplicate options not allowed",
+		})
 		return
 	}
 
 	// validate correct answer
-	if req.CorrectAnswer != "A" && req.CorrectAnswer != "B" &&
-		req.CorrectAnswer != "C" && req.CorrectAnswer != "D" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "correct_answer must be A/B/C/D"})
+	if req.CorrectAnswer != "A" &&
+		req.CorrectAnswer != "B" &&
+		req.CorrectAnswer != "C" &&
+		req.CorrectAnswer != "D" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "correct_answer must be A/B/C/D",
+		})
 		return
 	}
 
@@ -337,7 +381,11 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 	).Scan(&id)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create question"})
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   err.Error(),
+			"message": "failed to create question",
+		})
 		return
 	}
 
