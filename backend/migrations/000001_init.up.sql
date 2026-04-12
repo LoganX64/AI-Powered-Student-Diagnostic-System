@@ -38,8 +38,14 @@ CREATE TABLE questions (
     id SERIAL PRIMARY KEY,
     test_id INT,
 
-    question_text TEXT,
-    correct_answer TEXT,
+    question_text TEXT NOT NULL,
+
+    option_a TEXT NOT NULL,
+    option_b TEXT NOT NULL,
+    option_c TEXT NOT NULL,
+    option_d TEXT NOT NULL,
+
+    correct_answer CHAR(1) CHECK (correct_answer IN ('A','B','C','D')),
 
     marks FLOAT NOT NULL,
     neg_marks FLOAT NOT NULL,
@@ -53,7 +59,6 @@ CREATE TABLE questions (
 
     FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
 );
-
 -- ASSIGNMENTS
 CREATE TABLE assignments (
     id SERIAL PRIMARY KEY,
