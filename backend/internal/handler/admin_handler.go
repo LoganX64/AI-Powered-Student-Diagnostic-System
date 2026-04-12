@@ -203,7 +203,10 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 
 // create test
 type CreateTestRequest struct {
-	SubjectID int `json:"subject_id" binding:"required"`
+	Title     string `json:"title" binding:"required"`
+	SubjectID int    `json:"subject_id" binding:"required"`
+	CoachID   int    `json:"coach_id" binding:"required"`
+	Duration  int    `json:"duration" binding:"required"`
 }
 
 func (h *AdminHandler) CreateTest(c *gin.Context) {
@@ -213,22 +216,40 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
-	exists, _ := repository.Exists(
+
+	// validate subject
+	subjectExists, err := repository.Exists(
 		h.DB,
 		"SELECT EXISTS(SELECT 1 FROM subjects WHERE id=$1)",
 		req.SubjectID,
 	)
-
-	if !exists {
+	if err != nil || !subjectExists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject_id"})
 		return
 	}
 
+	// validate coach
+	coachExists, err := repository.Exists(
+		h.DB,
+		"SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1)",
+		req.CoachID,
+	)
+	if err != nil || !coachExists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id"})
+		return
+	}
+
 	var id int
-	err := h.DB.QueryRow(`
-		INSERT INTO tests (subject_id)
-		VALUES ($1) RETURNING id
-	`, req.SubjectID).Scan(&id)
+	err = h.DB.QueryRow(`
+		INSERT INTO tests (title, subject_id, coach_id, duration)
+		VALUES ($1,$2,$3,$4)
+		RETURNING id
+	`,
+		req.Title,
+		req.SubjectID,
+		req.CoachID,
+		req.Duration,
+	).Scan(&id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create test"})
@@ -240,14 +261,23 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 // Add question
 type CreateQuestionRequest struct {
-	TestID        int     `json:"test_id" binding:"required"`
+	TestID       int    `json:"test_id" binding:"required"`
+	QuestionText string `json:"question_text" binding:"required"`
+
+	OptionA string `json:"option_a" binding:"required"`
+	OptionB string `json:"option_b" binding:"required"`
+	OptionC string `json:"option_c" binding:"required"`
+	OptionD string `json:"option_d" binding:"required"`
+
 	CorrectAnswer string  `json:"correct_answer" binding:"required"`
 	Marks         float64 `json:"marks" binding:"required"`
 	NegMarks      float64 `json:"neg_marks" binding:"required"`
-	Importance    string  `json:"importance"`
-	Difficulty    string  `json:"difficulty"`
-	Type          string  `json:"type"`
-	ExpectedTime  float64 `json:"expected_time"`
+
+	Importance   string  `json:"importance"`
+	Difficulty   string  `json:"difficulty"`
+	Type         string  `json:"type"`
+	ExpectedTime float64 `json:"expected_time"`
+	ConceptTag   string  `json:"concept_tag"`
 }
 
 func (h *AdminHandler) CreateQuestion(c *gin.Context) {
@@ -257,25 +287,45 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
-	exists, _ := repository.Exists(
+
+	// validate test
+	exists, err := repository.Exists(
 		h.DB,
 		"SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1)",
 		req.TestID,
 	)
-
-	if !exists {
+	if err != nil || !exists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		return
+	}
+	if req.OptionA == req.OptionB ||
+		req.OptionA == req.OptionC ||
+		req.OptionA == req.OptionD {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "duplicate options not allowed"})
+		return
+	}
+
+	// validate correct answer
+	if req.CorrectAnswer != "A" && req.CorrectAnswer != "B" &&
+		req.CorrectAnswer != "C" && req.CorrectAnswer != "D" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "correct_answer must be A/B/C/D"})
 		return
 	}
 
 	var id int
-	err := h.DB.QueryRow(`
+	err = h.DB.QueryRow(`
 		INSERT INTO questions 
-		(test_id, correct_answer, marks, neg_marks, importance, difficulty, type, expected_time)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		(test_id, question_text, option_a, option_b, option_c, option_d,
+		 correct_answer, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 		RETURNING id
 	`,
 		req.TestID,
+		req.QuestionText,
+		req.OptionA,
+		req.OptionB,
+		req.OptionC,
+		req.OptionD,
 		req.CorrectAnswer,
 		req.Marks,
 		req.NegMarks,
@@ -283,6 +333,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		req.Difficulty,
 		req.Type,
 		req.ExpectedTime,
+		req.ConceptTag,
 	).Scan(&id)
 
 	if err != nil {
