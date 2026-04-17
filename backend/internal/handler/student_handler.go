@@ -2,6 +2,7 @@ package handlers
 
 import (
 	db "ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"net/http"
 
@@ -140,11 +141,11 @@ func SubmitAnswers(c *gin.Context) {
 	defer rows.Close()
 
 	// Map questions
-	qMap := make(map[int]QuestionMeta)
+	qMap := make(map[int]services.QuestionMeta)
 	correctMap := make(map[int]string)
 
 	for rows.Next() {
-		var q QuestionMeta
+		var q services.QuestionMeta
 		var correct string
 
 		err := rows.Scan(
@@ -167,8 +168,8 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	//  Prepare SQI inputs
-	var questionMetaList []QuestionMeta
-	var answerLogs []AnswerLog
+	var questionMetaList []services.QuestionMeta
+	var answerLogs []services.AnswerLog
 
 	//  Insert answers
 	for _, ans := range req.Answers {
@@ -206,7 +207,7 @@ func SubmitAnswers(c *gin.Context) {
 		// Build SQI input
 		questionMetaList = append(questionMetaList, q)
 
-		answerLogs = append(answerLogs, AnswerLog{
+		answerLogs = append(answerLogs, services.AnswerLog{
 			QuestionID:        ans.QuestionID,
 			SelectedAnswer:    ans.SelectedAnswer,
 			CorrectAnswer:     correctAnswer,
@@ -219,7 +220,7 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	//  Calculate SQI
-	result := CalculateSQI(questionMetaList, answerLogs)
+	result := services.CalculateSQI(questionMetaList, answerLogs)
 
 	//  Store result
 	_, err = tx.Exec(`
