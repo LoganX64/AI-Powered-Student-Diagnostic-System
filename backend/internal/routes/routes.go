@@ -2,7 +2,8 @@ package routes
 
 import (
 	handlers "ai-student-diagnostic/backend/internal/handler"
-	"ai-student-diagnostic/backend/middleware"
+	"ai-student-diagnostic/backend/internal/middleware"
+
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
