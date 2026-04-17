@@ -16,7 +16,6 @@ src/
 │   ├── student/        # Student dashboard and profile
 │   └── test/           # General testing/diagnostic logic
 ├── lib/               # Third-party library configurations (e.g., axios, utils)
-├── pages/             # Page components that map to routes
 ├── services/          # API services and integration logic
 ├── types/             # TypeScript interfaces and types
 ├── utils/             # Helper functions and formatting
@@ -45,16 +44,19 @@ src/
 ### Installation
 
 1. Navigate to the frontend directory:
+
    ```bash
    cd frontend
    ```
 
 2. Install dependencies:
+
    ```bash
    npm install
    ```
 
 3. Start the development server:
+
    ```bash
    npm run dev
    ```
