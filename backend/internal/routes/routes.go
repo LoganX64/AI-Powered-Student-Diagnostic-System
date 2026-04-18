@@ -24,7 +24,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	// STUDENT
 	student := r.Group("/student")
 	{
-		// ✅ ADD THIS BACK
+		//
 		student.POST("/login", handlers.StudentLogin)
 
 		// protected routes
