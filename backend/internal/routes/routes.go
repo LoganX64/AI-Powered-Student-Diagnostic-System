@@ -12,35 +12,32 @@ import (
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
 
-	adminHandler := handlers.NewAdminHandler(db)
-
-	// =========================
-	// PUBLIC ROUTES
-	// =========================
+	// AUTH (admin + coach)
 	authHandler := handlers.NewAuthHandler(db)
-	r.POST("/auth/login", authHandler.UserLogin)
-	r.POST("/auth/register", authHandler.Register)
-	r.POST("/auth/google", authHandler.GoogleLogin)
-
-	// =========================
-	// PROTECTED ROUTES (JWT)
-	// =========================
-	auth := r.Group("/")
-	auth.Use(middleware.AuthMiddleware())
-
-	// =========================
-	// STUDENT ROUTES
-	// =========================
-	student := r.Group("/student")
-	student.Use(middleware.StudentOnly())
+	auth := r.Group("/auth")
 	{
-		student.POST("/submit", handlers.SubmitAnswers)
+		auth.POST("/login", authHandler.UserLogin)
+		auth.POST("/register", authHandler.Register)
+		auth.POST("/google", authHandler.GoogleLogin)
 	}
-	// =========================
-	// ADMIN ROUTES
-	// =========================
-	admin := auth.Group("/admin")
-	admin.Use(middleware.AdminOnly())
+
+	// STUDENT
+	student := r.Group("/student")
+	{
+		// ✅ ADD THIS BACK
+		student.POST("/login", handlers.StudentLogin)
+
+		// protected routes
+		protected := student.Group("")
+		protected.Use(middleware.AuthMiddleware())
+		{
+			protected.POST("/submit", handlers.SubmitAnswers)
+		}
+	}
+
+	// ADMIN
+	adminHandler := handlers.NewAdminHandler(db)
+	admin := r.Group("/admin")
 	{
 		admin.POST("/students", adminHandler.CreateStudent)
 		admin.POST("/coaches", adminHandler.CreateCoach)
@@ -50,17 +47,6 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.POST("/assignments", adminHandler.CreateAssignment)
 
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
-	}
-
-	// =========================
-	// COACH ROUTES (future ready)
-	// =========================
-	coach := auth.Group("/coach")
-	coach.Use(middleware.CoachOnly())
-	{
-		// example:
-		// coach.GET("/my-tests", ...)
-		// coach.POST("/assign", ...)
 	}
 
 	return r
