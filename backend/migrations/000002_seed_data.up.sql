@@ -1,29 +1,33 @@
 -- ========================
--- USERS (must come before coaches)
+-- USERS (admin + coaches)
 -- ========================
 INSERT INTO users (id, email, password, role)
 VALUES
-(1, '[coachA@test.com](mailto:coachA@test.com)', 'password', 'coach'),
-(2, '[coachB@test.com](mailto:coachB@test.com)', 'password', 'coach')
+(1, 'coachA@test.com', 'password', 'coach'),
+(2, 'coachB@test.com', 'password', 'coach')
 ON CONFLICT (id) DO NOTHING;
 
--- ========================
--- STUDENTS
--- ========================
-INSERT INTO students (id, student_code, name)
-VALUES
-(1, 'STU001', 'Alice'),
-(2, 'STU002', 'Bob')
-ON CONFLICT (id) DO NOTHING;
 
 -- ========================
--- COACHES (FIXED: uses user_id, no email column)
+-- COACHES (must come AFTER users)
 -- ========================
 INSERT INTO coaches (id, user_id, name)
 VALUES
 (1, 1, 'Coach A'),
 (2, 2, 'Coach B')
 ON CONFLICT (id) DO NOTHING;
+
+
+-- ========================
+-- STUDENTS (FIXED: added coach_id)
+-- ========================
+INSERT INTO students (id, coach_id, student_code, name)
+VALUES
+(1, 1, 'STU001', 'Alice'),  -- belongs to Coach 1
+(2, 1, 'STU002', 'Bob'),    -- belongs to Coach 1
+(3, 2, 'STU003', 'Charlie') -- belongs to Coach 2
+ON CONFLICT (id) DO NOTHING;
+
 
 -- ========================
 -- SUBJECTS
@@ -34,14 +38,16 @@ VALUES
 (2, 'Physics')
 ON CONFLICT (id) DO NOTHING;
 
+
 -- ========================
--- TESTS (added missing required fields)
+-- TESTS (owned by coach)
 -- ========================
 INSERT INTO tests (id, title, subject_id, coach_id, duration)
 VALUES
 (1, 'Math Test', 1, 1, 60),
 (2, 'Physics Test', 2, 2, 60)
 ON CONFLICT (id) DO NOTHING;
+
 
 -- ========================
 -- QUESTIONS
@@ -75,12 +81,32 @@ VALUES
 )
 ON CONFLICT (id) DO NOTHING;
 
+
 -- ========================
--- ASSIGNMENTS
+-- ASSIGNMENTS (VALIDATED RELATIONS)
 -- ========================
 INSERT INTO assignments (id, student_id, test_id, coach_id)
 VALUES
-(1, 1, 1, 1),
-(2, 1, 2, 2),
-(3, 2, 1, 1)
+(1, 1, 1, 1), -- Alice → Math Test → Coach 1 
+(2, 3, 2, 2), -- Charlie → Physics Test → Coach 2 
+(3, 2, 1, 1)  -- Bob → Math Test → Coach 1 
 ON CONFLICT (id) DO NOTHING;
+
+-- ========================
+-- ADMIN USER (secure)
+-- ========================
+INSERT INTO users (id, email, password, role)
+VALUES (
+    100,
+    'admin@system.com',
+    '$2a$10$7QJ8F...PUT_YOUR_HASH_HERE...',
+    'admin'
+)
+ON CONFLICT (id) DO NOTHING;
+
+
+-- Payload
+-- {
+--   "email": "admin@system.com",
+--   "password": "admin123"
+-- }

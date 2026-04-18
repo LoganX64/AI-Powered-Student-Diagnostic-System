@@ -1,11 +1,4 @@
--- STUDENTS
-CREATE TABLE students (
-    id SERIAL PRIMARY KEY,
-    student_code VARCHAR(50) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
+-- USERS (ONLY admin + coach)
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -14,7 +7,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- COACHES
+-- COACHES (customers)
 CREATE TABLE coaches (
     id SERIAL PRIMARY KEY,
     user_id INT UNIQUE NOT NULL,
@@ -25,29 +18,42 @@ CREATE TABLE coaches (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- SUBJECTS
+-- STUDENTS (owned by coach)
+CREATE TABLE students (
+    id SERIAL PRIMARY KEY,
+    coach_id INT NOT NULL,  -- 🔥 IMPORTANT FIX
+    student_code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
+);
+
+-- SUBJECTS (global or admin controlled)
 CREATE TABLE subjects (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL
 );
 
--- TESTS
+-- TESTS (created by coach)
 CREATE TABLE tests (
     id SERIAL PRIMARY KEY,
     title TEXT,
     subject_id INT,
-    coach_id INT,
+    coach_id INT NOT NULL, -- 🔥 enforce ownership
     duration INT,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (subject_id) REFERENCES subjects(id),
-    FOREIGN KEY (coach_id) REFERENCES coaches(id)
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
 );
 
 -- QUESTIONS
 CREATE TABLE questions (
     id SERIAL PRIMARY KEY,
-    test_id INT,
+    test_id INT NOT NULL,
 
     question_text TEXT NOT NULL,
 
@@ -70,19 +76,22 @@ CREATE TABLE questions (
 
     FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE
 );
--- ASSIGNMENTS
+
+-- ASSIGNMENTS (connect everything)
 CREATE TABLE assignments (
     id SERIAL PRIMARY KEY,
-    student_id INT,
-    test_id INT,
-    coach_id INT,
+    student_id INT NOT NULL,
+    test_id INT NOT NULL,
+    coach_id INT NOT NULL,
 
     status VARCHAR(20) DEFAULT 'assigned',
     assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (student_id) REFERENCES students(id),
-    FOREIGN KEY (test_id) REFERENCES tests(id),
-    FOREIGN KEY (coach_id) REFERENCES coaches(id)
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+    FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
+    FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE,
+
+    UNIQUE (student_id, test_id) -- 🔥 prevent duplicate assignment
 );
 
 -- ATTEMPTS
@@ -99,8 +108,8 @@ CREATE TABLE attempts (
 -- ANSWER LOGS
 CREATE TABLE answer_logs (
     id SERIAL PRIMARY KEY,
-    attempt_id INT,
-    question_id INT,
+    attempt_id INT NOT NULL,
+    question_id INT NOT NULL,
 
     selected_answer TEXT,
     is_correct BOOLEAN,

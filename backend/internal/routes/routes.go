@@ -12,22 +12,23 @@ import (
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
 
-	// AUTH (admin + coach)
+	// ================= AUTH =================
 	authHandler := handlers.NewAuthHandler(db)
+
 	auth := r.Group("/auth")
 	{
-		auth.POST("/login", authHandler.UserLogin)
-		auth.POST("/register", authHandler.Register)
-		auth.POST("/google", authHandler.GoogleLogin)
+		auth.POST("/login", authHandler.UserLogin)    // admin + coach
+		auth.POST("/google", authHandler.GoogleLogin) // coach via google
+
 	}
 
-	// STUDENT
+	// ================= STUDENT =================
 	student := r.Group("/student")
 	{
-		//
+		// public
 		student.POST("/login", handlers.StudentLogin)
 
-		// protected routes
+		// protected
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware())
 		{
@@ -35,18 +36,41 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		}
 	}
 
-	// ADMIN
+	// ================= ADMIN =================
 	adminHandler := handlers.NewAdminHandler(db)
+
 	admin := r.Group("/admin")
+	admin.Use(
+		middleware.AuthMiddleware(),
+		middleware.RoleMiddleware("admin"),
+	)
 	{
 		admin.POST("/students", adminHandler.CreateStudent)
 		admin.POST("/coaches", adminHandler.CreateCoach)
+
 		admin.POST("/subjects", adminHandler.CreateSubject)
 		admin.POST("/tests", adminHandler.CreateTest)
 		admin.POST("/questions", adminHandler.CreateQuestion)
+
 		admin.POST("/assignments", adminHandler.CreateAssignment)
 
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
+	}
+
+	// ================= COACH =================
+	coachHandler := handlers.NewAdminHandler(db)
+
+	coach := r.Group("/coach")
+	coach.Use(
+		middleware.AuthMiddleware(),
+		middleware.RoleMiddleware("coach"),
+	)
+	{
+		coach.GET("/students/:id/sqi", coachHandler.GetStudentSQI)
+
+		coach.POST("/tests", coachHandler.CreateTest)
+		coach.POST("/questions", coachHandler.CreateQuestion)
+		coach.POST("/assignments", coachHandler.CreateAssignment)
 	}
 
 	return r

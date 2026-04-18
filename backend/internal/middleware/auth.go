@@ -27,10 +27,16 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// store student_id in context
-		c.Set("user_id", claims.UserID)
+		// IMPORTANT: always set role
 		c.Set("role", claims.Role)
-		c.Set("student_id", claims.StudentID)
+
+		// differentiate user vs student
+		if claims.Role == "student" {
+			c.Set("student_id", claims.StudentID)
+		} else {
+			c.Set("user_id", claims.UserID)
+		}
+
 		c.Next()
 	}
 }
