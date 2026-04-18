@@ -6,12 +6,23 @@ CREATE TABLE students (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password TEXT, -- nullable for Google OAuth
+    role VARCHAR(20) CHECK (role IN ('admin','coach')) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- COACHES
 CREATE TABLE coaches (
     id SERIAL PRIMARY KEY,
+    user_id INT UNIQUE NOT NULL,
     name VARCHAR(100),
-    email VARCHAR(100) UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- SUBJECTS

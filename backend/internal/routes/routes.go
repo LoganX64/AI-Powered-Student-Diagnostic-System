@@ -11,18 +11,36 @@ import (
 
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
-	student := r.Group("/student")
-	{
-		student.POST("/login", handlers.StudentLogin)
-		auth := student.Group("")
-		auth.Use(middleware.AuthMiddleware())
-		{
-			auth.POST("/submit", handlers.SubmitAnswers)
-		}
-	}
+
 	adminHandler := handlers.NewAdminHandler(db)
 
-	admin := r.Group("/admin")
+	// =========================
+	// PUBLIC ROUTES
+	// =========================
+	authHandler := handlers.NewAuthHandler(db)
+	r.POST("/auth/login", authHandler.UserLogin)
+	r.POST("/auth/register", authHandler.Register)
+	r.POST("/auth/google", authHandler.GoogleLogin)
+
+	// =========================
+	// PROTECTED ROUTES (JWT)
+	// =========================
+	auth := r.Group("/")
+	auth.Use(middleware.AuthMiddleware())
+
+	// =========================
+	// STUDENT ROUTES
+	// =========================
+	student := r.Group("/student")
+	student.Use(middleware.StudentOnly())
+	{
+		student.POST("/submit", handlers.SubmitAnswers)
+	}
+	// =========================
+	// ADMIN ROUTES
+	// =========================
+	admin := auth.Group("/admin")
+	admin.Use(middleware.AdminOnly())
 	{
 		admin.POST("/students", adminHandler.CreateStudent)
 		admin.POST("/coaches", adminHandler.CreateCoach)
@@ -33,5 +51,17 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 	}
+
+	// =========================
+	// COACH ROUTES (future ready)
+	// =========================
+	coach := auth.Group("/coach")
+	coach.Use(middleware.CoachOnly())
+	{
+		// example:
+		// coach.GET("/my-tests", ...)
+		// coach.POST("/assign", ...)
+	}
+
 	return r
 }

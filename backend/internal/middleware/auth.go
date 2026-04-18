@@ -28,8 +28,9 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// store student_id in context
+		c.Set("user_id", claims.UserID)
+		c.Set("role", claims.Role)
 		c.Set("student_id", claims.StudentID)
-
 		c.Next()
 	}
 }

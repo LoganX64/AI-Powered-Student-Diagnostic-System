@@ -10,14 +10,16 @@ import (
 	"github.com/lib/pq"
 )
 
-// login
+// =======================
+// STUDENT LOGIN
+// =======================
 
-type LoginRequest struct {
+type StudentLoginRequest struct {
 	StudentCode string `json:"student_code" binding:"required"`
 }
 
 func StudentLogin(c *gin.Context) {
-	var req LoginRequest
+	var req StudentLoginRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
@@ -37,7 +39,8 @@ func StudentLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(studentID)
+	//  NEW JWT (role-aware)
+	token, err := utils.GenerateToken(0, "student", studentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
 		return
@@ -48,7 +51,10 @@ func StudentLogin(c *gin.Context) {
 	})
 }
 
-// submit
+// =======================
+// SUBMIT ANSWERS
+// =======================
+
 type Answer struct {
 	QuestionID        int     `json:"question_id" binding:"required"`
 	SelectedAnswer    string  `json:"selected_answer" binding:"required"`
@@ -66,6 +72,7 @@ type SubmitRequest struct {
 
 func SubmitAnswers(c *gin.Context) {
 	var req SubmitRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
@@ -73,13 +80,18 @@ func SubmitAnswers(c *gin.Context) {
 
 	database := db.GetDB()
 
-	//  Safe extraction
+	//  Extract JWT claims
 	studentIDRaw, exists := c.Get("student_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	studentID := studentIDRaw.(int)
+
+	studentID, ok := studentIDRaw.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+		return
+	}
 
 	//  Validate assignment ownership
 	var ownerID int
@@ -127,20 +139,19 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	//  Bulk fetch questions
-	query := `
+	rows, err := tx.Query(`
 		SELECT id, correct_answer, marks, neg_marks, importance, difficulty, type, expected_time
 		FROM questions
 		WHERE id = ANY($1)
-	`
+	`, pq.Array(qIDs))
 
-	rows, err := tx.Query(query, pq.Array(qIDs))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
 		return
 	}
 	defer rows.Close()
 
-	// Map questions
+	// Maps
 	qMap := make(map[int]services.QuestionMeta)
 	correctMap := make(map[int]string)
 
@@ -167,11 +178,10 @@ func SubmitAnswers(c *gin.Context) {
 		correctMap[q.QuestionID] = correct
 	}
 
-	//  Prepare SQI inputs
+	//  Prepare SQI input
 	var questionMetaList []services.QuestionMeta
 	var answerLogs []services.AnswerLog
 
-	//  Insert answers
 	for _, ans := range req.Answers {
 
 		q, exists := qMap[ans.QuestionID]
@@ -204,7 +214,6 @@ func SubmitAnswers(c *gin.Context) {
 			return
 		}
 
-		// Build SQI input
 		questionMetaList = append(questionMetaList, q)
 
 		answerLogs = append(answerLogs, services.AnswerLog{
@@ -236,13 +245,12 @@ func SubmitAnswers(c *gin.Context) {
 		return
 	}
 
-	//  Commit transaction
+	//  Commit
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 		return
 	}
 
-	//  Response
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id": attemptID,
 		"sqi_score":  result.OverallSQI,

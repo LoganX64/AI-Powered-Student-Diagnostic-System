@@ -10,17 +10,22 @@ import (
 var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 type Claims struct {
-	StudentID int `json:"student_id"`
+	UserID    int    `json:"user_id"`
+	Role      string `json:"role"`       // admin | coach | student
+	StudentID int    `json:"student_id"` // only for students
+
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(studentID int) (string, error) {
+func GenerateToken(userID int, role string, studentID int) (string, error) {
 	expiry := 24 * time.Hour
-
 	claims := Claims{
+		UserID:    userID,
+		Role:      role,
 		StudentID: studentID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 
