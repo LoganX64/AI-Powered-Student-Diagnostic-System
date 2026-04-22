@@ -173,43 +173,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"student_id": id})
 }
 
-// Add Coach
-type CreateCoachRequest struct {
-	Name  string `json:"name" binding:"required"`
-	Email string `json:"email" binding:"required"`
-}
 
-func (h *AdminHandler) CreateCoach(c *gin.Context) {
-	var req CreateCoachRequest
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
-		return
-	}
-	exists, _ := repository.Exists(
-		h.DB,
-		"SELECT EXISTS(SELECT 1 FROM coaches WHERE email=$1)",
-		req.Email,
-	)
-
-	if exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email already exists"})
-		return
-	}
-
-	var id int
-	err := h.DB.QueryRow(`
-		INSERT INTO coaches (name, email)
-		VALUES ($1,$2) RETURNING id
-	`, req.Name, req.Email).Scan(&id)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create coach"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"coach_id": id})
-}
 
 // add subject
 

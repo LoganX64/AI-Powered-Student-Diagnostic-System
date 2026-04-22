@@ -19,7 +19,6 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	{
 		auth.POST("/login", authHandler.UserLogin)    // admin + coach
 		auth.POST("/google", authHandler.GoogleLogin) // coach via google
-
 	}
 
 	// ================= STUDENT =================
@@ -45,8 +44,8 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		middleware.RoleMiddleware("admin"),
 	)
 	{
-		admin.POST("/students", adminHandler.CreateStudent)
-		admin.POST("/coaches", adminHandler.CreateCoach)
+		// create a coach account (login credentials + coach profile)
+		admin.POST("/register", authHandler.Register)
 
 		admin.POST("/subjects", adminHandler.CreateSubject)
 		admin.POST("/tests", adminHandler.CreateTest)
@@ -68,9 +67,13 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	{
 		coach.GET("/students/:id/sqi", coachHandler.GetStudentSQI)
 
+		coach.POST("/students", coachHandler.CreateStudent)
 		coach.POST("/tests", coachHandler.CreateTest)
 		coach.POST("/questions", coachHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
+
+		// update own password
+		coach.PUT("/password", authHandler.UpdatePassword)
 	}
 
 	return r

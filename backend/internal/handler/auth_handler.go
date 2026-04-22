@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/utils"
 	"context"
 	"database/sql"
+	"log"
 	"net/http"
 
 	"google.golang.org/api/idtoken"
@@ -18,6 +19,10 @@ type AuthHandler struct {
 func NewAuthHandler(db *sql.DB) *AuthHandler {
 	return &AuthHandler{DB: db}
 }
+
+// =======================
+// LOGIN (admin + coach)
+// =======================
 
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required"`
@@ -41,6 +46,9 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 		FROM users 
 		WHERE email = $1
 	`, req.Email).Scan(&userID, &hashedPassword, &role)
+
+	log.Println("Stored hash:", hashedPassword)
+	log.Println("Input password:", req.Password)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -66,11 +74,14 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 	})
 }
 
+// =======================
+// REGISTER (admin-only: creates coach accounts)
+// =======================
+
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
-	Role     string `json:"role" binding:"required"` // admin / coach
-	Name     string `json:"name"`
+	Name     string `json:"name" binding:"required"`
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -81,8 +92,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	if req.Role != "admin" && req.Role != "coach" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid role"})
+	// check if email already exists
+	var exists bool
+	err := h.DB.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)",
+		req.Email,
+	).Scan(&exists)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+	if exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email already registered"})
 		return
 	}
 
@@ -93,37 +114,100 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// create user with role=coach
 	var userID int
 	err = h.DB.QueryRow(`
 		INSERT INTO users (email, password, role)
-		VALUES ($1,$2,$3)
+		VALUES ($1, $2, 'coach')
 		RETURNING id
-	`, req.Email, hashed, req.Role).Scan(&userID)
+	`, req.Email, hashed).Scan(&userID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// if coach → create coach row
-	if req.Role == "coach" {
-		_, err = h.DB.Exec(`
-			INSERT INTO coaches (user_id, name)
-			VALUES ($1,$2)
-		`, userID, req.Name)
+	// create corresponding coach record
+	var coachID int
+	err = h.DB.QueryRow(`
+		INSERT INTO coaches (user_id, name)
+		VALUES ($1, $2)
+		RETURNING id
+	`, userID, req.Name).Scan(&coachID)
 
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "coach creation failed"})
-			return
-		}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "coach profile creation failed"})
+		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"user_id": userID,
+	c.JSON(http.StatusCreated, gin.H{
+		"user_id":  userID,
+		"coach_id": coachID,
+		"email":    req.Email,
+		"name":     req.Name,
+		"role":     "coach",
 	})
 }
 
-// google Oauth
+// =======================
+// UPDATE PASSWORD (coach updates own password)
+// =======================
+
+type UpdatePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required"`
+}
+
+func (h *AuthHandler) UpdatePassword(c *gin.Context) {
+	userID := c.GetInt("user_id")
+
+	var req UpdatePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+
+	// fetch current hashed password
+	var currentHash string
+	err := h.DB.QueryRow(
+		"SELECT password FROM users WHERE id = $1",
+		userID,
+	).Scan(&currentHash)
+
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+		return
+	}
+
+	// verify current password
+	if err := utils.CheckPassword(req.CurrentPassword, currentHash); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect current password"})
+		return
+	}
+
+	// hash new password
+	newHash, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "hashing failed"})
+		return
+	}
+
+	// update
+	_, err = h.DB.Exec(
+		"UPDATE users SET password = $1 WHERE id = $2",
+		newHash, userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "password update failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
+}
+
+// =======================
+// GOOGLE OAUTH
+// =======================
 
 type GoogleRequest struct {
 	IDToken string `json:"id_token" binding:"required"`

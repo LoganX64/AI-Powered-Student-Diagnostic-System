@@ -7,7 +7,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+// jwtKey is called at use-time so JWT_SECRET is read AFTER the .env is loaded.
+func jwtKey() []byte {
+	return []byte(os.Getenv("JWT_SECRET"))
+}
 
 type Claims struct {
 	UserID    int    `json:"user_id"`
@@ -30,12 +33,12 @@ func GenerateToken(userID int, role string, studentID int) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(jwtKey())
 }
 
 func ValidateToken(tokenStr string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
+		return jwtKey(), nil
 	})
 
 	if err != nil {
