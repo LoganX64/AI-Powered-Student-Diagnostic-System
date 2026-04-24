@@ -173,8 +173,6 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"student_id": id})
 }
 
-
-
 // add subject
 
 type CreateSubjectRequest struct {
