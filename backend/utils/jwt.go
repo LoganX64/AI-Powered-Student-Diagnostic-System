@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"log"
 	"os"
 	"time"
 
@@ -37,17 +38,30 @@ func GenerateToken(userID int, role string, studentID int) (string, error) {
 }
 
 func ValidateToken(tokenStr string) (*Claims, error) {
+	log.Printf("[JWT] Validating token: %s...\n", tokenStr[:20])
+
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey(), nil
+		key := jwtKey()
+		log.Printf("[JWT] Key used for verification: %d bytes\n", len(key))
+		return key, nil
 	})
 
 	if err != nil {
+		log.Printf("[JWT] Parse error: %v\n", err)
 		return nil, err
 	}
 
 	claims, ok := token.Claims.(*Claims)
-	if !ok || !token.Valid {
-		return nil, err
+	if !ok {
+		log.Printf("[JWT] Claims cast failed\n")
+		return nil, jwt.ErrTokenNotValidYet
+	}
+
+	log.Printf("[JWT] Token valid: %v, Claims: UserID=%d, Role=%s\n", token.Valid, claims.UserID, claims.Role)
+
+	if !token.Valid {
+		log.Printf("[JWT] Token marked as invalid\n")
+		return nil, jwt.ErrTokenNotValidYet
 	}
 
 	return claims, nil

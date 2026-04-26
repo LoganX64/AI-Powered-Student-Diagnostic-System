@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"ai-student-diagnostic/backend/internal/repository"
 	"database/sql"
 	"net/http"
 	"strconv"
@@ -131,6 +130,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 type CreateStudentRequest struct {
 	Name        string `json:"name" binding:"required"`
 	StudentCode string `json:"student_code" binding:"required"`
+	CoachID     int    `json:"coach_id"`
 }
 
 func (h *AdminHandler) CreateStudent(c *gin.Context) {
@@ -145,25 +145,48 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
 	var coachID int
+	var tenantID int
+	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
 
 	if role == "coach" {
-		var err error
 		coachID, err = h.getCoachIDFromUser(userID)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
+	} else if role == "admin" {
+		// If admin doesn't provide coach_id, try to use their own user_id if they have a coach profile
+		if req.CoachID == 0 {
+			err = h.DB.QueryRow("SELECT id FROM coaches WHERE user_id = $1", userID).Scan(&coachID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id is required, or you must create a coach profile for yourself first"})
+				return
+			}
+		} else {
+			// Verify coach exists AND belongs to the same tenant
+			var exists bool
+			err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", req.CoachID, tenantID).Scan(&exists)
+			if err != nil || !exists {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
+				return
+			}
+			coachID = req.CoachID
+		}
 	} else {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only coach can create students"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
 		return
 	}
 
 	var id int
-	err := h.DB.QueryRow(`
-		INSERT INTO students (name, student_code, coach_id)
-		VALUES ($1,$2,$3)
+	err = h.DB.QueryRow(`
+		INSERT INTO students (tenant_id, name, student_code, coach_id)
+		VALUES ($1,$2,$3,$4)
 		RETURNING id
-	`, req.Name, req.StudentCode, coachID).Scan(&id)
+	`, tenantID, req.Name, req.StudentCode, coachID).Scan(&id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -187,15 +210,30 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 		return
 	}
 
+	role := c.GetString("role")
+	userID := c.GetInt("user_id")
+
+	if role != "admin" && role != "coach" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only admin or coach can create subjects"})
+		return
+	}
+
+	var tenantID int
+	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
 	var id int
-	err := h.DB.QueryRow(`
-		INSERT INTO subjects (name)
-		VALUES ($1) RETURNING id
-	`, req.Name).Scan(&id)
+	err = h.DB.QueryRow(`
+		INSERT INTO subjects (tenant_id, name)
+		VALUES ($1, $2) RETURNING id
+	`, tenantID, req.Name).Scan(&id)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "subject already exists"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "subject already exists in your organization"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -225,25 +263,40 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
 	var coachID int
-	var err error
+	var tenantID int
+	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
 
 	if role == "coach" {
+		var err error
 		coachID, err = h.getCoachIDFromUser(userID)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
+	} else if role == "admin" {
+		// Verify coach belongs to admin's tenant
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", req.CoachID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
+			return
+		}
+		coachID = req.CoachID
 	} else {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only coach can create tests"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
 		return
 	}
 
 	var id int
 	err = h.DB.QueryRow(`
-		INSERT INTO tests (title, subject_id, coach_id, duration)
-		VALUES ($1,$2,$3,$4)
+		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration)
+		VALUES ($1,$2,$3,$4,$5)
 		RETURNING id
-	`, req.Title, req.SubjectID, coachID, req.Duration).Scan(&id)
+	`, tenantID, req.Title, req.SubjectID, coachID, req.Duration).Scan(&id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -284,18 +337,41 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	// validate test
-	exists, err := repository.Exists(
-		h.DB,
-		"SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1)",
-		req.TestID,
-	)
+	role := c.GetString("role")
+	userID := c.GetInt("user_id")
+
+	var tenantID int
+	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
 		return
 	}
-	if !exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+
+	var coachID int
+	if role == "coach" {
+		var err error
+		coachID, err = h.getCoachIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		// Verify test belongs to coach AND same tenant
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", req.TestID, coachID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
+			return
+		}
+	} else if role == "admin" {
+		// Verify test belongs to admin's tenant
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", req.TestID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
+			return
+		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
 		return
 	}
 
@@ -395,32 +471,43 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
+	} else if role == "admin" {
+		coachID = req.CoachID
 	} else {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only coach can assign"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "only admin or coach can assign tests"})
 		return
 	}
 
-	// validate student belongs to coach
+	var tenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	// validate student belongs to coach and same tenant
 	var studentCoachID int
+	var studentTenantID int
 	err = h.DB.QueryRow(
-		"SELECT coach_id FROM students WHERE id=$1",
+		"SELECT coach_id, tenant_id FROM students WHERE id=$1",
 		req.StudentID,
-	).Scan(&studentCoachID)
+	).Scan(&studentCoachID, &studentTenantID)
 
-	if err != nil || studentCoachID != coachID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "student not owned by coach"})
+	if err != nil || studentCoachID != coachID || studentTenantID != tenantID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "student not found or not in your organization"})
 		return
 	}
 
-	// validate test belongs to coach
+	// validate test belongs to coach and same tenant
 	var testCoachID int
+	var testTenantID int
 	err = h.DB.QueryRow(
-		"SELECT coach_id FROM tests WHERE id=$1",
+		"SELECT coach_id, tenant_id FROM tests WHERE id=$1",
 		req.TestID,
-	).Scan(&testCoachID)
+	).Scan(&testCoachID, &testTenantID)
 
-	if err != nil || testCoachID != coachID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "test not owned by coach"})
+	if err != nil || testCoachID != coachID || testTenantID != tenantID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not in your organization"})
 		return
 	}
 

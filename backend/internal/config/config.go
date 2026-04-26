@@ -8,7 +8,8 @@ import (
 )
 
 type Config struct {
-	DBURL string
+	DBURL     string
+	JWTSecret string
 }
 
 func LoadConfig() *Config {
@@ -19,13 +20,18 @@ func LoadConfig() *Config {
 	}
 
 	dbURL := os.Getenv("DB_URL")
-	// log.Println("DB_URL from env:", dbURL)
+	jwtSecret := os.Getenv("JWT_SECRET")
 
 	if dbURL == "" {
 		log.Fatal("DB_URL is not set")
 	}
 
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is not set")
+	}
+
 	return &Config{
-		DBURL: dbURL,
+		DBURL:     dbURL,
+		JWTSecret: jwtSecret,
 	}
 }

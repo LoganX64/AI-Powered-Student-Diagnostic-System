@@ -1,9 +1,6 @@
 -- ========================
--- TENANT & USERS
+-- SUPER ADMIN ONLY
 -- ========================
-INSERT INTO tenants (id, name) VALUES (1, 'Default Organization') ON CONFLICT DO NOTHING;
-
--- Super Admin
 -- credentials: super@system.com / admin123
 INSERT INTO users (id, tenant_id, email, password, role)
 VALUES (
@@ -15,14 +12,6 @@ VALUES (
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Admin
--- credentials: admin@system.com / admin123
-INSERT INTO users (id, tenant_id, email, password, role)
-VALUES (
-    2,
-    1,
-    'admin@system.com',
-    '$2a$10$LDvRpRF7obN7hBBdIVfLZ.OVn69W/MPXIgosX0j/pIEokTqWtCAzC',
-    'admin'
-)
-ON CONFLICT (id) DO NOTHING;
+-- Sync sequences
+SELECT setval('users_id_seq', (SELECT MAX(id) FROM users));
+SELECT setval('tenants_id_seq', 1, false);

@@ -19,6 +19,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	authRoute := r.Group("/auth")
 	{
 		authRoute.POST("/login", authHandler.UserLogin)
+		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
 		authRoute.POST("/google", authHandler.GoogleLogin)
 	}
 
@@ -30,7 +31,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 		// protected
 		protected := student.Group("")
-		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuthMiddleware(db))
 		{
 			protected.POST("/submit", handlers.SubmitAnswers)
 		}
@@ -41,13 +42,17 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 	admin := r.Group("/admin")
 	admin.Use(
-		middleware.AuthMiddleware(),
+		middleware.AuthMiddleware(db),
 		middleware.RoleMiddleware("admin"),
 	)
 	{
 		admin.POST("/register-coach", authHandler.RegisterCoach)
 
 		admin.POST("/subjects", adminHandler.CreateSubject)
+		admin.POST("/students", adminHandler.CreateStudent)
+		admin.POST("/tests", adminHandler.CreateTest)
+		admin.POST("/questions", adminHandler.CreateQuestion)
+		admin.POST("/assignments", adminHandler.CreateAssignment)
 	}
 
 	//  coach
@@ -55,7 +60,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 	coach := r.Group("/coach")
 	coach.Use(
-		middleware.AuthMiddleware(),
+		middleware.AuthMiddleware(db),
 		middleware.RoleMiddleware("coach"),
 	)
 	{
@@ -65,6 +70,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		coach.POST("/tests", coachHandler.CreateTest)
 		coach.POST("/questions", coachHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
+		coach.POST("/subjects", adminHandler.CreateSubject)
 
 		// update own password
 		coach.PUT("/password", authHandler.UpdatePassword)

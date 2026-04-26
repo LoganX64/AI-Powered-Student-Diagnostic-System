@@ -43,10 +43,13 @@ CREATE TABLE students (
     FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
 );
 
--- SUBJECTS (global or admin controlled)
+-- SUBJECTS (tenant controlled)
 CREATE TABLE subjects (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) UNIQUE NOT NULL
+    tenant_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    UNIQUE (tenant_id, name),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 -- TESTS (created by coach)

@@ -26,6 +26,61 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type RegisterAdminRequest struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	OrgName  string `json:"org_name" binding:"required"`
+}
+
+func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
+	var req RegisterAdminRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+
+	// Start transaction
+	tx, err := h.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "transaction failed"})
+		return
+	}
+
+	// 1. Create Tenant
+	var tenantID int
+	err = tx.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", req.OrgName).Scan(&tenantID)
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create organization"})
+		return
+	}
+
+	// 2. Hash Password
+	hashed, _ := utils.HashPassword(req.Password)
+
+	// 3. Create Admin User
+	var userID int
+	err = tx.QueryRow(`
+		INSERT INTO users (tenant_id, email, password, role)
+		VALUES ($1, $2, $3, 'admin')
+		RETURNING id
+	`, tenantID, req.Email, hashed).Scan(&userID)
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email already exists"})
+		return
+	}
+
+	tx.Commit()
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":   "Admin and Organization registered successfully",
+		"tenant_id": tenantID,
+		"user_id":   userID,
+	})
+}
+
 func (h *AuthHandler) UserLogin(c *gin.Context) {
 	var req LoginRequest
 
@@ -253,7 +308,7 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 		err = h.DB.QueryRow(`
 			INSERT INTO tenants (name) VALUES ($1) RETURNING id
 		`, name).Scan(&newTenantID)
-		
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create organization"})
 			return
@@ -287,8 +342,10 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	token, _ := utils.GenerateToken(userID, role, 0)
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
-		"role":  role,
+		"token":     token,
+		"role":      role,
 		"tenant_id": tenantID.Int32,
 	})
 }
+
+

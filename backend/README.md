@@ -68,6 +68,14 @@ This project uses `golang-migrate` to manage the Postgres schema.
 ### Automatic Migrations
 When you run the application (`go run cmd/api/main.go`), migrations are **automatically** applied. The application will check the `migrations/` folder and update the database to the latest version.
 
+### Reset Database Schema
+If you ever need to completely wipe the database (useful in development to reset test data or apply massive schema changes), a custom Go script has been provided to drop the schema and re-run all migrations from scratch.
+To run the database reset script:
+```bash
+go run cmd/resetdb/main.go
+```
+*Note: This is a destructive action and will wipe all existing data in the database.*
+
 ### Manual Migrations (Optional)
 If you have the `migrate` CLI installed, you can manage migrations manually:
 
