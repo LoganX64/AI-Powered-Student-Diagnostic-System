@@ -55,7 +55,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 			return
 		}
 
-		// Check via assignments (correct way)
+		// Check assignments
 		var exists bool
 		err = h.DB.QueryRow(`
 			SELECT EXISTS(

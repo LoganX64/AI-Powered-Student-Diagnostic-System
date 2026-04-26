@@ -1,32 +1,45 @@
--- USERS (ONLY admin + coach)
-CREATE TABLE users (
+-- TENANTS (Organizations)
+CREATE TABLE tenants (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password TEXT, -- nullable for Google OAuth
-    role VARCHAR(20) CHECK (role IN ('admin','coach')) NOT NULL,
+    name VARCHAR(100) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- COACHES (customers)
+-- USERS (super_admin, admin, coach)
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    tenant_id INT, 
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password TEXT, 
+    role VARCHAR(20) CHECK (role IN ('super_admin', 'admin', 'coach')) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+-- COACHES (operators)
 CREATE TABLE coaches (
     id SERIAL PRIMARY KEY,
+    tenant_id INT NOT NULL,
     user_id INT UNIQUE NOT NULL,
     name VARCHAR(100),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- STUDENTS (owned by coach)
 CREATE TABLE students (
     id SERIAL PRIMARY KEY,
-    coach_id INT NOT NULL,  -- 🔥 IMPORTANT FIX
+    tenant_id INT NOT NULL,
+    coach_id INT NOT NULL,
     student_code VARCHAR(50) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
 );
 
@@ -39,13 +52,15 @@ CREATE TABLE subjects (
 -- TESTS (created by coach)
 CREATE TABLE tests (
     id SERIAL PRIMARY KEY,
+    tenant_id INT NOT NULL,
     title TEXT,
     subject_id INT,
-    coach_id INT NOT NULL, -- 🔥 enforce ownership
+    coach_id INT NOT NULL, 
     duration INT,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     FOREIGN KEY (subject_id) REFERENCES subjects(id),
     FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE
 );
@@ -91,7 +106,7 @@ CREATE TABLE assignments (
     FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
     FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE,
 
-    UNIQUE (student_id, test_id) -- 🔥 prevent duplicate assignment
+    UNIQUE (student_id, test_id) 
 );
 
 -- ATTEMPTS

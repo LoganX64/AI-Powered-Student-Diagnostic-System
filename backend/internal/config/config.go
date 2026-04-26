@@ -19,7 +19,7 @@ func LoadConfig() *Config {
 	}
 
 	dbURL := os.Getenv("DB_URL")
-	log.Println("DB_URL from env:", dbURL)
+	// log.Println("DB_URL from env:", dbURL)
 
 	if dbURL == "" {
 		log.Fatal("DB_URL is not set")

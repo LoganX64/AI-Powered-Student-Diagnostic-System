@@ -10,9 +10,7 @@ import (
 	"github.com/lib/pq"
 )
 
-// =======================
-// STUDENT LOGIN
-// =======================
+// student login
 
 type StudentLoginRequest struct {
 	StudentCode string `json:"student_code" binding:"required"`
@@ -39,7 +37,6 @@ func StudentLogin(c *gin.Context) {
 		return
 	}
 
-	//  NEW JWT (role-aware)
 	token, err := utils.GenerateToken(0, "student", studentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
@@ -51,10 +48,7 @@ func StudentLogin(c *gin.Context) {
 	})
 }
 
-// =======================
-// SUBMIT ANSWERS
-// =======================
-
+// submit answers
 type Answer struct {
 	QuestionID        int     `json:"question_id" binding:"required"`
 	SelectedAnswer    string  `json:"selected_answer" binding:"required"`

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"ai-student-diagnostic/backend/internal/auth"
 	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/middleware"
 
@@ -12,16 +13,16 @@ import (
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
 
-	// ================= AUTH =================
-	authHandler := handlers.NewAuthHandler(db)
+	//  auth
+	authHandler := auth.NewAuthHandler(db)
 
-	auth := r.Group("/auth")
+	authRoute := r.Group("/auth")
 	{
-		auth.POST("/login", authHandler.UserLogin)    // admin + coach
-		auth.POST("/google", authHandler.GoogleLogin) // coach via google
+		authRoute.POST("/login", authHandler.UserLogin)
+		authRoute.POST("/google", authHandler.GoogleLogin)
 	}
 
-	// ================= STUDENT =================
+	//  student
 	student := r.Group("/student")
 	{
 		// public
@@ -35,7 +36,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		}
 	}
 
-	// ================= ADMIN =================
+	//  admin
 	adminHandler := handlers.NewAdminHandler(db)
 
 	admin := r.Group("/admin")
@@ -44,20 +45,13 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		middleware.RoleMiddleware("admin"),
 	)
 	{
-		// create a coach account (login credentials + coach profile)
-		admin.POST("/register", authHandler.Register)
+		admin.POST("/register-coach", authHandler.RegisterCoach)
 
 		admin.POST("/subjects", adminHandler.CreateSubject)
-		admin.POST("/tests", adminHandler.CreateTest)
-		admin.POST("/questions", adminHandler.CreateQuestion)
-
-		admin.POST("/assignments", adminHandler.CreateAssignment)
-
-		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 	}
 
-	// ================= COACH =================
-	coachHandler := handlers.NewAdminHandler(db)
+	//  coach
+	coachHandler := handlers.NewCoachHandler(db)
 
 	coach := r.Group("/coach")
 	coach.Use(

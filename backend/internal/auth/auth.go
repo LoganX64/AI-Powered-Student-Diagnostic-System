@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"ai-student-diagnostic/backend/utils"
@@ -7,9 +7,8 @@ import (
 	"log"
 	"net/http"
 
-	"google.golang.org/api/idtoken"
-
 	"github.com/gin-gonic/gin"
+	"google.golang.org/api/idtoken"
 )
 
 type AuthHandler struct {
@@ -20,9 +19,7 @@ func NewAuthHandler(db *sql.DB) *AuthHandler {
 	return &AuthHandler{DB: db}
 }
 
-// =======================
-// LOGIN (admin + coach)
-// =======================
+// login (super_admin, admin, coach)
 
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required"`
@@ -40,12 +37,13 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 	var userID int
 	var hashedPassword string
 	var role string
+	var tenantID sql.NullInt32
 
 	err := h.DB.QueryRow(`
-		SELECT id, password, role 
+		SELECT id, password, role, tenant_id
 		FROM users 
 		WHERE email = $1
-	`, req.Email).Scan(&userID, &hashedPassword, &role)
+	`, req.Email).Scan(&userID, &hashedPassword, &role, &tenantID)
 
 	log.Println("Stored hash:", hashedPassword)
 	log.Println("Input password:", req.Password)
@@ -69,32 +67,40 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token": token,
-		"role":  role,
+		"token":     token,
+		"role":      role,
+		"tenant_id": tenantID.Int32,
 	})
 }
 
-// =======================
-// REGISTER (admin-only: creates coach accounts)
-// =======================
+// register coach(admin-only)
 
-type RegisterRequest struct {
+type RegisterCoachRequest struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 	Name     string `json:"name" binding:"required"`
 }
 
-func (h *AuthHandler) Register(c *gin.Context) {
-	var req RegisterRequest
+func (h *AuthHandler) RegisterCoach(c *gin.Context) {
+	var req RegisterCoachRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
 
+	// Get admin's tenant ID
+	userID := c.GetInt("user_id")
+	var tenantID sql.NullInt32
+	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id = $1", userID).Scan(&tenantID)
+	if err != nil || !tenantID.Valid {
+		c.JSON(http.StatusForbidden, gin.H{"error": "admin tenant not found"})
+		return
+	}
+
 	// check if email already exists
 	var exists bool
-	err := h.DB.QueryRow(
+	err = h.DB.QueryRow(
 		"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)",
 		req.Email,
 	).Scan(&exists)
@@ -115,12 +121,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	// create user with role=coach
-	var userID int
+	var newUserID int
 	err = h.DB.QueryRow(`
-		INSERT INTO users (email, password, role)
-		VALUES ($1, $2, 'coach')
+		INSERT INTO users (tenant_id, email, password, role)
+		VALUES ($1, $2, $3, 'coach')
 		RETURNING id
-	`, req.Email, hashed).Scan(&userID)
+	`, tenantID.Int32, req.Email, hashed).Scan(&newUserID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -130,10 +136,10 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// create corresponding coach record
 	var coachID int
 	err = h.DB.QueryRow(`
-		INSERT INTO coaches (user_id, name)
-		VALUES ($1, $2)
+		INSERT INTO coaches (tenant_id, user_id, name)
+		VALUES ($1, $2, $3)
 		RETURNING id
-	`, userID, req.Name).Scan(&coachID)
+	`, tenantID.Int32, newUserID, req.Name).Scan(&coachID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "coach profile creation failed"})
@@ -141,7 +147,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"user_id":  userID,
+		"user_id":  newUserID,
 		"coach_id": coachID,
 		"email":    req.Email,
 		"name":     req.Name,
@@ -149,9 +155,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
-// =======================
-// UPDATE PASSWORD (coach updates own password)
-// =======================
+// update password
 
 type UpdatePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
@@ -205,9 +209,7 @@ func (h *AuthHandler) UpdatePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
 }
 
-// =======================
-// GOOGLE OAUTH
-// =======================
+// google oauth
 
 type GoogleRequest struct {
 	IDToken string `json:"id_token" binding:"required"`
@@ -231,30 +233,16 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 
 	var userID int
 	var role string
+	var tenantID sql.NullInt32
 
 	err = h.DB.QueryRow(`
-		SELECT id, role FROM users WHERE email = $1
-	`, email).Scan(&userID, &role)
+		SELECT id, role, tenant_id FROM users WHERE email = $1
+	`, email).Scan(&userID, &role, &tenantID)
 
-	// if not exist → create coach
 	if err == sql.ErrNoRows {
-		err = h.DB.QueryRow(`
-			INSERT INTO users (email, role)
-			VALUES ($1,'coach')
-			RETURNING id
-		`, email).Scan(&userID)
-
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "user creation failed"})
-			return
-		}
-
-		_, _ = h.DB.Exec(`
-			INSERT INTO coaches (user_id, name)
-			VALUES ($1,$2)
-		`, userID, payload.Claims["name"])
-
-		role = "coach"
+		// Cannot auto-create coach without tenant_id, so we return error.
+		c.JSON(http.StatusForbidden, gin.H{"error": "account not found. please contact your admin."})
+		return
 	}
 
 	// generate JWT

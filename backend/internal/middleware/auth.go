@@ -27,10 +27,10 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// IMPORTANT: always set role
+		// set role
 		c.Set("role", claims.Role)
 
-		// differentiate user vs student
+		// user vs student
 		if claims.Role == "student" {
 			c.Set("student_id", claims.StudentID)
 		} else {
