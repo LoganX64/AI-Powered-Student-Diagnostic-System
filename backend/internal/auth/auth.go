@@ -240,8 +240,46 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	`, email).Scan(&userID, &role, &tenantID)
 
 	if err == sql.ErrNoRows {
-		// Cannot auto-create coach without tenant_id, so we return error.
-		c.JSON(http.StatusForbidden, gin.H{"error": "account not found. please contact your admin."})
+		// Auto-create a new tenant and admin account
+		name, _ := payload.Claims["name"].(string)
+		if name == "" {
+			name = "New Organization"
+		} else {
+			name = name + "'s Organization"
+		}
+
+		// Create tenant
+		var newTenantID int
+		err = h.DB.QueryRow(`
+			INSERT INTO tenants (name) VALUES ($1) RETURNING id
+		`, name).Scan(&newTenantID)
+		
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create organization"})
+			return
+		}
+
+		// Create admin user
+		err = h.DB.QueryRow(`
+			INSERT INTO users (tenant_id, email, role)
+			VALUES ($1, $2, 'admin')
+			RETURNING id
+		`, newTenantID, email).Scan(&userID)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create admin account"})
+			return
+		}
+		role = "admin"
+		tenantID = sql.NullInt32{Int32: int32(newTenantID), Valid: true}
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	// Restrict to admins and super_admins
+	if role == "coach" || role == "student" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Google login is restricted to organization owners."})
 		return
 	}
 
@@ -251,5 +289,6 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
 		"role":  role,
+		"tenant_id": tenantID.Int32,
 	})
 }
