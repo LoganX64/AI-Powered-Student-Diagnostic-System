@@ -46,13 +46,11 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	role := c.GetString("role")
 	userID := c.GetInt("user_id")
 
-	// 1. Block Super-Admin (as requested, only tenant-admins/coaches should see this)
 	if role == "super_admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "super-admin has no access to student scores"})
 		return
 	}
 
-	// 2. Get caller's tenant_id (must not be null)
 	var tenantID int
 	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1 AND tenant_id IS NOT NULL", userID).Scan(&tenantID)
 	if err != nil {
@@ -60,7 +58,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		return
 	}
 
-	// 3. Coach specific assignment check
+	// Coach specific assignment check
 	if role == "coach" {
 		coachID, err := h.getCoachIDFromUser(userID)
 		if err != nil {
@@ -82,7 +80,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		}
 	}
 
-	// 4. Final validation: Ensure student belongs to the Admin's tenant
+	//  validation
 	var name string
 	err = h.DB.QueryRow(
 		"SELECT name FROM students WHERE id = $1 AND tenant_id = $2",
@@ -172,7 +170,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 			return
 		}
 	} else if role == "admin" {
-		// If admin doesn't provide coach_id, try to use their own user_id if they have a coach profile
+
 		if req.CoachID == 0 {
 			err = h.DB.QueryRow("SELECT id FROM coaches WHERE user_id = $1", userID).Scan(&coachID)
 			if err != nil {
@@ -180,7 +178,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 				return
 			}
 		} else {
-			// Verify coach exists AND belongs to the same tenant
+
 			var exists bool
 			err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", req.CoachID, tenantID).Scan(&exists)
 			if err != nil || !exists {
@@ -291,7 +289,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 			return
 		}
 	} else if role == "admin" {
-		// Verify coach belongs to admin's tenant
+
 		var exists bool
 		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", req.CoachID, tenantID).Scan(&exists)
 		if err != nil || !exists {
@@ -376,7 +374,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 			return
 		}
 	} else if role == "admin" {
-		// Verify test belongs to admin's tenant
+
 		var exists bool
 		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", req.TestID, tenantID).Scan(&exists)
 		if err != nil || !exists {

@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	DBURL     string
-	JWTSecret string
+	DBURL      string
+	JWTSecret  string
+	JWTExpiry  string
 }
 
 func LoadConfig() *Config {
@@ -21,6 +22,7 @@ func LoadConfig() *Config {
 
 	dbURL := os.Getenv("DB_URL")
 	jwtSecret := os.Getenv("JWT_SECRET")
+	jwtExpiry := os.Getenv("JWT_EXPIRY")
 
 	if dbURL == "" {
 		log.Fatal("DB_URL is not set")
@@ -30,8 +32,13 @@ func LoadConfig() *Config {
 		log.Fatal("JWT_SECRET is not set")
 	}
 
+	if jwtExpiry == "" {
+		jwtExpiry = "4h" // default to 4 hours
+	}
+
 	return &Config{
-		DBURL:     dbURL,
-		JWTSecret: jwtSecret,
+		DBURL:      dbURL,
+		JWTSecret:  jwtSecret,
+		JWTExpiry:  jwtExpiry,
 	}
 }

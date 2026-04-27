@@ -6,11 +6,28 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 )
 
 // jwtKey is called at use-time so JWT_SECRET is read AFTER the .env is loaded.
 func jwtKey() []byte {
 	return []byte(os.Getenv("JWT_SECRET"))
+}
+
+// jwtExpiry reads the JWT expiry duration from environment variables
+func jwtExpiry() time.Duration {
+	godotenv.Load() // ensure .env is loaded
+	expiryStr := os.Getenv("JWT_EXPIRY")
+	if expiryStr == "" {
+		expiryStr = "4h" // default to 4 hours
+	}
+
+	expiry, err := time.ParseDuration(expiryStr)
+	if err != nil {
+		log.Printf("[JWT] Invalid JWT_EXPIRY format '%s', using default 4h: %v\n", expiryStr, err)
+		return 4 * time.Hour
+	}
+	return expiry
 }
 
 type Claims struct {
@@ -22,7 +39,7 @@ type Claims struct {
 }
 
 func GenerateToken(userID int, role string, studentID int) (string, error) {
-	expiry := 4 * time.Hour
+	expiry := jwtExpiry()
 	claims := Claims{
 		UserID:    userID,
 		Role:      role,
