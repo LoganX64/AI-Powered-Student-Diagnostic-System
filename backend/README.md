@@ -2,27 +2,40 @@
 
 The backend for the AI-Powered Student Diagnostic System is built with Go, providing a high-performance and scalable API to handle student assessments, diagnostic calculations (SQI), and user management.
 
-## 🏗️ Folder Structure
+## 🏗️ Project Structure
 
 ```text
 backend/
 ├── cmd/
-│   └── api/                # Application entry point (main.go)
+│   ├── api/                # Application entry point (main.go)
+│   └── resetdb/            # Utility to wipe and re-migrate the database
 ├── internal/
-│   ├── auth/               # JWT & Password security logic
-│   ├── config/             # Environment & Configuration management
-│   ├── handler/            # HTTP Handlers (Controllers)
-│   ├── helpers/            # Common helper functions
-│   ├── middleware/         # Gin Middlewares (Auth, Logging, etc.)
-│   ├── repository/         # Database access layer (Postgres/MongoDB)
-│   ├── routes/             # API Route definitions
-│   └── services/           # Core Business Logic (SQI Engine, etc.)
-├── migrations/             # SQL Migration files for database schema
-├── utils/                  # Shared utility functions
-├── .env                    # Environment variables (Local development)
-├── go.mod                  # Go module definition and dependencies
-└── go.sum                  # Dependency checksums
+│   ├── auth/               # Authentication logic (JWT, Password, Google Login)
+│   ├── handler/            # HTTP Controllers (Admin, Coach, Student specialized)
+│   ├── middleware/         # Gin Middleware (Auth, Role-Based Access, Tenant Checks)
+│   ├── routes/             # Route definitions and group permissions
+│   └── service/            # Core Business logic (SQI Calculation Engine)
+├── migrations/             # SQL Schema versions (Tenants, Users, Tests, etc.)
+├── utils/                  # Shared utilities (JWT generator, Password hasher)
+├── .env                    # Local environment variables
+└── go.mod                  # Go module definition
 ```
+
+## 🏢 Multi-Tenant Architecture
+
+This system is built with a **Shared Database, Isolated Schema** approach using a `tenant_id` on every core table. This ensures that multiple organizations can use the same application without seeing each other's data.
+
+### Hierarchy & Roles
+1.  **Super-Admin**: System-level administrator. Can manage global settings and monitor system health. Explicitly blocked from viewing sensitive student diagnostic data in individual organizations.
+2.  **Admin**: The owner of a specific **Tenant (Organization)**. Can create Coaches, Students, and view all diagnostic data within their own organization.
+3.  **Coach**: Staff members within an organization. Can create tests and students. They can only see data for students assigned to them.
+4.  **Student**: Users who attempt tests. They can only view their own login and submission status.
+
+### Data Isolation Features
+- **Tenant Validation**: Every request made by an Admin or Coach is validated against their `tenant_id`.
+- **Resource Ownership**: The system verifies that students, tests, and subjects belong to the caller's organization before performing any operation.
+- **SQI Privacy**: Student Quotient Index (SQI) scores are strictly isolated. Even a Super-Admin cannot view organization-level scores without specific permission.
+
 
 ## 📦 Key Packages & Dependencies
 
