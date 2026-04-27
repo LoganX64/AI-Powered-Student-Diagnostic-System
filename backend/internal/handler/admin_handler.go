@@ -46,7 +46,21 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	role := c.GetString("role")
 	userID := c.GetInt("user_id")
 
-	//  Coach restriction
+	// 1. Block Super-Admin (as requested, only tenant-admins/coaches should see this)
+	if role == "super_admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "super-admin has no access to student scores"})
+		return
+	}
+
+	// 2. Get caller's tenant_id (must not be null)
+	var tenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1 AND tenant_id IS NOT NULL", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied: organization info missing"})
+		return
+	}
+
+	// 3. Coach specific assignment check
 	if role == "coach" {
 		coachID, err := h.getCoachIDFromUser(userID)
 		if err != nil {
@@ -54,7 +68,6 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 			return
 		}
 
-		// Check assignments
 		var exists bool
 		err = h.DB.QueryRow(`
 			SELECT EXISTS(
@@ -64,20 +77,20 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		`, studentID, coachID).Scan(&exists)
 
 		if err != nil || !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you are not assigned to this student"})
 			return
 		}
 	}
 
-	//  Validate student
+	// 4. Final validation: Ensure student belongs to the Admin's tenant
 	var name string
 	err = h.DB.QueryRow(
-		"SELECT name FROM students WHERE id = $1",
-		studentID,
+		"SELECT name FROM students WHERE id = $1 AND tenant_id = $2",
+		studentID, tenantID,
 	).Scan(&name)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found in your organization"})
 		return
 	}
 

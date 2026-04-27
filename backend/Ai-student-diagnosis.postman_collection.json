@@ -1,0 +1,704 @@
+{
+  "info": {
+    "_postman_id": "97153907-bfa3-401d-8767-1b807138ac3f",
+    "name": "Ai-student-diagnosis",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "37687945"
+  },
+  "item": [
+    {
+      "name": "admin",
+      "item": [
+        {
+          "name": "Get sqI score",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU3MTAsImlhdCI6MTc3NzMxMTMxMH0.eUQ6cLcq4RxGNlI0oEb_3gMpuLig7rJWfdmSVcDrovg",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/admin/students/1/sqi",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "students",
+                "1",
+                "sqi"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Coach",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMTM0OTYsImlhdCI6MTc3NzIyNzA5Nn0.-zZcfhhIhdM0xscJWHhiqTg7YoO40e7ukyLVVTnbe7c",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"coach.smith@academy.com\",\r\n  \"password\": \"coachpassword\",\r\n  \"name\": \"John Smith\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/register-coach",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "register-coach"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Student",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMTM0OTYsImlhdCI6MTc3NzIyNzA5Nn0.-zZcfhhIhdM0xscJWHhiqTg7YoO40e7ukyLVVTnbe7c",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"name\": \"Alice\",\r\n  \"student_code\": \"STU001\",\r\n  \"coach_id\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/students",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "students"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Subject",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMTM0OTYsImlhdCI6MTc3NzIyNzA5Nn0.-zZcfhhIhdM0xscJWHhiqTg7YoO40e7ukyLVVTnbe7c",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"name\": \"Physics\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/subjects",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "subjects"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Test",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMTEzODUsImlhdCI6MTc3NzIyNDk4NX0.aYfJca-PoePd-lG-aORJbJFa4rKg3X9ShgBFfUGcM2k",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"title\": \"Math Test 1\",\r\n  \"subject_id\": 1,\r\n  \"coach_id\": 1,\r\n  \"duration\": 60\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/tests",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "tests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Questions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMTI4MjEsImlhdCI6MTc3NzIyNjQyMX0.vAC65g2AeoZwdt5u6DaqKVLM6Hq1mjip_VvvHR0WnJo",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"test_id\": 1,\r\n  \"question_text\": \"What is 2 + 2?\",\r\n  \"option_a\": \"3\",\r\n  \"option_b\": \"4\",\r\n  \"option_c\": \"5\",\r\n  \"option_d\": \"6\",\r\n  \"correct_answer\": \"B\",\r\n  \"marks\": 4,\r\n  \"neg_marks\": 1,\r\n  \"importance\": \"A\",\r\n  \"difficulty\": \"E\",\r\n  \"type\": \"Theory\",\r\n  \"expected_time\": 30,\r\n  \"concept_tag\": \"Addition\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/questions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "questions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Test to Student",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiYWRtaW4iLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMTI4MjEsImlhdCI6MTc3NzIyNjQyMX0.vAC65g2AeoZwdt5u6DaqKVLM6Hq1mjip_VvvHR0WnJo",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"student_id\": 1,\r\n  \"test_id\": 1,\r\n  \"coach_id\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/admin/assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "admin",
+                "assignments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Admin login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"owner@startup.com\",\r\n  \"password\": \"password123\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "register admin",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"owner@startup.com\",\r\n  \"password\": \"password123\",\r\n  \"org_name\": \"Innovative Academy\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/auth/register-admin",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "auth",
+                "register-admin"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "This folder groups the **admin/coach management and assessment-setup endpoints** for the local API (`http://localhost:8080`). It contains requests to:\n\n- **Authenticate** admins and coaches (login).\n    \n- **Provision core entities** such as **students**, **coaches**, and **subjects**.\n    \n- **Build and manage assessments**, including **creating tests**, **creating question sets**, and **assigning tests to students**.\n    \n- **Retrieve student evaluation metrics**, such as a student’s **SQI score**."
+    },
+    {
+      "name": "student",
+      "item": [
+        {
+          "name": "Post student",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"student_code\": \"STU002\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/student/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "student",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "post answers",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjowLCJyb2xlIjoic3R1ZGVudCIsInN0dWRlbnRfaWQiOjUsImV4cCI6MTc3NzMyNjE1MywiaWF0IjoxNzc3MzExNzUzfQ.YbgYSt3hokc3fp0hJpExP7c-Coon7NzIKUsabWyRlwQ",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "",
+                "value": "",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"assignment_id\": 3,\r\n  \"answers\": [\r\n    {\r\n      \"question_id\": 1,\r\n      \"selected_answer\": \"B\",\r\n      \"time_spent\": 25.5,\r\n      \"marked_for_review\": false,\r\n      \"revisited\": false,\r\n      \"changed_answer\": false,\r\n      \"was_initially_wrong\": false\r\n    }\r\n  ]\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/student/submit",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "student",
+                "submit"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "This folder contains the core requests for **student** operations—currently focused on creating a student record (**Post student**) and submitting student responses/answers (**post answers**). Use this folder to test and validate the student-related workflow end-to-end (student creation → answer submission) in one place."
+    },
+    {
+      "name": "Coach",
+      "item": [
+        {
+          "name": "Create Student",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU4MDcsImlhdCI6MTc3NzMxMTQwN30.RWAewenslyfsP3LOxPD7c8FDVN6Yt6fSJD62fkO8vSY",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"name\": \"Chindu\",\r\n  \"student_code\": \"STU002\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/coach/students",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "coach",
+                "students"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Subject",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU4MDcsImlhdCI6MTc3NzMxMTQwN30.RWAewenslyfsP3LOxPD7c8FDVN6Yt6fSJD62fkO8vSY",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"name\": \"Mathematics\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/coach/subjects",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "coach",
+                "subjects"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Test",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU4MDcsImlhdCI6MTc3NzMxMTQwN30.RWAewenslyfsP3LOxPD7c8FDVN6Yt6fSJD62fkO8vSY",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"title\": \"Math Test 2\",\r\n  \"subject_id\": 2,\r\n  \"coach_id\": 1,\r\n  \"duration\": 60\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/coach/tests",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "coach",
+                "tests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Questions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU4MDcsImlhdCI6MTc3NzMxMTQwN30.RWAewenslyfsP3LOxPD7c8FDVN6Yt6fSJD62fkO8vSY",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"test_id\": 4,\r\n  \"question_text\": \"What is 2 + 2?\",\r\n  \"option_a\": \"3\",\r\n  \"option_b\": \"4\",\r\n  \"option_c\": \"5\",\r\n  \"option_d\": \"6\",\r\n  \"correct_answer\": \"B\",\r\n  \"marks\": 4,\r\n  \"neg_marks\": 1,\r\n  \"importance\": \"A\",\r\n  \"difficulty\": \"E\",\r\n  \"type\": \"Theory\",\r\n  \"expected_time\": 30,\r\n  \"concept_tag\": \"Addition\"\r\n}\r\n",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/coach/questions",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "coach",
+                "questions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Coach login",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzY5NjY1NjMsImlhdCI6MTc3Njg4MDE2M30._bHJ4Y92zTPM2n9qiB9M475JgWd_kv1BJbrENVtLbdA",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"coach.smith@academy.com\",\r\n  \"password\": \"coachpassword\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get SQI score",
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          },
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU4MDcsImlhdCI6MTc3NzMxMTQwN30.RWAewenslyfsP3LOxPD7c8FDVN6Yt6fSJD62fkO8vSY",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/coach/students/5/sqi",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "coach",
+                "students",
+                "5",
+                "sqi"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Assign Test to Student",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJyb2xlIjoiY29hY2giLCJzdHVkZW50X2lkIjowLCJleHAiOjE3NzczMjU4MDcsImlhdCI6MTc3NzMxMTQwN30.RWAewenslyfsP3LOxPD7c8FDVN6Yt6fSJD62fkO8vSY",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"student_id\": 5,\r\n  \"test_id\": 4,\r\n  \"coach_id\": 1\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/coach/assignments",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "coach",
+                "assignments"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "This folder contains the core **Coach** API requests used to authenticate and manage assessment setup and scoring. It includes endpoints to **log in as a coach**, **create students, subjects, tests, and questions**, and **retrieve a student’s SQI score**—supporting an end-to-end workflow from setup to evaluation against the local server (`http://localhost:8080`)."
+    }
+  ]
+}

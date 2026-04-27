@@ -22,7 +22,7 @@ type Claims struct {
 }
 
 func GenerateToken(userID int, role string, studentID int) (string, error) {
-	expiry := 24 * time.Hour
+	expiry := 4 * time.Hour
 	claims := Claims{
 		UserID:    userID,
 		Role:      role,

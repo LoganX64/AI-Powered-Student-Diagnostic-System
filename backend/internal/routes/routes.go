@@ -53,6 +53,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.POST("/tests", adminHandler.CreateTest)
 		admin.POST("/questions", adminHandler.CreateQuestion)
 		admin.POST("/assignments", adminHandler.CreateAssignment)
+		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 	}
 
 	//  coach
