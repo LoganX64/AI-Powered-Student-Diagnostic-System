@@ -21,29 +21,55 @@ type AnswerLog struct {
 	Revisited         bool
 	ChangedAnswer     bool
 	WasInitiallyWrong bool
+	Seen              bool // NEW
 }
 
 type SQIResult struct {
 	OverallSQI float64
 }
 
-func CalculateSQI(question []QuestionMeta, answers []AnswerLog) SQIResult {
-	qMap := make(map[int]QuestionMeta)
-	for _, q := range question {
-		qMap[q.QuestionID] = q
+func CalculateSQI(questions []QuestionMeta, answers []AnswerLog) SQIResult {
+
+	// map answers
+	answerMap := make(map[int]AnswerLog)
+	for _, a := range answers {
+		answerMap[a.QuestionID] = a
 	}
 
 	var totalWeighted float64
 	var maxPossible float64
+	var minPossible float64
 
-	for _, ans := range answers {
-		q, exists := qMap[ans.QuestionID]
-		if !exists {
+	for _, q := range questions {
+
+		ans, attempted := answerMap[q.QuestionID]
+
+		importanceW := getImportanceWeight(q.Importance)
+		difficultyW := getDifficultyWeight(q.Difficulty)
+		typeW := getTypeWeight(q.Type)
+
+		weightFactor := importanceW * difficultyW * typeW
+
+		var weighted float64
+
+		// case: NOT SEEN (unattempted and unseen)
+		if !attempted {
+
+			// treat as NOT SEEN (worst case)
+			base := -0.5 * q.NegMarks // configurable
+
+			weighted = base * weightFactor
+
+			totalWeighted += weighted
+			minPossible += weighted
+			maxPossible += q.Marks * weightFactor
 			continue
 		}
 
-		// base score
+		// case: ANSWERED (attempted)
+
 		isCorrect := ans.SelectedAnswer == ans.CorrectAnswer
+
 		var base float64
 		if isCorrect {
 			base = q.Marks
@@ -51,38 +77,42 @@ func CalculateSQI(question []QuestionMeta, answers []AnswerLog) SQIResult {
 			base = -q.NegMarks
 		}
 
-		// weights
-		importanceW := getImportanceWeight(q.Importance)
-		difficultyW := getDifficultyWeight(q.Difficulty)
-		typeW := getTypeWeight(q.Type)
+		weighted = base * weightFactor
 
-		weighted := base * importanceW * difficultyW * typeW
-
-		// behavioral adjustments
+		// time adjustment (configurable)
 		timeRatio := safeDivide(ans.TimeSpent, q.ExpectedTime)
-		if timeRatio > 2.0 {
-			weighted *= 0.8
-		} else if timeRatio > 1.5 {
-			weighted *= 0.9
+		if timeRatio > 1 {
+			weighted *= 1 / timeRatio
 		}
 
+		// behavioral adjustments (configurable)
+
+		// doubtful but wrong
 		if ans.MarkedForReview && !isCorrect {
 			weighted *= 0.9
 		}
+
+		// corrected mistake (scaled properly)
 		if ans.Revisited && ans.ChangedAnswer && isCorrect && ans.WasInitiallyWrong {
-			weighted += 0.2 * q.Marks
+			bonus := 0.2 * q.Marks * weightFactor
+			weighted += bonus
 		}
 
 		totalWeighted += weighted
 
-		// mass possible score
-		maxPossible += q.Marks * importanceW * difficultyW * typeW
+		// track bounds
+		maxPossible += q.Marks * weightFactor
+		minPossible += (-q.NegMarks * weightFactor)
 	}
-	// normalize
+
+	// normalize to 0-100
 	rawPCT := 0.0
-	if maxPossible > 0 {
-		rawPCT = totalWeighted / maxPossible * 100
+	rangeVal := maxPossible - minPossible
+
+	if rangeVal > 0 {
+		rawPCT = (totalWeighted - minPossible) / rangeVal * 100
 	}
+
 	rawPCT = clamp(rawPCT, 0, 100)
 
 	return SQIResult{
@@ -90,7 +120,7 @@ func CalculateSQI(question []QuestionMeta, answers []AnswerLog) SQIResult {
 	}
 }
 
-// Helper functions for weights, safe division, clamping, and rounding would be defined here.
+// helper functions for weights and normalization
 
 func getImportanceWeight(val string) float64 {
 	switch val {
