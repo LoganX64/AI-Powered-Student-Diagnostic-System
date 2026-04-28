@@ -145,7 +145,6 @@ CREATE TABLE answer_logs (
     FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
 );
 
--- ATTEMPT RESULTS (SQI OUTPUT)
 CREATE TABLE attempt_results (
     id SERIAL PRIMARY KEY,
     attempt_id INT UNIQUE,
@@ -153,7 +152,11 @@ CREATE TABLE attempt_results (
     sqi_score FLOAT,
     raw_score FLOAT,
 
+    analysis_json JSONB,         -- full SQIAnalysis
+    version VARCHAR(10) DEFAULT 'v1',
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (attempt_id) REFERENCES attempts(id) ON DELETE CASCADE
 );

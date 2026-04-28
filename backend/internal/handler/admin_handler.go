@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/services"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,12 +30,12 @@ func NewAdminHandler(db *sql.DB) *AdminHandler {
 }
 
 type AttemptResult struct {
-	AttemptID int     `json:"attempt_id"`
-	TestID    int     `json:"test_id"`
-	SQI       float64 `json:"sqi_score"`
+	AttemptID int             `json:"attempt_id"`
+	TestID    int             `json:"test_id"`
+	SQI       float64         `json:"sqi_score"`
+	Analysis  json.RawMessage `json:"analysis,omitempty"`
 }
 
-// get student SQI results and average for a given student ID.
 func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	idParam := c.Param("id")
 
@@ -52,13 +54,17 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	}
 
 	var tenantID int
-	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1 AND tenant_id IS NOT NULL", userID).Scan(&tenantID)
+	err = h.DB.QueryRow(
+		"SELECT tenant_id FROM users WHERE id=$1 AND tenant_id IS NOT NULL",
+		userID,
+	).Scan(&tenantID)
+
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "access denied: organization info missing"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
 		return
 	}
 
-	// Coach specific assignment check
+	// coach validation
 	if role == "coach" {
 		coachID, err := h.getCoachIDFromUser(userID)
 		if err != nil {
@@ -75,32 +81,43 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		`, studentID, coachID).Scan(&exists)
 
 		if err != nil || !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied: you are not assigned to this student"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "not assigned to this student"})
 			return
 		}
 	}
 
-	//  validation
+	// validate student
 	var name string
 	err = h.DB.QueryRow(
-		"SELECT name FROM students WHERE id = $1 AND tenant_id = $2",
+		"SELECT name FROM students WHERE id=$1 AND tenant_id=$2",
 		studentID, tenantID,
 	).Scan(&name)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found in your organization"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
 		return
 	}
 
-	//  Fetch SQI results
-	rows, err := h.DB.Query(`
+	// optional query param: include_analysis=true
+	includeAnalysis := c.Query("include_analysis") == "true"
+
+	query := `
 		SELECT ar.attempt_id, ass.test_id, ar.sqi_score
+	`
+
+	if includeAnalysis {
+		query += `, ar.analysis_json`
+	}
+
+	query += `
 		FROM attempt_results ar
 		JOIN attempts a ON ar.attempt_id = a.id
 		JOIN assignments ass ON a.assignment_id = ass.id
 		WHERE ass.student_id = $1
-	`, studentID)
+		ORDER BY a.id DESC
+	`
 
+	rows, err := h.DB.Query(query, studentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch results"})
 		return
@@ -113,16 +130,22 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	for rows.Next() {
 		var r AttemptResult
 
-		if err := rows.Scan(&r.AttemptID, &r.TestID, &r.SQI); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
-			return
+		if includeAnalysis {
+			if err := rows.Scan(&r.AttemptID, &r.TestID, &r.SQI, &r.Analysis); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+				return
+			}
+		} else {
+			if err := rows.Scan(&r.AttemptID, &r.TestID, &r.SQI); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+				return
+			}
 		}
 
 		results = append(results, r)
 		total += r.SQI
 	}
 
-	//  Average
 	var avgSQI float64
 	if len(results) > 0 {
 		avgSQI = total / float64(len(results))
@@ -132,7 +155,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		"student_id":  studentID,
 		"name":        name,
 		"attempts":    results,
-		"average_sqi": avgSQI,
+		"average_sqi": services.Round(avgSQI, 2),
 		"total_tests": len(results),
 	})
 }

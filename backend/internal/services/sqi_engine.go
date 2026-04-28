@@ -116,7 +116,7 @@ func CalculateSQI(questions []QuestionMeta, answers []AnswerLog) SQIResult {
 	rawPCT = clamp(rawPCT, 0, 100)
 
 	return SQIResult{
-		OverallSQI: round(rawPCT, 2),
+		OverallSQI: Round(rawPCT, 2),
 	}
 }
 
@@ -170,7 +170,7 @@ func safeDivide(a, b float64) float64 {
 	return a / b
 }
 
-func round(val float64, precision int) float64 {
+func Round(val float64, precision int) float64 {
 	pow := math.Pow(10, float64(precision))
 	return math.Round(val*pow) / pow
 }
