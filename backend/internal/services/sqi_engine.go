@@ -1,6 +1,8 @@
 package services
 
-import "math"
+import (
+	"ai-student-diagnostic/backend/internal/helper"
+)
 
 type QuestionMeta struct {
 	QuestionID   int
@@ -44,9 +46,9 @@ func CalculateSQI(questions []QuestionMeta, answers []AnswerLog) SQIResult {
 
 		ans, attempted := answerMap[q.QuestionID]
 
-		importanceW := getImportanceWeight(q.Importance)
-		difficultyW := getDifficultyWeight(q.Difficulty)
-		typeW := getTypeWeight(q.Type)
+		importanceW := helper.GetImportanceWeight(q.Importance)
+		difficultyW := helper.GetDifficultyWeight(q.Difficulty)
+		typeW := helper.GetTypeWeight(q.Type)
 
 		weightFactor := importanceW * difficultyW * typeW
 
@@ -80,7 +82,7 @@ func CalculateSQI(questions []QuestionMeta, answers []AnswerLog) SQIResult {
 		weighted = base * weightFactor
 
 		// time adjustment (configurable)
-		timeRatio := safeDivide(ans.TimeSpent, q.ExpectedTime)
+		timeRatio := helper.SafeDivide(ans.TimeSpent, q.ExpectedTime)
 		if timeRatio > 1 {
 			weighted *= 1 / timeRatio
 		}
@@ -113,10 +115,10 @@ func CalculateSQI(questions []QuestionMeta, answers []AnswerLog) SQIResult {
 		rawPCT = (totalWeighted - minPossible) / rangeVal * 100
 	}
 
-	rawPCT = clamp(rawPCT, 0, 100)
+	rawPCT = helper.Clamp(rawPCT, 0, 100)
 
 	return SQIResult{
-		OverallSQI: Round(rawPCT, 2),
+		OverallSQI: helper.Round(rawPCT, 2),
 	}
 }
 
@@ -207,9 +209,9 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 
 		ans, attempted := answerMap[q.QuestionID]
 
-		importanceW := getImportanceWeight(q.Importance)
-		difficultyW := getDifficultyWeight(q.Difficulty)
-		typeW := getTypeWeight(q.Type)
+		importanceW := helper.GetImportanceWeight(q.Importance)
+		difficultyW := helper.GetDifficultyWeight(q.Difficulty)
+		typeW := helper.GetTypeWeight(q.Type)
 
 		weightFactor := importanceW * difficultyW * typeW
 
@@ -264,7 +266,7 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 		weighted = base * weightFactor
 
 		// time
-		timeRatio = safeDivide(ans.TimeSpent, q.ExpectedTime)
+		timeRatio = helper.SafeDivide(ans.TimeSpent, q.ExpectedTime)
 
 		timeM.TotalTime += ans.TimeSpent
 		timeM.TotalExpectedTime += q.ExpectedTime
@@ -351,12 +353,7 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 	if rangeVal > 0 {
 		rawPCT = (totalWeighted - minPossible) / rangeVal * 100
 	}
-	rawPCT = clamp(rawPCT, 0, 100)
-
-	// accuracy %
-	if acc.Attempted > 0 {
-		acc.AccuracyPct = (float64(acc.Correct) / float64(acc.Attempted)) * 100
-	}
+	rawPCT = helper.Clamp(rawPCT, 0, 100)
 
 	// time averages
 	if acc.TotalQuestions > 0 {
@@ -365,7 +362,7 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 	}
 
 	return SQIAnalysis{
-		OverallSQI: Round(rawPCT, 2),
+		OverallSQI: helper.Round(rawPCT, 2),
 		Accuracy:   acc,
 		Time:       timeM,
 		Difficulty: diff,
@@ -373,59 +370,4 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 		Skipping:   skip,
 		Efficiency: eff,
 	}
-}
-
-// helper functions for weights and normalization
-
-func getImportanceWeight(val string) float64 {
-	switch val {
-	case "A":
-		return 1.0
-	case "B":
-		return 0.7
-	case "C":
-		return 0.5
-	default:
-		return 1.0
-	}
-}
-
-func getDifficultyWeight(val string) float64 {
-	switch val {
-	case "E":
-		return 0.6
-	case "M":
-		return 1.0
-	case "H":
-		return 1.4
-	default:
-		return 1.0
-	}
-}
-
-func getTypeWeight(val string) float64 {
-	switch val {
-	case "Practical":
-		return 1.1
-	case "Theory":
-		return 1.0
-	default:
-		return 1.0
-	}
-}
-
-func clamp(val, min, max float64) float64 {
-	return math.Max(min, math.Min(max, val))
-}
-
-func safeDivide(a, b float64) float64 {
-	if b == 0 {
-		return 0
-	}
-	return a / b
-}
-
-func Round(val float64, precision int) float64 {
-	pow := math.Pow(10, float64(precision))
-	return math.Round(val*pow) / pow
 }

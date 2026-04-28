@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"ai-student-diagnostic/backend/internal/services"
+	"ai-student-diagnostic/backend/internal/helper"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -155,7 +155,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		"student_id":  studentID,
 		"name":        name,
 		"attempts":    results,
-		"average_sqi": services.Round(avgSQI, 2),
+		"average_sqi": helper.Round(avgSQI, 2),
 		"total_tests": len(results),
 	})
 }
