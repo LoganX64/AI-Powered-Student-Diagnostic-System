@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/helper"
+	"ai-student-diagnostic/backend/internal/services"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -34,6 +35,14 @@ type AttemptResult struct {
 	TestID    int             `json:"test_id"`
 	SQI       float64         `json:"sqi_score"`
 	Analysis  json.RawMessage `json:"analysis,omitempty"`
+}
+
+type SubjectTestResult struct {
+	AttemptID int                  `json:"attempt_id"`
+	TestID    int                  `json:"test_id"`
+	TestTitle string               `json:"test_title"`
+	SQI       float64              `json:"sqi_score"`
+	Analysis  services.SQIAnalysis `json:"analysis"`
 }
 
 func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
@@ -158,6 +167,230 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		"average_sqi": helper.Round(avgSQI, 2),
 		"total_tests": len(results),
 	})
+}
+
+func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	subjectID, err := strconv.Atoi(c.Param("subject_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject id"})
+		return
+	}
+
+	var testID int
+	if testIDParam := c.Query("test_id"); testIDParam != "" {
+		testID, err = strconv.Atoi(testIDParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+			return
+		}
+	}
+
+	role := c.GetString("role")
+	userID := c.GetInt("user_id")
+
+	if role == "super_admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "super-admin has no access to student scores"})
+		return
+	}
+
+	var tenantID int
+	err = h.DB.QueryRow(
+		"SELECT tenant_id FROM users WHERE id=$1 AND tenant_id IS NOT NULL",
+		userID,
+	).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
+	var studentName string
+	err = h.DB.QueryRow(
+		"SELECT name FROM students WHERE id=$1 AND tenant_id=$2",
+		studentID, tenantID,
+	).Scan(&studentName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	var subjectName string
+	err = h.DB.QueryRow(
+		"SELECT name FROM subjects WHERE id=$1 AND tenant_id=$2",
+		subjectID, tenantID,
+	).Scan(&subjectName)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "subject not found"})
+		return
+	}
+
+	if role == "coach" {
+		coachID, err := h.getCoachIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+
+		var exists bool
+		err = h.DB.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1
+				FROM students
+				WHERE id = $1 AND tenant_id = $2 AND coach_id = $3
+			)
+		`, studentID, tenantID, coachID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not assigned to this student"})
+			return
+		}
+	}
+
+	query := `
+		SELECT a.id, t.id, COALESCE(t.title, '')
+		FROM attempts a
+		JOIN assignments ass ON a.assignment_id = ass.id
+		JOIN tests t ON ass.test_id = t.id
+		WHERE ass.student_id = $1
+		  AND t.subject_id = $2
+		  AND t.tenant_id = $3
+	`
+	args := []any{studentID, subjectID, tenantID}
+	if testID > 0 {
+		query += " AND t.id = $4"
+		args = append(args, testID)
+	}
+	query += " ORDER BY a.id DESC"
+
+	rows, err := h.DB.Query(query, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch attempts"})
+		return
+	}
+	defer rows.Close()
+
+	var results []SubjectTestResult
+	var totalSQI float64
+
+	for rows.Next() {
+		var result SubjectTestResult
+		if err := rows.Scan(&result.AttemptID, &result.TestID, &result.TestTitle); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+
+		analysis, err := h.calculateAttemptSQIAnalysis(result.AttemptID, result.TestID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate sqi"})
+			return
+		}
+
+		result.SQI = analysis.OverallSQI
+		result.Analysis = analysis
+		results = append(results, result)
+		totalSQI += result.SQI
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read attempts"})
+		return
+	}
+
+	var averageSQI float64
+	if len(results) > 0 {
+		averageSQI = totalSQI / float64(len(results))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"student_id":     studentID,
+		"student_name":   studentName,
+		"subject_id":     subjectID,
+		"subject_name":   subjectName,
+		"test_id":        testID,
+		"results":        results,
+		"average_sqi":    helper.Round(averageSQI, 2),
+		"total_attempts": len(results),
+		"calculation":    "sqi_engine",
+	})
+}
+
+func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (services.SQIAnalysis, error) {
+	questionRows, err := h.DB.Query(`
+		SELECT id, marks, neg_marks, importance, difficulty, type, expected_time
+		FROM questions
+		WHERE test_id = $1
+		ORDER BY id
+	`, testID)
+	if err != nil {
+		return services.SQIAnalysis{}, err
+	}
+	defer questionRows.Close()
+
+	var questions []services.QuestionMeta
+	for questionRows.Next() {
+		var q services.QuestionMeta
+		if err := questionRows.Scan(
+			&q.QuestionID,
+			&q.Marks,
+			&q.NegMarks,
+			&q.Importance,
+			&q.Difficulty,
+			&q.Type,
+			&q.ExpectedTime,
+		); err != nil {
+			return services.SQIAnalysis{}, err
+		}
+		questions = append(questions, q)
+	}
+	if err := questionRows.Err(); err != nil {
+		return services.SQIAnalysis{}, err
+	}
+
+	answerRows, err := h.DB.Query(`
+		SELECT
+			al.question_id,
+			COALESCE(al.selected_answer, ''),
+			q.correct_answer,
+			COALESCE(al.time_spent, 0),
+			COALESCE(al.marked_for_review, false),
+			COALESCE(al.revisited, false),
+			COALESCE(al.changed_answer, false),
+			COALESCE(al.was_initially_wrong, false)
+		FROM answer_logs al
+		JOIN questions q ON al.question_id = q.id
+		WHERE al.attempt_id = $1
+	`, attemptID)
+	if err != nil {
+		return services.SQIAnalysis{}, err
+	}
+	defer answerRows.Close()
+
+	var answers []services.AnswerLog
+	for answerRows.Next() {
+		var a services.AnswerLog
+		if err := answerRows.Scan(
+			&a.QuestionID,
+			&a.SelectedAnswer,
+			&a.CorrectAnswer,
+			&a.TimeSpent,
+			&a.MarkedForReview,
+			&a.Revisited,
+			&a.ChangedAnswer,
+			&a.WasInitiallyWrong,
+		); err != nil {
+			return services.SQIAnalysis{}, err
+		}
+		a.Seen = true
+		answers = append(answers, a)
+	}
+	if err := answerRows.Err(); err != nil {
+		return services.SQIAnalysis{}, err
+	}
+
+	return services.CalculateSQIAnalysis(questions, answers), nil
 }
 
 // add student
@@ -342,7 +575,6 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 // Add question
 type CreateQuestionRequest struct {
-	TestID       int    `json:"test_id" binding:"required"`
 	QuestionText string `json:"question_text" binding:"required"`
 
 	OptionA string `json:"option_a" binding:"required"`
@@ -361,13 +593,117 @@ type CreateQuestionRequest struct {
 	ConceptTag   string  `json:"concept_tag"`
 }
 
-func (h *AdminHandler) CreateQuestion(c *gin.Context) {
-	var req CreateQuestionRequest
+func parseQuestionRequests(c *gin.Context) ([]CreateQuestionRequest, error) {
+	body, err := c.GetRawData()
+	if err != nil {
+		return nil, err
+	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var batch []CreateQuestionRequest
+	if err := json.Unmarshal(body, &batch); err == nil {
+		return batch, nil
+	}
+
+	var single CreateQuestionRequest
+	if err := json.Unmarshal(body, &single); err != nil {
+		return nil, err
+	}
+
+	return []CreateQuestionRequest{single}, nil
+}
+
+func validateQuestionRequest(req CreateQuestionRequest) string {
+	if req.QuestionText == "" ||
+		req.OptionA == "" ||
+		req.OptionB == "" ||
+		req.OptionC == "" ||
+		req.OptionD == "" {
+		return "question_text and all options are required"
+	}
+
+	options := map[string]bool{
+		req.OptionA: true,
+		req.OptionB: true,
+		req.OptionC: true,
+		req.OptionD: true,
+	}
+	if len(options) != 4 {
+		return "duplicate options not allowed"
+	}
+
+	if req.CorrectAnswer != "A" &&
+		req.CorrectAnswer != "B" &&
+		req.CorrectAnswer != "C" &&
+		req.CorrectAnswer != "D" {
+		return "correct_answer must be A/B/C/D"
+	}
+
+	return ""
+}
+
+func createQuestionsForTest(database *sql.DB, testID int, questions []CreateQuestionRequest) ([]int, error) {
+	tx, err := database.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	questionIDs := make([]int, 0, len(questions))
+	for _, req := range questions {
+		var id int
+		err = tx.QueryRow(`
+			INSERT INTO questions
+			(test_id, question_text, option_a, option_b, option_c, option_d,
+			 correct_answer, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			RETURNING id
+		`,
+			testID,
+			req.QuestionText,
+			req.OptionA,
+			req.OptionB,
+			req.OptionC,
+			req.OptionD,
+			req.CorrectAnswer,
+			req.Marks,
+			req.NegMarks,
+			req.Importance,
+			req.Difficulty,
+			req.Type,
+			req.ExpectedTime,
+			req.ConceptTag,
+		).Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+
+		questionIDs = append(questionIDs, id)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return questionIDs, nil
+}
+
+func (h *AdminHandler) CreateQuestion(c *gin.Context) {
+	testIDParam := c.Param("id")
+	testID, err := strconv.Atoi(testIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		return
+	}
+
+	questions, err := parseQuestionRequests(c)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+			"error": "invalid payload",
 		})
+		return
+	}
+	if len(questions) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one question is required"})
 		return
 	}
 
@@ -375,7 +711,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 	userID := c.GetInt("user_id")
 
 	var tenantID int
-	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
 		return
@@ -391,7 +727,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		}
 		// Verify test belongs to coach AND same tenant
 		var exists bool
-		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", req.TestID, coachID, tenantID).Scan(&exists)
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
 		if err != nil || !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
 			return
@@ -399,7 +735,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 	} else if role == "admin" {
 
 		var exists bool
-		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", req.TestID, tenantID).Scan(&exists)
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
 		if err != nil || !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
 			return
@@ -409,73 +745,35 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	// validate required fields
-	if req.QuestionText == "" ||
-		req.OptionA == "" ||
-		req.OptionB == "" ||
-		req.OptionC == "" ||
-		req.OptionD == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "question_text and all options are required",
-		})
-		return
+	for i, question := range questions {
+		if validationErr := validateQuestionRequest(question); validationErr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":    validationErr,
+				"position": i,
+			})
+			return
+		}
 	}
 
-	// validate duplicate options
-	if req.OptionA == req.OptionB ||
-		req.OptionA == req.OptionC ||
-		req.OptionA == req.OptionD {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "duplicate options not allowed",
-		})
-		return
-	}
-
-	// validate correct answer
-	if req.CorrectAnswer != "A" &&
-		req.CorrectAnswer != "B" &&
-		req.CorrectAnswer != "C" &&
-		req.CorrectAnswer != "D" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "correct_answer must be A/B/C/D",
-		})
-		return
-	}
-
-	var id int
-	err = h.DB.QueryRow(`
-		INSERT INTO questions 
-		(test_id, question_text, option_a, option_b, option_c, option_d,
-		 correct_answer, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-		RETURNING id
-	`,
-		req.TestID,
-		req.QuestionText,
-		req.OptionA,
-		req.OptionB,
-		req.OptionC,
-		req.OptionD,
-		req.CorrectAnswer,
-		req.Marks,
-		req.NegMarks,
-		req.Importance,
-		req.Difficulty,
-		req.Type,
-		req.ExpectedTime,
-		req.ConceptTag,
-	).Scan(&id)
-
+	questionIDs, err := createQuestionsForTest(h.DB, testID, questions)
 	if err != nil {
-
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   err.Error(),
-			"message": "failed to create question",
+			"message": "failed to create questions",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"question_id": id})
+	response := gin.H{
+		"question_ids": questionIDs,
+		"count":        len(questionIDs),
+		"message":      "questions created successfully",
+	}
+	if len(questionIDs) == 1 {
+		response["question_id"] = questionIDs[0]
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // create assignment

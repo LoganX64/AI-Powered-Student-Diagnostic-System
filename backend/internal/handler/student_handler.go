@@ -5,6 +5,7 @@ import (
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lib/pq"
@@ -60,11 +61,17 @@ type Answer struct {
 }
 
 type SubmitRequest struct {
-	AssignmentID int      `json:"assignment_id" binding:"required"`
-	Answers      []Answer `json:"answers" binding:"required"`
+	Answers []Answer `json:"answers" binding:"required"`
 }
 
 func SubmitAnswers(c *gin.Context) {
+	assignmentIDParam := c.Param("id")
+	assignmentID, err := strconv.Atoi(assignmentIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment_id"})
+		return
+	}
+
 	var req SubmitRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -89,9 +96,9 @@ func SubmitAnswers(c *gin.Context) {
 
 	//  Validate assignment ownership
 	var ownerID int
-	err := database.QueryRow(
+	err = database.QueryRow(
 		"SELECT student_id FROM assignments WHERE id = $1",
-		req.AssignmentID,
+		assignmentID,
 	).Scan(&ownerID)
 
 	if err != nil {
@@ -118,7 +125,7 @@ func SubmitAnswers(c *gin.Context) {
 	var attemptID int
 	err = tx.QueryRow(
 		"INSERT INTO attempts (assignment_id) VALUES ($1) RETURNING id",
-		req.AssignmentID,
+		assignmentID,
 	).Scan(&attemptID)
 
 	if err != nil {

@@ -33,7 +33,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware(db))
 		{
-			protected.POST("/submit", handlers.SubmitAnswers)
+			protected.POST("/submit/:id", handlers.SubmitAnswers)
 		}
 	}
 
@@ -51,9 +51,10 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.POST("/subjects", adminHandler.CreateSubject)
 		admin.POST("/students", adminHandler.CreateStudent)
 		admin.POST("/tests", adminHandler.CreateTest)
-		admin.POST("/questions", adminHandler.CreateQuestion)
+		admin.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		admin.POST("/assignments", adminHandler.CreateAssignment)
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
+		admin.GET("/students/:id/subjects/:subject_id/results", adminHandler.GetStudentSubjectResults)
 	}
 
 	//  coach
@@ -69,7 +70,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 		coach.POST("/students", coachHandler.CreateStudent)
 		coach.POST("/tests", coachHandler.CreateTest)
-		coach.POST("/questions", coachHandler.CreateQuestion)
+		coach.POST("/tests/:id/questions", coachHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
 		coach.POST("/subjects", adminHandler.CreateSubject)
 

@@ -162,10 +162,20 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 }
 
 func (h *CoachHandler) CreateQuestion(c *gin.Context) {
-	var req CreateQuestionRequest
+	testIDParam := c.Param("id")
+	testID, err := strconv.Atoi(testIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		return
+	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	questions, err := parseQuestionRequests(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if len(questions) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one question is required"})
 		return
 	}
 
@@ -180,7 +190,7 @@ func (h *CoachHandler) CreateQuestion(c *gin.Context) {
 	exists, err := repository.Exists(
 		h.DB,
 		"SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)",
-		req.TestID, coachID, tenantID,
+		testID, coachID, tenantID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -191,36 +201,32 @@ func (h *CoachHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	// validate required fields
-	if req.QuestionText == "" || req.OptionA == "" || req.OptionB == "" || req.OptionC == "" || req.OptionD == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "question_text and all options are required"})
-		return
+	for i, question := range questions {
+		if validationErr := validateQuestionRequest(question); validationErr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":    validationErr,
+				"position": i,
+			})
+			return
+		}
 	}
 
-	// validate correct answer
-	if req.CorrectAnswer != "A" && req.CorrectAnswer != "B" && req.CorrectAnswer != "C" && req.CorrectAnswer != "D" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "correct_answer must be A/B/C/D"})
-		return
-	}
-
-	var id int
-	err = h.DB.QueryRow(`
-		INSERT INTO questions 
-		(test_id, question_text, option_a, option_b, option_c, option_d,
-		 correct_answer, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-		RETURNING id
-	`,
-		req.TestID, req.QuestionText, req.OptionA, req.OptionB, req.OptionC, req.OptionD,
-		req.CorrectAnswer, req.Marks, req.NegMarks, req.Importance, req.Difficulty, req.Type, req.ExpectedTime, req.ConceptTag,
-	).Scan(&id)
-
+	questionIDs, err := createQuestionsForTest(h.DB, testID, questions)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "failed to create question"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "failed to create questions"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"question_id": id})
+	response := gin.H{
+		"question_ids": questionIDs,
+		"count":        len(questionIDs),
+		"message":      "questions created successfully",
+	}
+	if len(questionIDs) == 1 {
+		response["question_id"] = questionIDs[0]
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *CoachHandler) CreateAssignment(c *gin.Context) {
