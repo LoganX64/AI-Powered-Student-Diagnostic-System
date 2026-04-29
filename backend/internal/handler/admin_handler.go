@@ -304,22 +304,26 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 		averageSQI = totalSQI / float64(len(results))
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"student_id":     studentID,
 		"student_name":   studentName,
 		"subject_id":     subjectID,
 		"subject_name":   subjectName,
-		"test_id":        testID,
 		"results":        results,
 		"average_sqi":    helper.Round(averageSQI, 2),
 		"total_attempts": len(results),
 		"calculation":    "sqi_engine",
-	})
+	}
+	if testID > 0 {
+		response["filter_test_id"] = testID
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (services.SQIAnalysis, error) {
 	questionRows, err := h.DB.Query(`
-		SELECT id, marks, neg_marks, importance, difficulty, type, expected_time
+		SELECT id, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag
 		FROM questions
 		WHERE test_id = $1
 		ORDER BY id
@@ -340,6 +344,7 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 			&q.Difficulty,
 			&q.Type,
 			&q.ExpectedTime,
+			&q.ConceptTag,
 		); err != nil {
 			return services.SQIAnalysis{}, err
 		}

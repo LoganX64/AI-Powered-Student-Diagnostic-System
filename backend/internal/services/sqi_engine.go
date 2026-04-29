@@ -2,6 +2,7 @@ package services
 
 import (
 	"ai-student-diagnostic/backend/internal/helper"
+	"sort"
 )
 
 type QuestionMeta struct {
@@ -12,6 +13,7 @@ type QuestionMeta struct {
 	Difficulty   string
 	Type         string
 	ExpectedTime float64
+	ConceptTag   string
 }
 
 type AnswerLog struct {
@@ -31,91 +33,8 @@ type SQIResult struct {
 }
 
 func CalculateSQI(questions []QuestionMeta, answers []AnswerLog) SQIResult {
-
-	// map answers
-	answerMap := make(map[int]AnswerLog)
-	for _, a := range answers {
-		answerMap[a.QuestionID] = a
-	}
-
-	var totalWeighted float64
-	var maxPossible float64
-	var minPossible float64
-
-	for _, q := range questions {
-
-		ans, attempted := answerMap[q.QuestionID]
-
-		importanceW := helper.GetImportanceWeight(q.Importance)
-		difficultyW := helper.GetDifficultyWeight(q.Difficulty)
-		typeW := helper.GetTypeWeight(q.Type)
-
-		weightFactor := importanceW * difficultyW * typeW
-
-		var weighted float64
-
-		// case: NOT SEEN (unattempted and unseen)
-		if !attempted {
-
-			// treat as NOT SEEN (worst case)
-			base := -0.5 * q.NegMarks // configurable
-
-			weighted = base * weightFactor
-
-			totalWeighted += weighted
-			minPossible += weighted
-			maxPossible += q.Marks * weightFactor
-			continue
-		}
-
-		// case: ANSWERED (attempted)
-
-		isCorrect := ans.SelectedAnswer == ans.CorrectAnswer
-
-		var base float64
-		if isCorrect {
-			base = q.Marks
-		} else {
-			base = -q.NegMarks
-		}
-
-		weighted = base * weightFactor
-
-		// time adjustment (configurable)
-		timeRatio := helper.SafeDivide(ans.TimeSpent, q.ExpectedTime)
-		if timeRatio > 1 {
-			weighted *= 1 / timeRatio
-		}
-
-		// behavioral adjustments (configurable)
-
-		// doubtful but wrong
-		if ans.MarkedForReview && !isCorrect {
-			weighted *= 0.9
-		}
-
-		// corrected mistake (scaled properly)
-		if ans.Revisited && ans.ChangedAnswer && isCorrect && ans.WasInitiallyWrong {
-			bonus := 0.2 * q.Marks * weightFactor
-			weighted += bonus
-		}
-
-		totalWeighted += weighted
-
-		// track bounds
-		maxPossible += q.Marks * weightFactor
-		minPossible += (-q.NegMarks * weightFactor)
-	}
-
-	// normalize to 0-100
-	rawPCT := 0.0
-	rangeVal := maxPossible - minPossible
-
-	if rangeVal > 0 {
-		rawPCT = (totalWeighted - minPossible) / rangeVal * 100
-	}
-
-	rawPCT = helper.Clamp(rawPCT, 0, 100)
+	totalWeighted, maxPossible := calculateSQITotals(questions, answers)
+	rawPCT := normalizeSQI(totalWeighted, maxPossible)
 
 	return SQIResult{
 		OverallSQI: helper.Round(rawPCT, 2),
@@ -131,6 +50,9 @@ type SQIAnalysis struct {
 	Behavior   BehaviorMetrics
 	Skipping   SkippingMetrics
 	Efficiency EfficiencyMetrics
+
+	ConceptSQI        map[string]float64
+	SummaryPriorities []SummaryPriority
 }
 
 type AccuracyMetrics struct {
@@ -187,14 +109,32 @@ type EfficiencyMetrics struct {
 	SlowAndWrong   int
 }
 
-func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnalysis {
+type SummaryPriority struct {
+	ConceptTag        string  `json:"concept_tag"`
+	PriorityScore     float64 `json:"priority_score"`
+	WrongAtLeastOnce  bool    `json:"wrong_at_least_once"`
+	ImportanceScore   float64 `json:"importance_score"`
+	TimeProxyScore    float64 `json:"time_proxy_score"`
+	DiagnosticQuality float64 `json:"diagnostic_quality"`
+	ConceptSQI        float64 `json:"concept_sqi"`
+}
 
+type conceptAggregate struct {
+	Questions       []QuestionMeta
+	Answers         []AnswerLog
+	WrongAtLeastOne bool
+	ImportanceSum   float64
+	TimeProxySum    float64
+	AnsweredCount   int
+}
+
+func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnalysis {
 	answerMap := make(map[int]AnswerLog)
 	for _, a := range answers {
 		answerMap[a.QuestionID] = a
 	}
 
-	var totalWeighted, maxPossible, minPossible float64
+	var totalWeighted, maxPossible float64
 
 	var acc AccuracyMetrics
 	var timeM TimeMetrics
@@ -204,72 +144,57 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 	var diff DifficultyMetrics
 
 	acc.TotalQuestions = len(questions)
+	concepts := make(map[string]*conceptAggregate)
 
 	for _, q := range questions {
 
 		ans, attempted := answerMap[q.QuestionID]
+		weighted, questionMax, isCorrect, timeRatio := calculateQuestionWeighted(q, ans, attempted)
+		totalWeighted += weighted
+		maxPossible += questionMax
 
-		importanceW := helper.GetImportanceWeight(q.Importance)
-		difficultyW := helper.GetDifficultyWeight(q.Difficulty)
-		typeW := helper.GetTypeWeight(q.Type)
+		conceptTag := q.ConceptTag
+		if conceptTag == "" {
+			conceptTag = "uncategorized"
+		}
+		concept := concepts[conceptTag]
+		if concept == nil {
+			concept = &conceptAggregate{}
+			concepts[conceptTag] = concept
+		}
+		concept.Questions = append(concept.Questions, q)
+		concept.ImportanceSum += helper.GetImportanceWeight(q.Importance)
 
-		weightFactor := importanceW * difficultyW * typeW
-
-		var weighted float64
-		var isCorrect bool
-		var timeRatio float64
-
-		// not attempted
 		if !attempted {
 			skip.NotSeen++
-
-			base := -0.5 * q.NegMarks
-			weighted = base * weightFactor
-
-			totalWeighted += weighted
-			minPossible += weighted
-			maxPossible += q.Marks * weightFactor
+			acc.Skipped++
+			concept.WrongAtLeastOne = true
 			continue
 		}
 
-		// seen skipped not answered
+		concept.Answers = append(concept.Answers, ans)
 
 		if ans.Seen && ans.SelectedAnswer == "" {
-			// skipped
 			skip.SeenNotAnswered++
 			acc.Skipped++
-
-			base := -0.75 * q.NegMarks
-			weighted = base * weightFactor
-
-			totalWeighted += weighted
-			minPossible += weighted
-			maxPossible += q.Marks * weightFactor
+			concept.WrongAtLeastOne = true
 			continue
 		}
 
-		// answered
 		skip.Answered++
 		acc.Attempted++
 
-		isCorrect = ans.SelectedAnswer == ans.CorrectAnswer
-
-		var base float64
 		if isCorrect {
-			base = q.Marks
 			acc.Correct++
 		} else {
-			base = -q.NegMarks
 			acc.Wrong++
+			concept.WrongAtLeastOne = true
 		}
-
-		weighted = base * weightFactor
-
-		// time
-		timeRatio = helper.SafeDivide(ans.TimeSpent, q.ExpectedTime)
 
 		timeM.TotalTime += ans.TimeSpent
 		timeM.TotalExpectedTime += q.ExpectedTime
+		concept.TimeProxySum += getTimeProxyScore(timeRatio)
+		concept.AnsweredCount++
 
 		if timeRatio > 2 {
 			timeM.VerySlowCount++
@@ -279,11 +204,6 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 			timeM.FastCount++
 		}
 
-		if timeRatio > 1 {
-			weighted *= 1 / timeRatio
-		}
-
-		// behavioral adjustments and tracking
 		if ans.MarkedForReview {
 			beh.MarkedForReview++
 		}
@@ -297,16 +217,6 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 			beh.CorrectToWrong++
 		}
 
-		if ans.MarkedForReview && !isCorrect {
-			weighted *= 0.9
-		}
-
-		if ans.Revisited && ans.ChangedAnswer && isCorrect && ans.WasInitiallyWrong {
-			bonus := 0.2 * q.Marks * weightFactor
-			weighted += bonus
-		}
-
-		// efficiency breakdown
 		if timeRatio < 0.5 && isCorrect {
 			eff.FastAndCorrect++
 		}
@@ -319,7 +229,7 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 		if timeRatio > 1.5 && !isCorrect {
 			eff.SlowAndWrong++
 		}
-		// difficulty breakdown
+
 		var d *DifficultyStat
 		switch q.Difficulty {
 		case "E":
@@ -339,35 +249,151 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 		} else {
 			d.Wrong++
 		}
-
-		// final weighted score
-		totalWeighted += weighted
-		maxPossible += q.Marks * weightFactor
-		minPossible += (-q.NegMarks * weightFactor)
 	}
 
-	// final calculations
+	rawPCT := normalizeSQI(totalWeighted, maxPossible)
 
-	rangeVal := maxPossible - minPossible
-	rawPCT := 0.0
-	if rangeVal > 0 {
-		rawPCT = (totalWeighted - minPossible) / rangeVal * 100
-	}
-	rawPCT = helper.Clamp(rawPCT, 0, 100)
-
-	// time averages
 	if acc.TotalQuestions > 0 {
 		timeM.AvgTimePerQuestion = timeM.TotalTime / float64(acc.TotalQuestions)
 		timeM.ExpectedAvgTime = timeM.TotalExpectedTime / float64(acc.TotalQuestions)
 	}
+	if acc.Attempted > 0 {
+		acc.AccuracyPct = helper.Round(float64(acc.Correct)/float64(acc.Attempted)*100, 2)
+	}
+
+	conceptSQI, summaryPriorities := calculateConceptOutputs(concepts)
 
 	return SQIAnalysis{
-		OverallSQI: helper.Round(rawPCT, 2),
-		Accuracy:   acc,
-		Time:       timeM,
-		Difficulty: diff,
-		Behavior:   beh,
-		Skipping:   skip,
-		Efficiency: eff,
+		OverallSQI:        helper.Round(rawPCT, 2),
+		Accuracy:          acc,
+		Time:              timeM,
+		Difficulty:        diff,
+		Behavior:          beh,
+		Skipping:          skip,
+		Efficiency:        eff,
+		ConceptSQI:        conceptSQI,
+		SummaryPriorities: summaryPriorities,
+	}
+}
+
+func calculateSQITotals(questions []QuestionMeta, answers []AnswerLog) (float64, float64) {
+	answerMap := make(map[int]AnswerLog)
+	for _, a := range answers {
+		answerMap[a.QuestionID] = a
+	}
+
+	var totalWeighted float64
+	var maxPossible float64
+
+	for _, q := range questions {
+		ans, attempted := answerMap[q.QuestionID]
+		weighted, questionMax, _, _ := calculateQuestionWeighted(q, ans, attempted)
+		totalWeighted += weighted
+		maxPossible += questionMax
+	}
+
+	return totalWeighted, maxPossible
+}
+
+func calculateQuestionWeighted(q QuestionMeta, ans AnswerLog, attempted bool) (float64, float64, bool, float64) {
+	weightFactor := helper.GetImportanceWeight(q.Importance) *
+		helper.GetDifficultyWeight(q.Difficulty) *
+		helper.GetTypeWeight(q.Type)
+
+	maxPossible := q.Marks * weightFactor
+	if !attempted || ans.SelectedAnswer == "" {
+		return -q.NegMarks * weightFactor, maxPossible, false, 0
+	}
+
+	isCorrect := ans.SelectedAnswer == ans.CorrectAnswer
+	base := -q.NegMarks
+	if isCorrect {
+		base = q.Marks
+	}
+
+	weighted := base * weightFactor
+	timeRatio := helper.SafeDivide(ans.TimeSpent, q.ExpectedTime)
+
+	if timeRatio > 2 {
+		weighted *= 0.8
+	} else if timeRatio > 1.5 {
+		weighted *= 0.9
+	}
+
+	if ans.MarkedForReview && !isCorrect {
+		weighted *= 0.9
+	}
+
+	if ans.Revisited && ans.ChangedAnswer && isCorrect && ans.WasInitiallyWrong {
+		weighted += 0.2 * q.Marks
+	}
+
+	return weighted, maxPossible, isCorrect, timeRatio
+}
+
+func normalizeSQI(totalWeighted float64, maxPossible float64) float64 {
+	if maxPossible <= 0 {
+		return 0
+	}
+
+	return helper.Clamp(totalWeighted/maxPossible*100, 0, 100)
+}
+
+func calculateConceptOutputs(concepts map[string]*conceptAggregate) (map[string]float64, []SummaryPriority) {
+	conceptSQI := make(map[string]float64, len(concepts))
+	priorities := make([]SummaryPriority, 0, len(concepts))
+
+	for tag, concept := range concepts {
+		score := CalculateSQI(concept.Questions, concept.Answers).OverallSQI
+		conceptSQI[tag] = score
+
+		questionCount := len(concept.Questions)
+		if questionCount == 0 {
+			continue
+		}
+
+		wrongScore := 0.0
+		if concept.WrongAtLeastOne {
+			wrongScore = 1.0
+		}
+
+		importanceScore := concept.ImportanceSum / float64(questionCount)
+		timeProxyScore := 0.7
+		if concept.AnsweredCount > 0 {
+			timeProxyScore = concept.TimeProxySum / float64(concept.AnsweredCount)
+		}
+		diagnosticQuality := 1 - score/100
+
+		priorityScore := 0.40*wrongScore +
+			0.25*importanceScore +
+			0.20*timeProxyScore +
+			0.15*diagnosticQuality
+
+		priorities = append(priorities, SummaryPriority{
+			ConceptTag:        tag,
+			PriorityScore:     helper.Round(helper.Clamp(priorityScore, 0, 1), 4),
+			WrongAtLeastOnce:  concept.WrongAtLeastOne,
+			ImportanceScore:   helper.Round(importanceScore, 4),
+			TimeProxyScore:    helper.Round(timeProxyScore, 4),
+			DiagnosticQuality: helper.Round(diagnosticQuality, 4),
+			ConceptSQI:        score,
+		})
+	}
+
+	sort.Slice(priorities, func(i, j int) bool {
+		return priorities[i].PriorityScore > priorities[j].PriorityScore
+	})
+
+	return conceptSQI, priorities
+}
+
+func getTimeProxyScore(timeRatio float64) float64 {
+	switch {
+	case timeRatio > 1.5:
+		return 0.4
+	case timeRatio < 0.5:
+		return 1.0
+	default:
+		return 0.7
 	}
 }
