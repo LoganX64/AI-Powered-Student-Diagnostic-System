@@ -363,7 +363,8 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 			COALESCE(al.marked_for_review, false),
 			COALESCE(al.revisited, false),
 			COALESCE(al.changed_answer, false),
-			COALESCE(al.was_initially_wrong, false)
+			COALESCE(al.was_initially_wrong, false),
+			COALESCE(al.seen, true)
 		FROM answer_logs al
 		JOIN questions q ON al.question_id = q.id
 		WHERE al.attempt_id = $1
@@ -385,10 +386,10 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 			&a.Revisited,
 			&a.ChangedAnswer,
 			&a.WasInitiallyWrong,
+			&a.Seen,
 		); err != nil {
 			return services.SQIAnalysis{}, err
 		}
-		a.Seen = true
 		answers = append(answers, a)
 	}
 	if err := answerRows.Err(); err != nil {

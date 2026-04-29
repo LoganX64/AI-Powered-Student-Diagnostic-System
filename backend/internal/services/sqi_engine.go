@@ -165,7 +165,7 @@ func CalculateSQIAnalysis(questions []QuestionMeta, answers []AnswerLog) SQIAnal
 		concept.Questions = append(concept.Questions, q)
 		concept.ImportanceSum += helper.GetImportanceWeight(q.Importance)
 
-		if !attempted {
+		if !attempted || !ans.Seen {
 			skip.NotSeen++
 			acc.Skipped++
 			concept.WrongAtLeastOne = true
@@ -301,7 +301,7 @@ func calculateQuestionWeighted(q QuestionMeta, ans AnswerLog, attempted bool) (f
 		helper.GetTypeWeight(q.Type)
 
 	maxPossible := q.Marks * weightFactor
-	if !attempted || ans.SelectedAnswer == "" {
+	if !attempted || !ans.Seen || ans.SelectedAnswer == "" {
 		return -q.NegMarks * weightFactor, maxPossible, false, 0
 	}
 

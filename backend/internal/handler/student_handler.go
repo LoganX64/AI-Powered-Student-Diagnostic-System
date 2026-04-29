@@ -52,8 +52,9 @@ func StudentLogin(c *gin.Context) {
 // submit answers
 type Answer struct {
 	QuestionID        int     `json:"question_id" binding:"required"`
-	SelectedAnswer    string  `json:"selected_answer" binding:"required"`
-	TimeSpent         float64 `json:"time_spent" binding:"required"`
+	SelectedAnswer    string  `json:"selected_answer"`
+	TimeSpent         float64 `json:"time_spent"`
+	Seen              *bool   `json:"seen"`
 	MarkedForReview   bool    `json:"marked_for_review"`
 	Revisited         bool    `json:"revisited"`
 	ChangedAnswer     bool    `json:"changed_answer"`
@@ -96,10 +97,16 @@ func SubmitAnswers(c *gin.Context) {
 
 	var ownerID int
 	var testID int
+	var duration int
 	err = database.QueryRow(
-		"SELECT student_id, test_id FROM assignments WHERE id = $1",
+		`
+		SELECT ass.student_id, ass.test_id, COALESCE(t.duration, 0)
+		FROM assignments ass
+		JOIN tests t ON ass.test_id = t.id
+		WHERE ass.id = $1
+		`,
 		assignmentID,
-	).Scan(&ownerID, &testID)
+	).Scan(&ownerID, &testID, &duration)
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment"})
@@ -179,6 +186,9 @@ func SubmitAnswers(c *gin.Context) {
 		questionMetaList = append(questionMetaList, q)
 	}
 
+	seenQuestionIDs := make(map[int]bool)
+	var totalTimeSpent float64
+
 	for _, ans := range req.Answers {
 
 		_, exists := qMap[ans.QuestionID]
@@ -187,13 +197,59 @@ func SubmitAnswers(c *gin.Context) {
 			return
 		}
 
+		if seenQuestionIDs[ans.QuestionID] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "duplicate question id"})
+			return
+		}
+		seenQuestionIDs[ans.QuestionID] = true
+
+		if ans.TimeSpent < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "time_spent cannot be negative"})
+			return
+		}
+
+		answerSeen := ans.SelectedAnswer != ""
+		if ans.Seen != nil {
+			answerSeen = *ans.Seen
+		}
+		if ans.Seen != nil && !*ans.Seen && ans.SelectedAnswer != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "not seen question cannot have selected_answer"})
+			return
+		}
+		if ans.SelectedAnswer != "" &&
+			ans.SelectedAnswer != "A" &&
+			ans.SelectedAnswer != "B" &&
+			ans.SelectedAnswer != "C" &&
+			ans.SelectedAnswer != "D" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "selected_answer must be A/B/C/D"})
+			return
+		}
+
+		if !answerSeen {
+			ans.TimeSpent = 0
+			ans.MarkedForReview = false
+			ans.Revisited = false
+			ans.ChangedAnswer = false
+			ans.WasInitiallyWrong = false
+		}
+
+		totalTimeSpent += ans.TimeSpent
+		if duration > 0 && totalTimeSpent > float64(duration) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":            "total time_spent exceeds test duration",
+				"total_time_spent": helperRoundForResponse(totalTimeSpent),
+				"test_duration":    duration,
+			})
+			return
+		}
+
 		correctAnswer := correctMap[ans.QuestionID]
-		isCorrect := ans.SelectedAnswer == correctAnswer
+		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctAnswer
 
 		_, err = tx.Exec(`
 			INSERT INTO answer_logs 
-			(question_id, attempt_id, selected_answer, is_correct, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+			(question_id, attempt_id, selected_answer, is_correct, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong, seen)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		`,
 			ans.QuestionID,
 			attemptID,
@@ -204,6 +260,7 @@ func SubmitAnswers(c *gin.Context) {
 			ans.Revisited,
 			ans.ChangedAnswer,
 			ans.WasInitiallyWrong,
+			answerSeen,
 		)
 
 		if err != nil {
@@ -220,6 +277,7 @@ func SubmitAnswers(c *gin.Context) {
 			Revisited:         ans.Revisited,
 			ChangedAnswer:     ans.ChangedAnswer,
 			WasInitiallyWrong: ans.WasInitiallyWrong,
+			Seen:              answerSeen,
 		})
 	}
 
@@ -251,8 +309,14 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"attempt_id": attemptID,
-		"sqi_score":  analysis.OverallSQI,
-		"analysis":   analysis,
+		"attempt_id":       attemptID,
+		"sqi_score":        analysis.OverallSQI,
+		"total_time_spent": helperRoundForResponse(totalTimeSpent),
+		"test_duration":    duration,
+		"analysis":         analysis,
 	})
+}
+
+func helperRoundForResponse(value float64) float64 {
+	return float64(int(value*100+0.5)) / 100
 }
