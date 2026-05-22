@@ -4,7 +4,6 @@ import (
 	"ai-student-diagnostic/backend/utils"
 	"context"
 	"database/sql"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -39,26 +38,26 @@ func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
 		return
 	}
 
-	// Start transaction
+	hashed, err := utils.HashPassword(req.Password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "hashing failed"})
+		return
+	}
+
 	tx, err := h.DB.Begin()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "transaction failed"})
 		return
 	}
+	defer tx.Rollback()
 
-	// 1. Create Tenant
 	var tenantID int
 	err = tx.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", req.OrgName).Scan(&tenantID)
 	if err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create organization"})
 		return
 	}
 
-	// 2. Hash Password
-	hashed, _ := utils.HashPassword(req.Password)
-
-	// 3. Create Admin User
 	var userID int
 	err = tx.QueryRow(`
 		INSERT INTO users (tenant_id, email, password, role)
@@ -67,17 +66,20 @@ func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
 	`, tenantID, req.Email, hashed).Scan(&userID)
 
 	if err != nil {
-		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "email already exists"})
 		return
 	}
 
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "registration failed"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message":   "Admin and Organization registered successfully",
+		"message":   "Organization registered successfully",
 		"tenant_id": tenantID,
 		"user_id":   userID,
+		"role":      "admin",
 	})
 }
 
@@ -99,9 +101,6 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 		FROM users 
 		WHERE email = $1
 	`, req.Email).Scan(&userID, &hashedPassword, &role, &tenantID)
-
-	log.Println("Stored hash:", hashedPassword)
-	log.Println("Input password:", req.Password)
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})

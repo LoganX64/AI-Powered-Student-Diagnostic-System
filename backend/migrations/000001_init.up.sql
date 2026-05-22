@@ -138,6 +138,7 @@ CREATE TABLE answer_logs (
     revisited BOOLEAN,
     changed_answer BOOLEAN,
     was_initially_wrong BOOLEAN,
+    seen BOOLEAN DEFAULT TRUE,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

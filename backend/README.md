@@ -8,6 +8,7 @@ The backend for the AI-Powered Student Diagnostic System is built with Go, provi
 backend/
 ├── cmd/
 │   ├── api/                # Application entry point (main.go)
+│   ├── createsuperadmin/   # Local command to create a super admin
 │   └── resetdb/            # Utility to wipe and re-migrate the database
 ├── internal/
 │   ├── auth/               # Authentication logic (JWT, Password, Google Login)
@@ -78,12 +79,19 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
    ```
    The server will start on `http://localhost:8080`. Migrations run automatically on startup.
 
+4. **Create the Super Admin**:
+   Create the system-level `super_admin` from the local CLI. This user has no tenant/institute and controls the platform itself.
+
+   ```bash
+   go run ./cmd/createsuperadmin -email "super@example.com" -password "ChangeThisStrongPassword"
+   ```
+
 ## 📡 API Endpoints
 
 ### Authentication Routes (`/auth`)
 
 - `POST /auth/login` - User login (Admin/Coach)
-- `POST /auth/register-admin` - Register admin account
+- `POST /auth/register-admin` - Public organization/admin registration
 - `POST /auth/google` - Google OAuth login
 
 ### Student Routes (`/student`)

@@ -1,2 +1,0 @@
-ALTER TABLE answer_logs
-DROP COLUMN IF EXISTS seen;
