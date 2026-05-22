@@ -23,8 +23,22 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			log.Printf("[AUTH MIDDLEWARE] Invalid Authorization header format\n")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token format"})
+			c.Abort()
+			return
+		}
+
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		log.Printf("[AUTH MIDDLEWARE] Token received: %s...\n", tokenStr[:20])
+		if tokenStr == "" {
+			log.Printf("[AUTH MIDDLEWARE] Empty bearer token\n")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			c.Abort()
+			return
+		}
+
+		log.Printf("[AUTH MIDDLEWARE] Token received: %s...\n", utils.TokenPreview(tokenStr))
 
 		claims, err := utils.ValidateToken(tokenStr)
 		if err != nil {

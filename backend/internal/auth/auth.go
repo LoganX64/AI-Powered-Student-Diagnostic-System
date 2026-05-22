@@ -176,8 +176,15 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 	}
 
 	// create user with role=coach
+	tx, err := h.DB.Begin()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "transaction failed"})
+		return
+	}
+	defer tx.Rollback()
+
 	var newUserID int
-	err = h.DB.QueryRow(`
+	err = tx.QueryRow(`
 		INSERT INTO users (tenant_id, email, password, role)
 		VALUES ($1, $2, $3, 'coach')
 		RETURNING id
@@ -190,7 +197,7 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 
 	// create corresponding coach record
 	var coachID int
-	err = h.DB.QueryRow(`
+	err = tx.QueryRow(`
 		INSERT INTO coaches (tenant_id, user_id, name)
 		VALUES ($1, $2, $3)
 		RETURNING id
@@ -198,6 +205,11 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "coach profile creation failed"})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "coach registration failed"})
 		return
 	}
 
@@ -347,5 +359,3 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 		"tenant_id": tenantID.Int32,
 	})
 }
-
-
