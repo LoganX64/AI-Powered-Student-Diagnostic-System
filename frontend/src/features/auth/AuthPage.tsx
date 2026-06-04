@@ -1,5 +1,5 @@
-import { LoginForm } from "../../components/login-form";
-import { SignupForm } from "../../components/signup-form";
+import { LoginForm } from "../../components/student-login-form.tsx";
+import { SignupForm } from "../../components/admin/signup-form.tsx";
 import { Button } from "../../components/ui/button";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";

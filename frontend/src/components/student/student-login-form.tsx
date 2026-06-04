@@ -1,15 +1,16 @@
-import { cn } from "../lib/utils";
-import { Button } from "../components/ui/button";
+// import { Link } from "react-router-dom";
+
+import { cn } from "../../lib/utils";
+import { Button } from "../ui/button";
 import {
   Card,
-  CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
-} from "./ui/card";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "./ui/field";
-import { Input } from "./ui/input";
-import { Link } from "react-router-dom";
+  CardDescription,
+  CardContent,
+} from "../ui/card";
+import { FieldGroup, Field, FieldLabel } from "../ui/field";
+import { Input } from "../ui/input";
 
 type LoginFormData = {
   email: string;
@@ -22,7 +23,11 @@ type LoginFormProps = {
   className?: string;
 };
 
-export function LoginForm({ className, onSubmit, loading }: LoginFormProps) {
+export function StudentLoginForm({
+  className,
+  onSubmit,
+  loading,
+}: LoginFormProps) {
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
 
@@ -39,33 +44,21 @@ export function LoginForm({ className, onSubmit, loading }: LoginFormProps) {
         <CardHeader>
           <CardTitle>Login to your account</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your Student code below to login to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="email">Student Code</FieldLabel>
                 <Input
                   id="email"
                   name="email"
-                  type="email"
-                  placeholder="m@example.com"
+                  type="text"
+                  placeholder="Enter your student code"
                   required
                 />
-              </Field>
-              <Field>
-                <div className="flex items-center">
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
-                  <a
-                    href="#"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    Forgot your password?
-                  </a>
-                </div>
-                <Input id="password" name="password" type="password" required />
               </Field>
 
               <Field>
@@ -75,9 +68,9 @@ export function LoginForm({ className, onSubmit, loading }: LoginFormProps) {
                 {/* <Button variant="outline" type="button" disabled={loading}> 
                   Login with Google
                 </Button> */}
-                <FieldDescription className="text-center">
+                {/* <FieldDescription className="text-center">
                   Don&apos;t have an account? <Link to="/signup">Sign up</Link>
-                </FieldDescription>
+                </FieldDescription> */}
               </Field>
             </FieldGroup>
           </form>
