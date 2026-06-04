@@ -8,6 +8,7 @@ import {
 } from "./ui/card";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "./ui/field";
 import { Input } from "./ui/input";
+import { Link } from "react-router-dom";
 
 type SignupFormData = {
   name: string;
@@ -98,7 +99,7 @@ export function SignupForm({ onSubmit, loading, className }: SignupFormProps) {
                   Sign up with Google
                 </Button>
                 <FieldDescription className="px-6 text-center">
-                  Already have an account? <a href="#">Sign in</a>
+                  Already have an account? <Link to="/">Sign in</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>

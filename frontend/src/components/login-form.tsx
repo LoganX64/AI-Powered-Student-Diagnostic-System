@@ -9,6 +9,7 @@ import {
 } from "./ui/card";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "./ui/field";
 import { Input } from "./ui/input";
+import { Link } from "react-router-dom";
 
 type LoginFormData = {
   email: string;
@@ -66,15 +67,16 @@ export function LoginForm({ className, onSubmit, loading }: LoginFormProps) {
                 </div>
                 <Input id="password" name="password" type="password" required />
               </Field>
+
               <Field>
                 <Button type="submit" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
                 </Button>
-                <Button variant="outline" type="button" disabled={loading}>
+                {/* <Button variant="outline" type="button" disabled={loading}> 
                   Login with Google
-                </Button>
+                </Button> */}
                 <FieldDescription className="text-center">
-                  Don&apos;t have an account? <a href="#">Sign up</a>
+                  Don&apos;t have an account? <Link to="/signup">Sign up</Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
