@@ -47,7 +47,7 @@ export function SignupForm({ onSubmit, loading, className }: SignupFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit}>
           <FieldGroup>
-            <Field>
+            {/* <Field>
               <FieldLabel htmlFor="name">Full Name</FieldLabel>
               <Input
                 id="name"
@@ -56,7 +56,7 @@ export function SignupForm({ onSubmit, loading, className }: SignupFormProps) {
                 placeholder="John Doe"
                 required
               />
-            </Field>
+            </Field> */}
             <Field>
               <FieldLabel htmlFor="email">Email</FieldLabel>
               <Input
@@ -95,9 +95,9 @@ export function SignupForm({ onSubmit, loading, className }: SignupFormProps) {
                 <Button type="submit" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}
                 </Button>
-                <Button variant="outline" type="button" disabled={loading}>
+                {/* <Button variant="outline" type="button" disabled={loading}>
                   Sign up with Google
-                </Button>
+                </Button> */}
                 <FieldDescription className="px-6 text-center">
                   Already have an account? <Link to="/">Sign in</Link>
                 </FieldDescription>
