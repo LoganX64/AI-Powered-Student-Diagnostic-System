@@ -1,5 +1,4 @@
 // import { Link } from "react-router-dom";
-
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import {
@@ -69,7 +68,13 @@ export function StudentLoginForm({
                   Login with Google
                 </Button> */}
                 {/* <FieldDescription className="text-center">
-                  Don&apos;t have an account? <Link to="/signup">Sign up</Link>
+                  Don&apos;t have an account?{" "}
+                  <Link
+                    to="/student-signup"
+                    className="underline hover:no-underline"
+                  >
+                    Sign up
+                  </Link>
                 </FieldDescription> */}
               </Field>
             </FieldGroup>

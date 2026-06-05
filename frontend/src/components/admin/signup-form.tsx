@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import {
@@ -59,7 +60,13 @@ export function AdminSignupForm({
               <Field>
                 <Button type="submit">Create Account</Button>
                 <FieldDescription className="text-center">
-                  Already have an account? <a href="#">Sign in</a>
+                  Already have an account?{" "}
+                  <Link
+                    to="/admin-signin"
+                    className="underline hover:no-underline"
+                  >
+                    Sign in
+                  </Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
