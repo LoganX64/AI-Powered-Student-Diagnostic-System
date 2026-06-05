@@ -27,7 +27,7 @@ export function AdminSignupForm({
           <form>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="name">Full Name</FieldLabel>
+                <FieldLabel htmlFor="name">Organization Name</FieldLabel>
                 <Input id="name" type="text" placeholder="John Doe" required />
               </Field>
               <Field>
