@@ -74,9 +74,11 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
    ```
 
 3. **Run the Application**:
+
    ```bash
    go run cmd/api/main.go
    ```
+
    The server will start on `http://localhost:8080`. Migrations run automatically on startup.
 
 4. **Create the Super Admin**:
@@ -190,3 +192,30 @@ If you have the `migrate` CLI installed, you can manage migrations manually:
   ```bash
   migrate create -ext sql -dir migrations -seq <migration_name>
   ```
+
+### Migration Safety
+
+Follow these practices to avoid migration mismatches and data loss:
+
+- **Keep migration files in VCS:** Never delete or rename applied migration files. Always commit new migration SQL to the repository so other environments can run them.
+- **Use a separate dev DB per branch:** When switching branches with different schemas, use isolated databases (or containers) to avoid applying incompatible migrations.
+- **Backup before destructive actions:** Before running `resetdb` or forcing migration versions, create a backup with `pg_dump`:
+
+  ```bash
+  pg_dump -Fc "<DB_URL>" -f backup_$(date +%F).dump
+  ```
+
+- **If you must reconcile versions:** Prefer running `go run cmd/resetdb/main.go` in development to recreate the schema from the repo. To mark a DB version without running SQL, use the `migrate` CLI `force` command cautiously:
+
+  ```bash
+  # mark the DB as version 1 without applying SQL
+  migrate -path migrations -database "<DB_URL>" force 1
+  ```
+
+- **Automate migration checks in CI:** Add a CI job that runs migrations against a temporary DB to ensure no missing migration files are introduced.
+
+These steps will help prevent errors like "no migration found for version X" by keeping the database state and the `migrations/` folder in sync.
+
+```
+
+```
