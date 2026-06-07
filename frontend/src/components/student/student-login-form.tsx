@@ -12,8 +12,7 @@ import { FieldGroup, Field, FieldLabel } from "../ui/field";
 import { Input } from "../ui/input";
 
 type LoginFormData = {
-  email: string;
-  password: string;
+  student_code: string;
 };
 
 type LoginFormProps = {
@@ -32,8 +31,7 @@ export function StudentLoginForm({
 
     const formData = new FormData(event.currentTarget);
     onSubmit?.({
-      email: formData.get("email")?.toString() ?? "",
-      password: formData.get("password")?.toString() ?? "",
+      student_code: formData.get("student_code")?.toString() ?? "",
     });
   };
 
@@ -50,10 +48,10 @@ export function StudentLoginForm({
           <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email">Student Code</FieldLabel>
+                <FieldLabel htmlFor="student_code">Student Code</FieldLabel>
                 <Input
-                  id="email"
-                  name="email"
+                  id="student_code"
+                  name="student_code"
                   type="text"
                   placeholder="Enter your student code"
                   required
