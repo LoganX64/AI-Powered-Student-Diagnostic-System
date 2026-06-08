@@ -131,7 +131,7 @@ export function StudentInstructionsPage() {
 
         {/* Footer with Accept button */}
         <div className="flex justify-end border-t border-border px-8 py-5">
-          <Button size="lg" onClick={handleAccept} className="min-w-[160px]">
+          <Button size="lg" onClick={handleAccept} className="min-w-40">
             Accept &amp; Begin
           </Button>
         </div>

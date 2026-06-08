@@ -136,11 +136,11 @@ export function StudentQuizPage() {
           {/* Diagram area (shown only when imageUrl exists) */}
           {currentQuestion.imageUrl && (
             <div className="border-b border-border px-7 py-4">
-              <div className="flex min-h-[180px] items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
+              <div className="flex min-h-45 items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
                 <img
                   src={currentQuestion.imageUrl}
                   alt={`Diagram for question ${currentIndex + 1}`}
-                  className="max-h-[280px] max-w-full rounded-lg object-contain"
+                  className="max-h-70 max-w-full rounded-lg object-contain"
                 />
               </div>
             </div>
