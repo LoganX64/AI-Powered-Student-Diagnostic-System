@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import App from "../src/App.tsx";
 import { LandingPage } from "../src/features/landing/LandingPage.tsx";
+import { AboutPage } from "../src/features/landing/AboutPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
 import { StudentInstructionsPage } from "../src/features/student/StudentInstructionsPage.tsx";
 import { StudentQuizPage } from "../src/features/student/StudentQuizPage.tsx";
@@ -21,6 +22,7 @@ import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
 const router = createBrowserRouter([
   // Full-width pages — outside the narrow App shell
   { path: "/", Component: LandingPage },
+  { path: "about", Component: AboutPage },
 
   {
     path: "/",

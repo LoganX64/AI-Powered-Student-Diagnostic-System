@@ -108,7 +108,7 @@ export function LandingPage() {
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="#about" className="hover:text-foreground transition-colors">About</a>
+            <a href="/about" className="hover:text-foreground transition-colors">About</a>
           </nav>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
@@ -181,7 +181,7 @@ export function LandingPage() {
       </section>
 
       {/* About / CTA */}
-      <section id="about" className="mx-auto w-full max-w-6xl px-4 py-20">
+      <section className="mx-auto w-full max-w-6xl px-4 py-20">
         <div className="rounded-2xl border bg-card p-8 text-center shadow-sm md:p-12">
           <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
             Ready to transform how you track student progress?
@@ -203,6 +203,7 @@ export function LandingPage() {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 text-xs text-muted-foreground">
           <span>&copy; 2026 EduDiagnostics. All rights reserved.</span>
           <div className="flex gap-4">
+            <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
           </div>
