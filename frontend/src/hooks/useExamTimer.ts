@@ -24,7 +24,9 @@ export function useExamTimer(
 
   const [timeLeft, setTimeLeft] = useState<number>(getInitial);
   const onExpireRef = useRef(onExpire);
-  onExpireRef.current = onExpire;
+  useEffect(() => {
+    onExpireRef.current = onExpire;
+  });
 
   useEffect(() => {
     if (!started) return; // don't tick until exam has started
