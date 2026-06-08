@@ -33,28 +33,25 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Area, AreaChart, CartesianGrid, Label, XAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
   GripVerticalIcon,
-  Badge,
   CircleCheckIcon,
   LoaderIcon,
   EllipsisVerticalIcon,
   Columns3Icon,
   ChevronDownIcon,
   PlusIcon,
-  Table,
   ChevronsLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronsRightIcon,
   TrendingUpIcon,
 } from "lucide-react";
-import { Checkbox, Select, DropdownMenu, Tabs, Separator } from "radix-ui";
-import { Drawer } from "vaul";
 import { useIsMobile } from "../hooks/use-mobile";
+import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import {
   type ChartConfig,
@@ -62,7 +59,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "./ui/chart";
+import { Checkbox } from "./ui/checkbox";
 import {
+  Drawer,
   DrawerTrigger,
   DrawerContent,
   DrawerHeader,
@@ -72,6 +71,7 @@ import {
   DrawerClose,
 } from "./ui/drawer";
 import {
+  DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -79,21 +79,25 @@ import {
   DropdownMenuCheckboxItem,
 } from "./ui/dropdown-menu";
 import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 import {
+  Select,
   SelectTrigger,
   SelectValue,
   SelectContent,
   SelectGroup,
   SelectItem,
 } from "./ui/select";
+import { Separator } from "./ui/separator";
 import {
+  Table,
   TableRow,
   TableCell,
   TableHeader,
   TableHead,
   TableBody,
 } from "./ui/table";
-import { TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const schema = z.object({
@@ -139,7 +143,8 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
         <Checkbox
           checked={
             table.getIsAllPageRowsSelected() ||
-            (table.getIsSomePageRowsSelected() && "indeterminate")
+            (table.getIsSomePageRowsSelected() && "indeterminate") ||
+            false
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
@@ -333,6 +338,7 @@ export function DataTable({
 }: {
   data: z.infer<typeof schema>[];
 }) {
+  "use no memo";
   const [data, setData] = React.useState(() => initialData);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
