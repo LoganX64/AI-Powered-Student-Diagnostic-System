@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import App from "../src/App.tsx";
+import { LandingPage } from "../src/features/landing/LandingPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
 import { StudentInstructionsPage } from "../src/features/student/StudentInstructionsPage.tsx";
 import { StudentQuizPage } from "../src/features/student/StudentQuizPage.tsx";
@@ -18,11 +19,14 @@ import { CoachSubjectsPage } from "../src/features/coach/CoachSubjectsPage.tsx";
 import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
 
 const router = createBrowserRouter([
+  // Full-width pages — outside the narrow App shell
+  { path: "/", Component: LandingPage },
+
   {
     path: "/",
     Component: App,
     children: [
-      { index: true, Component: StudentLoginPage },
+      { path: "student-login", Component: StudentLoginPage },
       // Admin auth
       { path: "admin-signin", Component: AdminSigninPage },
       { path: "admin-signup", Component: AdminSignupForm },
@@ -31,16 +35,20 @@ const router = createBrowserRouter([
     ],
   },
 
-  // Full-width pages — outside the narrow App shell
+  // Admin dashboard — full-width
   { path: "admin/dashboard", Component: AdminDashboardPage },
   { path: "admin/coaches", Component: CoachesPage },
   { path: "admin/students", Component: StudentsPage },
   { path: "admin/subjects", Component: SubjectsPage },
   { path: "admin/tests", Component: TestsPage },
+
+  // Coach dashboard — full-width
   { path: "coach/dashboard", Component: CoachDashboardPage },
   { path: "coach/students", Component: CoachStudentsPage },
   { path: "coach/subjects", Component: CoachSubjectsPage },
   { path: "coach/tests", Component: CoachTestsPage },
+
+  // Student flow
   { path: "instructions", Component: StudentInstructionsPage },
   { path: "quiz", Component: StudentQuizPage },
   { path: "submitted", Component: StudentSubmittedPage },
