@@ -57,14 +57,6 @@ export function StudentInstructionsPage() {
     [],
   );
 
-  // Guard: redirect to login if no token
-  useEffect(() => {
-    const token = localStorage.getItem("student_token");
-    if (!token) {
-      navigate("/", { replace: true });
-    }
-  }, [navigate]);
-
   // Timer does NOT start until the student clicks Accept
   const timeLeft = useExamTimer(
     EXAM_DURATION_SECONDS,

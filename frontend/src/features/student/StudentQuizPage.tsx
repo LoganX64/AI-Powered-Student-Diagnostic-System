@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
@@ -70,14 +70,6 @@ export function StudentQuizPage() {
     () => localStorage.getItem("student_code") || "",
     [],
   );
-
-  // Guard: redirect to login if no token
-  useEffect(() => {
-    const token = localStorage.getItem("student_token");
-    if (!token) {
-      navigate("/", { replace: true });
-    }
-  }, [navigate]);
 
   const [questions] = useState<Question[]>(SAMPLE_QUESTIONS);
   const [currentIndex, setCurrentIndex] = useState(0);

@@ -1,4 +1,5 @@
 import { createBrowserRouter } from "react-router-dom";
+import { ProtectedRoute } from "../src/components/ProtectedRoute.tsx";
 import { LandingPage } from "../src/features/landing/LandingPage.tsx";
 import { AboutPage } from "../src/features/landing/AboutPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
@@ -29,23 +30,29 @@ const router = createBrowserRouter([
   { path: "admin-signup", Component: AdminSignupPage },
   { path: "coach-signin", Component: CoachSigninPage },
 
-  // Admin dashboard — full-width
-  { path: "admin/dashboard", Component: AdminDashboardPage },
-  { path: "admin/coaches", Component: CoachesPage },
-  { path: "admin/students", Component: StudentsPage },
-  { path: "admin/subjects", Component: SubjectsPage },
-  { path: "admin/tests", Component: TestsPage },
+  // Protected routes — require authentication
+  {
+    Component: ProtectedRoute,
+    children: [
+      // Admin dashboard
+      { path: "admin/dashboard", Component: AdminDashboardPage },
+      { path: "admin/coaches", Component: CoachesPage },
+      { path: "admin/students", Component: StudentsPage },
+      { path: "admin/subjects", Component: SubjectsPage },
+      { path: "admin/tests", Component: TestsPage },
 
-  // Coach dashboard — full-width
-  { path: "coach/dashboard", Component: CoachDashboardPage },
-  { path: "coach/students", Component: CoachStudentsPage },
-  { path: "coach/subjects", Component: CoachSubjectsPage },
-  { path: "coach/tests", Component: CoachTestsPage },
+      // Coach dashboard
+      { path: "coach/dashboard", Component: CoachDashboardPage },
+      { path: "coach/students", Component: CoachStudentsPage },
+      { path: "coach/subjects", Component: CoachSubjectsPage },
+      { path: "coach/tests", Component: CoachTestsPage },
 
-  // Student flow — full-width
-  { path: "instructions", Component: StudentInstructionsPage },
-  { path: "quiz", Component: StudentQuizPage },
-  { path: "submitted", Component: StudentSubmittedPage },
+      // Student flow
+      { path: "instructions", Component: StudentInstructionsPage },
+      { path: "quiz", Component: StudentQuizPage },
+      { path: "submitted", Component: StudentSubmittedPage },
+    ],
+  },
 ]);
 
 export default router;
