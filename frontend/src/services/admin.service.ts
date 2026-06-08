@@ -47,6 +47,27 @@ export type CreateAssignmentPayload = {
   coach_id: number;
 };
 
+// ─── Types (rows returned by list endpoints) ──────────────────────────────────
+
+export type Coach = {
+  coach_id: number;
+  user_id: number;
+  name: string;
+  email: string;
+};
+
+export type Student = {
+  student_id: number;
+  name: string;
+  student_code: string;
+  coach_id: number;
+};
+
+export type Subject = {
+  subject_id: number;
+  name: string;
+};
+
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
 export const createCoach = (data: CreateCoachPayload) =>
@@ -55,16 +76,31 @@ export const createCoach = (data: CreateCoachPayload) =>
     body: JSON.stringify(data),
   });
 
+export const deleteCoach = (coachId: number) =>
+  apiFetch<{ message: string }>(`/admin/coaches/${coachId}`, {
+    method: "DELETE",
+  });
+
 export const createStudent = (data: CreateStudentPayload) =>
   apiFetch<{ student_id: number }>("/admin/students", {
     method: "POST",
     body: JSON.stringify(data),
   });
 
+export const deleteStudent = (studentId: number) =>
+  apiFetch<{ message: string }>(`/admin/students/${studentId}`, {
+    method: "DELETE",
+  });
+
 export const createSubject = (data: CreateSubjectPayload) =>
   apiFetch<{ subject_id: number }>("/admin/subjects", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+
+export const deleteSubject = (subjectId: number) =>
+  apiFetch<{ message: string }>(`/admin/subjects/${subjectId}`, {
+    method: "DELETE",
   });
 
 export const createTest = (data: CreateTestPayload) =>
