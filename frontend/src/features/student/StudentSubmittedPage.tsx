@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
+import { Button } from "../../components/ui/button";
 
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
@@ -8,6 +9,7 @@ function clearStudentSession() {
   localStorage.removeItem("student_token");
   localStorage.removeItem("student_code");
   sessionStorage.removeItem("exam_timer");
+  sessionStorage.removeItem("exam_started");
   sessionStorage.removeItem("quiz_answers");
 }
 
@@ -36,6 +38,11 @@ export function StudentSubmittedPage() {
 
     return () => clearInterval(id);
   }, [navigate, countdown]);
+
+  const handleRedirectNow = () => {
+    clearStudentSession();
+    navigate("/", { replace: true });
+  };
 
   const minutes = Math.floor(countdown / 60);
   const seconds = countdown % 60;
@@ -70,6 +77,15 @@ export function StudentSubmittedPage() {
             {String(seconds).padStart(2, "0")}
           </p>
         </div>
+
+        {/* Redirect now */}
+        <Button
+          variant="outline"
+          className="mt-6 min-w-[160px]"
+          onClick={handleRedirectNow}
+        >
+          Redirect Now
+        </Button>
       </div>
     </div>
   );

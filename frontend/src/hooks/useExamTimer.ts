@@ -3,11 +3,15 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Counts down from `initialSeconds` and calls `onExpire` when it hits zero.
  * Persists remaining time in sessionStorage so a page reload doesn't reset it.
+ *
+ * Pass `started = false` to hold the timer on the instructions page and only
+ * begin counting once the student clicks "Accept and Begin".
  */
 export function useExamTimer(
   initialSeconds: number,
   storageKey: string,
   onExpire?: () => void,
+  started: boolean = true,
 ) {
   const getInitial = () => {
     const stored = sessionStorage.getItem(storageKey);
@@ -23,6 +27,8 @@ export function useExamTimer(
   onExpireRef.current = onExpire;
 
   useEffect(() => {
+    if (!started) return; // don't tick until exam has started
+
     if (timeLeft <= 0) {
       onExpireRef.current?.();
       return;
@@ -42,7 +48,7 @@ export function useExamTimer(
 
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey]);
+  }, [storageKey, started]);
 
   return timeLeft;
 }

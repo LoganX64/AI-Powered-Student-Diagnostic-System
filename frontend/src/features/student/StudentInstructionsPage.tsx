@@ -1,11 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Clock, CalendarClock } from "lucide-react";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
 import { useExamTimer } from "../../hooks/useExamTimer";
 
-// Default exam duration: 60 minutes
+// Exam duration — 1 hour
 const EXAM_DURATION_SECONDS = 60 * 60;
+const EXAM_DURATION_HOURS = EXAM_DURATION_SECONDS / 3600;
 
 const INSTRUCTIONS = [
   "Read each question carefully before selecting your answer.",
@@ -18,8 +20,37 @@ const INSTRUCTIONS = [
   "Ensure a stable internet connection throughout the test.",
 ];
 
+function useCurrentTime() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return now;
+}
+
+function formatCurrentTime(date: Date): string {
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatCurrentDate(date: Date): string {
+  return date.toLocaleDateString([], {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function StudentInstructionsPage() {
   const navigate = useNavigate();
+  const currentTime = useCurrentTime();
 
   const studentCode = useMemo(
     () => localStorage.getItem("student_code") || "",
@@ -34,23 +65,58 @@ export function StudentInstructionsPage() {
     }
   }, [navigate]);
 
-  // Timer shown on instruction page (counts down even before quiz starts)
-  const timeLeft = useExamTimer(EXAM_DURATION_SECONDS, "exam_timer", () => {
-    // If time runs out on the instruction page, go straight to submitted
-    navigate("/submitted", { replace: true });
-  });
+  // Timer does NOT start until the student clicks Accept
+  const timeLeft = useExamTimer(
+    EXAM_DURATION_SECONDS,
+    "exam_timer",
+    () => {
+      navigate("/submitted", { replace: true });
+    },
+    false, // started = false on instructions page
+  );
 
   const handleAccept = () => {
+    // Mark exam as started so the quiz page picks up a running timer
+    sessionStorage.setItem("exam_started", "true");
     navigate("/quiz");
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
-      {/* Header */}
+      {/* Header — timer is static (not ticking) on this page */}
       <ExamHeader candidateName={studentCode} timeLeft={timeLeft} />
 
+      {/* Exam meta info bar */}
+      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-card px-6 py-3 shadow-sm text-sm">
+        {/* Exam duration */}
+        <div className="flex items-center gap-2 text-foreground font-medium">
+          <Clock className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <span>
+            Exam duration:{" "}
+            <span className="font-semibold">
+              {EXAM_DURATION_HOURS === 1
+                ? "1 hour"
+                : `${EXAM_DURATION_HOURS} hours`}
+            </span>
+          </span>
+        </div>
+
+        <span className="hidden sm:block text-border">|</span>
+
+        {/* Current date & time */}
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <CalendarClock className="h-4 w-4" aria-hidden="true" />
+          <span>
+            {formatCurrentDate(currentTime)}{" "}
+            <span className="font-semibold tabular-nums text-foreground">
+              {formatCurrentTime(currentTime)}
+            </span>
+          </span>
+        </div>
+      </div>
+
       {/* Instructions card */}
-      <div className="mt-6 flex flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm">
+      <div className="mt-4 flex flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm">
         <div className="flex-1 p-8">
           <h2 className="mb-1 text-base font-semibold text-foreground">
             Instructions, guidelines to work with
@@ -73,8 +139,8 @@ export function StudentInstructionsPage() {
 
         {/* Footer with Accept button */}
         <div className="flex justify-end border-t border-border px-8 py-5">
-          <Button size="lg" onClick={handleAccept} className="min-w-[140px]">
-            Accept
+          <Button size="lg" onClick={handleAccept} className="min-w-[160px]">
+            Accept &amp; Begin
           </Button>
         </div>
       </div>
