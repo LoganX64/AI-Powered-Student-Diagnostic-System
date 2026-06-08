@@ -40,14 +40,14 @@ export interface AboutPageText {
 
 export const aboutPageText: AboutPageText = {
   hero: {
-    title: "About EduDiagnostics",
+    title: "About EduQuant",
     description:
       "A comprehensive AI-powered system that provides deep performance analysis, concept-level insights, and prioritized improvement recommendations for coaching institutes and students.",
   },
   mission: {
     title: "Our Mission",
     description:
-      "We believe that understanding a student's learning journey goes far beyond raw marks and percentages. EduDiagnostics is built to empower coaching institutes and educators with actionable, concept-level insights — helping them identify learning gaps early and guide every student toward their full potential.",
+      "We believe that understanding a student's learning journey goes far beyond raw marks and percentages. EduQuant is built to empower coaching institutes and educators with actionable, concept-level insights — helping them identify learning gaps early and guide every student toward their full potential.",
   },
   whatWeDo: {
     title: "What We Do",

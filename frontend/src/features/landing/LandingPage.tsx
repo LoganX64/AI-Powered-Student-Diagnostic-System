@@ -104,7 +104,7 @@ export function LandingPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <BarChart3Icon className="size-6 text-primary" />
-            <span className="text-lg font-bold">EduDiagnostics</span>
+            <span className="text-lg font-bold">EduQuant</span>
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -201,7 +201,7 @@ export function LandingPage() {
       {/* Footer */}
       <footer className="border-t mt-auto">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 text-xs text-muted-foreground">
-          <span>&copy; 2026 EduDiagnostics. All rights reserved.</span>
+          <span>&copy; 2026 EduQuant. All rights reserved.</span>
           <div className="flex gap-4">
             <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>

@@ -10,7 +10,7 @@ export function AboutPage() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2">
             <BarChart3Icon className="size-6 text-primary" />
-            <span className="text-lg font-bold">EduDiagnostics</span>
+            <span className="text-lg font-bold">EduQuant</span>
           </Link>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
@@ -27,7 +27,7 @@ export function AboutPage() {
       <main className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-16 space-y-16">
         {/* Hero */}
         <div className="text-center space-y-4 max-w-3xl mx-auto">
-          <h1 className="text-4xl font-bold tracking-tight">About EduDiagnostics</h1>
+          <h1 className="text-4xl font-bold tracking-tight">About EduQuant</h1>
           <p className="text-muted-foreground text-lg leading-relaxed">
             A comprehensive AI-powered system that provides deep performance
             analysis, concept-level insights, and prioritized improvement
@@ -40,7 +40,7 @@ export function AboutPage() {
           <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
           <p className="text-muted-foreground leading-relaxed text-base">
             We believe that understanding a student&apos;s learning journey goes far
-            beyond raw marks and percentages. EduDiagnostics is built to empower
+            beyond raw marks and percentages. EduQuant is built to empower
             coaching institutes and educators with actionable, concept-level
             insights — helping them identify learning gaps early and guide every
             student toward their full potential.

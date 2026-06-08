@@ -44,7 +44,7 @@ export interface LandingPageText {
 }
 
 export const landingPageText: LandingPageText = {
-  brand: "EduDiagnostics",
+  brand: "EduQuant",
   nav: {
     features: "Features",
     about: "About",
@@ -104,7 +104,7 @@ export const landingPageText: LandingPageText = {
     buttonText: "Get Started — It's Free",
   },
   footer: {
-    copyright: "© 2026 EduDiagnostics. All rights reserved.",
+    copyright: "© 2026 EduQuant. All rights reserved.",
     about: "About",
     privacy: "Privacy",
     terms: "Terms",

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, BarChart3Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +81,10 @@ export function AdminSignupForm({
       className={cn("flex w-full max-w-md flex-col gap-6", className)}
       {...props}
     >
+      <div className="flex items-center justify-center gap-2">
+        <BarChart3Icon className="size-6 text-primary" />
+        <span className="text-lg font-bold">EduQuant</span>
+      </div>
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Create your account</CardTitle>
