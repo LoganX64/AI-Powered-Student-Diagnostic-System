@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,30 +23,51 @@ export function AdminSignupForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!orgName.trim()) {
+      newErrors.orgName = "Organization name is required";
+    }
+    if (!email.trim()) {
+      newErrors.email = "Email is required";
+    }
+    if (!password) {
+      newErrors.password = "Password is required";
+    } else if (password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters long";
+    }
+    if (password !== confirmPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setErrors({});
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long");
-      return;
-    }
+    if (!validate()) return;
 
     setLoading(true);
 
     try {
       await register({ email, password, org_name: orgName });
-      navigate("/admin-signin");
+      toast.success("Account created successfully! Redirecting to sign in...");
+      setTimeout(() => navigate("/admin-signin"), 1500);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      const message = err instanceof Error ? err.message : "Registration failed";
+
+      if (message.toLowerCase().includes("email")) {
+        setErrors({ email: message });
+      } else {
+        setErrors({ form: message });
+      }
     } finally {
       setLoading(false);
     }
@@ -60,14 +82,14 @@ export function AdminSignupForm({
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Create your account</CardTitle>
           <CardDescription>
-            Enter your email below to create your account
+            Enter your details below to create your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-              {error && (
-                <p className="text-sm text-destructive text-center">{error}</p>
+              {errors.form && (
+                <p className="text-sm text-destructive text-center">{errors.form}</p>
               )}
               <Field>
                 <FieldLabel htmlFor="name">Organization Name</FieldLabel>
@@ -76,9 +98,15 @@ export function AdminSignupForm({
                   type="text"
                   placeholder="Innovative Academy"
                   value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
+                  onChange={(e) => {
+                    setOrgName(e.target.value);
+                    if (errors.orgName) setErrors((prev) => ({ ...prev, orgName: "" }));
+                  }}
                   required
                 />
+                {errors.orgName && (
+                  <p className="text-sm text-destructive">{errors.orgName}</p>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -87,9 +115,15 @@ export function AdminSignupForm({
                   type="email"
                   placeholder="m@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                  }}
                   required
                 />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
               </Field>
               <Field>
                 <Field className="grid grid-cols-2 gap-4">
@@ -99,9 +133,15 @@ export function AdminSignupForm({
                       id="password"
                       type="password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                      }}
                       required
                     />
+                    {errors.password && (
+                      <p className="text-sm text-destructive">{errors.password}</p>
+                    )}
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="confirm-password">
@@ -111,9 +151,15 @@ export function AdminSignupForm({
                       id="confirm-password"
                       type="password"
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                      }}
                       required
                     />
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-destructive">{errors.confirmPassword}</p>
+                    )}
                   </Field>
                 </Field>
                 <FieldDescription>

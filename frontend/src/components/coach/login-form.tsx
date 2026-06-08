@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +17,51 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { login } from "@/services/auth.service";
 
 export function CoachLoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+
+    const newErrors: Record<string, string> = {};
+    if (!email.trim()) newErrors.email = "Email is required";
+    if (!password) newErrors.password = "Password is required";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await login({ email, password });
+      localStorage.setItem("admin_token", res.token);
+      localStorage.setItem("admin_role", res.role);
+      navigate("/coach/dashboard");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+
+      if (message.toLowerCase().includes("credential")) {
+        setErrors({ form: "Invalid email or password" });
+      } else {
+        setErrors({ form: message });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
       className={cn("flex w-full max-w-md flex-col gap-6", className)}
@@ -29,10 +70,10 @@ export function CoachLoginForm({
       <Card className="w-full">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Welcome back, Coach!</CardTitle>
-          <CardDescription>Login with your Google account</CardDescription>
+          <CardDescription>Sign in to your coach account</CardDescription>
         </CardHeader>
         <CardContent>
-          <form>
+          <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
                 <Button variant="outline" type="button" className="w-full">
@@ -48,14 +89,25 @@ export function CoachLoginForm({
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Or continue with
               </FieldSeparator>
+              {errors.form && (
+                <p className="text-sm text-destructive text-center">{errors.form}</p>
+              )}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
                   placeholder="coach@example.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                  }}
                   required
                 />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
               </Field>
               <Field>
                 <div className="flex items-center">
@@ -67,18 +119,26 @@ export function CoachLoginForm({
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                  }}
+                  required
+                />
+                {errors.password && (
+                  <p className="text-sm text-destructive">{errors.password}</p>
+                )}
               </Field>
               <Field>
-                <Button type="submit" className="w-full">Login</Button>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Logging in..." : "Login"}
+                </Button>
                 <FieldDescription className="text-center">
-                  Don&apos;t have an account?{" "}
-                  <Link
-                    to="/coach-signup"
-                    className="underline hover:no-underline"
-                  >
-                    Sign up
-                  </Link>
+                  Contact your admin to get access
                 </FieldDescription>
               </Field>
             </FieldGroup>

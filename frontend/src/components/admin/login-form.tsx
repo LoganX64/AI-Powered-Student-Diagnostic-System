@@ -26,12 +26,22 @@ export function AdminLoginForm({
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setErrors({});
+
+    const newErrors: Record<string, string> = {};
+    if (!email.trim()) newErrors.email = "Email is required";
+    if (!password) newErrors.password = "Password is required";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -40,7 +50,13 @@ export function AdminLoginForm({
       localStorage.setItem("admin_role", res.role);
       navigate("/admin/dashboard");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const message = err instanceof Error ? err.message : "Login failed";
+
+      if (message.toLowerCase().includes("credential")) {
+        setErrors({ form: "Invalid email or password" });
+      } else {
+        setErrors({ form: message });
+      }
     } finally {
       setLoading(false);
     }
@@ -73,8 +89,8 @@ export function AdminLoginForm({
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Or continue with
               </FieldSeparator>
-              {error && (
-                <p className="text-sm text-destructive text-center">{error}</p>
+              {errors.form && (
+                <p className="text-sm text-destructive text-center">{errors.form}</p>
               )}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
@@ -83,9 +99,15 @@ export function AdminLoginForm({
                   type="email"
                   placeholder="m@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                  }}
                   required
                 />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email}</p>
+                )}
               </Field>
               <Field>
                 <div className="flex items-center">
@@ -101,9 +123,15 @@ export function AdminLoginForm({
                   id="password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                  }}
                   required
                 />
+                {errors.password && (
+                  <p className="text-sm text-destructive">{errors.password}</p>
+                )}
               </Field>
               <Field>
                 <Button type="submit" disabled={loading}>
