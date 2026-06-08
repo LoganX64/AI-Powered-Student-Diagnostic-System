@@ -18,6 +18,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useNavigate } from "react-router-dom"
 import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
 
 export function NavUser({
@@ -30,6 +31,13 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    localStorage.removeItem("admin_token")
+    localStorage.removeItem("admin_role")
+    navigate("/admin-signin")
+  }
 
   return (
     <SidebarMenu>
@@ -92,7 +100,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon
               />
               Log out

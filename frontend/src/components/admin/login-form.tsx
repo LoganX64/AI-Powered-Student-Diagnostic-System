@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +17,35 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { login } from "@/services/auth.service";
 
 export function AdminLoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await login({ email, password });
+      localStorage.setItem("admin_token", res.token);
+      localStorage.setItem("admin_role", res.role);
+      navigate("/admin/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div
       className={cn("flex w-full max-w-md flex-col gap-6", className)}
@@ -32,7 +57,7 @@ export function AdminLoginForm({
           <CardDescription>Login with your Google account</CardDescription>
         </CardHeader>
         <CardContent>
-          <form>
+          <form onSubmit={handleSubmit}>
             <FieldGroup>
               <Field>
                 <Button variant="outline" type="button">
@@ -48,12 +73,17 @@ export function AdminLoginForm({
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 Or continue with
               </FieldSeparator>
+              {error && (
+                <p className="text-sm text-destructive text-center">{error}</p>
+              )}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
                   placeholder="m@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                 />
               </Field>
@@ -67,10 +97,18 @@ export function AdminLoginForm({
                     Forgot your password?
                   </a>
                 </div>
-                <Input id="password" type="password" required />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </Field>
               <Field>
-                <Button type="submit">Login</Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Logging in..." : "Login"}
+                </Button>
                 <FieldDescription className="text-center">
                   Don&apos;t have an account?{" "}
                   <Link

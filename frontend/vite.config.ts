@@ -26,6 +26,12 @@ export default defineConfig(({ mode }) => {
     server: {
       port: port,
       host: true,
+      proxy: {
+        "/auth": backend,
+        "/admin/": backend,
+        "/student": backend,
+        "/coach": backend,
+      },
     },
   };
 });
