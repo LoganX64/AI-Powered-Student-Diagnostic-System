@@ -1,4 +1,4 @@
-// import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { BarChart3Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,10 +38,10 @@ export function StudentLoginForm({
 
   return (
     <div className={cn("flex w-full max-w-md flex-col gap-6", className)}>
-      <div className="flex items-center justify-center gap-2">
+      <Link to="/" className="flex items-center justify-center gap-2">
         <BarChart3Icon className="size-6 text-primary" />
         <span className="text-lg font-bold">EduQuant</span>
-      </div>
+      </Link>
       <Card className="w-full">
         <CardHeader>
           <CardTitle>Login to your account</CardTitle>

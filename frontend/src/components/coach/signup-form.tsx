@@ -25,10 +25,10 @@ export function CoachSignupForm({
       className={cn("flex w-full max-w-md flex-col gap-6", className)}
       {...props}
     >
-      <div className="flex items-center justify-center gap-2">
+      <Link to="/" className="flex items-center justify-center gap-2">
         <BarChart3Icon className="size-6 text-primary" />
         <span className="text-lg font-bold">EduQuant</span>
-      </div>
+      </Link>
       <Card className="w-full">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Create your coach account</CardTitle>
