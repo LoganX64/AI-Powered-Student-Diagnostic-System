@@ -14,15 +14,12 @@ const router = createBrowserRouter([
     Component: App,
     children: [
       { index: true, Component: StudentLoginPage },
-
-      // Admin / coach routes (use the narrow centered layout from App)
       { path: "admin-signin", Component: AdminLoginForm },
       { path: "admin-signup", Component: AdminSignupForm },
       { path: "coach-signin", Component: CoachLoginForm },
     ],
   },
 
-  // Full-width exam routes — rendered outside the narrow App shell
   { path: "instructions", Component: StudentInstructionsPage },
   { path: "quiz", Component: StudentQuizPage },
   { path: "submitted", Component: StudentSubmittedPage },
