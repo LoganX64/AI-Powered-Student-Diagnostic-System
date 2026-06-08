@@ -1,26 +1,30 @@
-import { cn } from "../../lib/utils";
-import { Button } from "../ui/button";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
-} from "../ui/card";
-import { FieldGroup, Field, FieldLabel, FieldDescription } from "../ui/field";
-import { Input } from "../ui/input";
+} from "@/components/ui/card";
+import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 export function CoachSignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   return (
-    <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
+    <div
+      className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      {...props}
+    >
+      <Card className="w-full">
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Create your account</CardTitle>
+          <CardTitle className="text-xl">Create your coach account</CardTitle>
           <CardDescription>
-            Enter your email below to create your account
+            Enter your details below to get started
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -28,19 +32,19 @@ export function CoachSignupForm({
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="name">Full Name</FieldLabel>
-                <Input id="name" type="text" placeholder="John Doe" required />
+                <Input id="name" type="text" placeholder="Jane Smith" required />
               </Field>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="coach@example.com"
                   required
                 />
               </Field>
               <Field>
-                <Field className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <Field>
                     <FieldLabel htmlFor="password">Password</FieldLabel>
                     <Input id="password" type="password" required />
@@ -51,15 +55,21 @@ export function CoachSignupForm({
                     </FieldLabel>
                     <Input id="confirm-password" type="password" required />
                   </Field>
-                </Field>
+                </div>
                 <FieldDescription>
                   Must be at least 8 characters long.
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit">Create Account</Button>
+                <Button type="submit" className="w-full">Create Account</Button>
                 <FieldDescription className="text-center">
-                  Already have an account? <a href="#">Sign in</a>
+                  Already have an account?{" "}
+                  <Link
+                    to="/coach-signin"
+                    className="underline hover:no-underline"
+                  >
+                    Sign in
+                  </Link>
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -67,8 +77,10 @@ export function CoachSignupForm({
         </CardContent>
       </Card>
       <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
+        By clicking continue, you agree to our{" "}
+        <a href="#" className="underline hover:no-underline">Terms of Service</a>{" "}
+        and{" "}
+        <a href="#" className="underline hover:no-underline">Privacy Policy</a>.
       </FieldDescription>
     </div>
   );

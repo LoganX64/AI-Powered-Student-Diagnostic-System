@@ -50,16 +50,16 @@ import {
   ChevronsRightIcon,
   TrendingUpIcon,
 } from "lucide-react";
-import { useIsMobile } from "../hooks/use-mobile";
-import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-} from "./ui/chart";
-import { Checkbox } from "./ui/checkbox";
+} from "@/components/ui/chart";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Drawer,
   DrawerTrigger,
@@ -69,7 +69,7 @@ import {
   DrawerDescription,
   DrawerFooter,
   DrawerClose,
-} from "./ui/drawer";
+} from "@/components/ui/drawer";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -77,9 +77,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
-} from "./ui/dropdown-menu";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectTrigger,
@@ -87,8 +87,8 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
-} from "./ui/select";
-import { Separator } from "./ui/separator";
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableRow,
@@ -96,8 +96,8 @@ import {
   TableHeader,
   TableHead,
   TableBody,
-} from "./ui/table";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const schema = z.object({

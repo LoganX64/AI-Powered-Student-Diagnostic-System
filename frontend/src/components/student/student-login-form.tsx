@@ -1,15 +1,15 @@
 // import { Link } from "react-router-dom";
-import { cn } from "../../lib/utils";
-import { Button } from "../ui/button";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent,
-} from "../ui/card";
-import { FieldGroup, Field, FieldLabel } from "../ui/field";
-import { Input } from "../ui/input";
+} from "@/components/ui/card";
+import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 type LoginFormData = {
   student_code: string;
