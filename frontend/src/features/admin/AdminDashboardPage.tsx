@@ -10,7 +10,7 @@ import data from "../../app/dashboard/data.json"
 export function AdminDashboardPage() {
   return (
     <SidebarProvider>
-      <AppSidebar variant="inset" />
+      <AppSidebar />
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
