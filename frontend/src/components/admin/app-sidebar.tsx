@@ -1,5 +1,5 @@
 import * as React from "react"
-import { LayoutDashboardIcon, ListIcon, ChartBarIcon, FolderIcon, UsersIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, DatabaseIcon, FileChartColumnIcon, FileIcon, CommandIcon } from "lucide-react"
+import { LayoutDashboardIcon, ListIcon, ChartBarIcon, FolderIcon, UsersIcon, CameraIcon, FileTextIcon, Settings2Icon, CircleHelpIcon, SearchIcon, DatabaseIcon, FileChartColumnIcon, FileIcon, CommandIcon, PlusCircleIcon } from "lucide-react"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar"
 import { NavDocuments } from "@/components/admin/nav-documents"
 import { NavMain } from "@/components/admin/nav-main"
@@ -15,9 +15,17 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "#",
+      url: "/admin/dashboard",
       icon: (
         <LayoutDashboardIcon
+        />
+      ),
+    },
+    {
+      title: "Manage",
+      url: "/admin/manage",
+      icon: (
+        <PlusCircleIcon
         />
       ),
     },

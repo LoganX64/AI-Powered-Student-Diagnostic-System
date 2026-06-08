@@ -7,6 +7,7 @@ import { StudentSubmittedPage } from "../src/features/student/StudentSubmittedPa
 import { AdminSigninPage } from "../src/features/admin/AdminSigninPage";
 import { AdminSignupForm } from "../src/components/admin/signup-form.tsx";
 import { AdminDashboardPage } from "../src/features/admin/AdminDashboardPage.tsx";
+import { AdminManagePage } from "../src/features/admin/AdminManagePage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
 import { CoachSignupPage } from "../src/features/coach/CoachSignupPage.tsx";
 import { CoachDashboardPage } from "../src/features/coach/CoachDashboardPage.tsx";
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
 
   // Full-width pages — outside the narrow App shell
   { path: "admin/dashboard", Component: AdminDashboardPage },
+  { path: "admin/manage", Component: AdminManagePage },
   { path: "coach/dashboard", Component: CoachDashboardPage },
   { path: "instructions", Component: StudentInstructionsPage },
   { path: "quiz", Component: StudentQuizPage },
