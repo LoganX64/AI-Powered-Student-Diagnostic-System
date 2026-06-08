@@ -14,6 +14,9 @@ import { TestsPage } from "../src/features/admin/TestsPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
 import { CoachSignupPage } from "../src/features/coach/CoachSignupPage.tsx";
 import { CoachDashboardPage } from "../src/features/coach/CoachDashboardPage.tsx";
+import { CoachStudentsPage } from "../src/features/coach/CoachStudentsPage.tsx";
+import { CoachSubjectsPage } from "../src/features/coach/CoachSubjectsPage.tsx";
+import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
 
 const router = createBrowserRouter([
   {
@@ -37,6 +40,9 @@ const router = createBrowserRouter([
   { path: "admin/subjects", Component: SubjectsPage },
   { path: "admin/tests", Component: TestsPage },
   { path: "coach/dashboard", Component: CoachDashboardPage },
+  { path: "coach/students", Component: CoachStudentsPage },
+  { path: "coach/subjects", Component: CoachSubjectsPage },
+  { path: "coach/tests", Component: CoachTestsPage },
   { path: "instructions", Component: StudentInstructionsPage },
   { path: "quiz", Component: StudentQuizPage },
   { path: "submitted", Component: StudentSubmittedPage },

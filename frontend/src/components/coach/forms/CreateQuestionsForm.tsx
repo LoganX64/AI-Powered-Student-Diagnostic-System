@@ -1,0 +1,307 @@
+import { useState } from "react";
+import { toast } from "sonner";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+
+export type CoachQuestion = {
+  question_text: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+  marks: number;
+  neg_marks: number;
+  importance: string;
+  difficulty: string;
+  type: string;
+  expected_time: number;
+  concept_tag: string;
+};
+
+type Props = {
+  onCreated: (testId: number, count: number) => void;
+};
+
+const emptyQuestion = (): CoachQuestion => ({
+  question_text: "",
+  option_a: "",
+  option_b: "",
+  option_c: "",
+  option_d: "",
+  correct_answer: "A",
+  marks: 1,
+  neg_marks: 0.25,
+  importance: "A",
+  difficulty: "E",
+  type: "Theory",
+  expected_time: 1,
+  concept_tag: "",
+});
+
+export function CreateQuestionsForm({ onCreated }: Props) {
+  const [testId, setTestId] = useState("");
+  const [questions, setQuestions] = useState<CoachQuestion[]>([emptyQuestion()]);
+  const [loading, setLoading] = useState(false);
+
+  const update = (index: number, field: keyof CoachQuestion, value: string | number) => {
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === index ? { ...q, [field]: value } : q))
+    );
+  };
+
+  const addQuestion = () => setQuestions((prev) => [...prev, emptyQuestion()]);
+
+  const removeQuestion = (index: number) => {
+    if (questions.length === 1) return;
+    setQuestions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    const id = Number(testId);
+    if (!id || id < 1) {
+      toast.error("Please enter a valid Test ID");
+      return;
+    }
+
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 300));
+
+    onCreated(id, questions.length);
+    toast.success(`${questions.length} question(s) added to test ${id}`);
+    setTestId("");
+    setQuestions([emptyQuestion()]);
+    setLoading(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Add Questions to Test</CardTitle>
+        <CardDescription>
+          Add one or more questions to an existing test.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="q-test-id">Test ID</Label>
+            <Input
+              id="q-test-id"
+              type="number"
+              min={1}
+              placeholder="1"
+              value={testId}
+              onChange={(e) => setTestId(e.target.value)}
+              required
+              className="max-w-[180px]"
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex flex-col gap-6">
+            {questions.map((q, idx) => (
+              <div key={idx} className="flex flex-col gap-4 rounded-lg border p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    Question {idx + 1}
+                  </span>
+                  {questions.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-destructive hover:text-destructive"
+                      onClick={() => removeQuestion(idx)}
+                      aria-label={`Remove question ${idx + 1}`}
+                    >
+                      <Trash2Icon className="size-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label>Question Text</Label>
+                  <Input
+                    value={q.question_text}
+                    onChange={(e) => update(idx, "question_text", e.target.value)}
+                    placeholder="What is 2 + 2?"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {(["option_a", "option_b", "option_c", "option_d"] as const).map((opt, oi) => (
+                    <div key={opt} className="flex flex-col gap-1.5">
+                      <Label>{["A", "B", "C", "D"][oi]}</Label>
+                      <Input
+                        value={q[opt]}
+                        onChange={(e) => update(idx, opt, e.target.value)}
+                        placeholder={`Option ${["A", "B", "C", "D"][oi]}`}
+                        required
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Correct Answer</Label>
+                    <Select
+                      value={q.correct_answer}
+                      onValueChange={(v) => update(idx, "correct_answer", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {["A", "B", "C", "D"].map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Marks</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.25}
+                      value={q.marks}
+                      onChange={(e) => update(idx, "marks", parseFloat(e.target.value) || 0)}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Neg. Marks</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.25}
+                      value={q.neg_marks}
+                      onChange={(e) => update(idx, "neg_marks", parseFloat(e.target.value) || 0)}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Exp. Time (min)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      value={q.expected_time}
+                      onChange={(e) => update(idx, "expected_time", parseFloat(e.target.value) || 0)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Importance</Label>
+                    <Select
+                      value={q.importance}
+                      onValueChange={(v) => update(idx, "importance", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="A">A (High)</SelectItem>
+                          <SelectItem value="B">B (Medium)</SelectItem>
+                          <SelectItem value="C">C (Low)</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Difficulty</Label>
+                    <Select
+                      value={q.difficulty}
+                      onValueChange={(v) => update(idx, "difficulty", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="E">Easy</SelectItem>
+                          <SelectItem value="M">Medium</SelectItem>
+                          <SelectItem value="H">Hard</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Type</Label>
+                    <Select
+                      value={q.type}
+                      onValueChange={(v) => update(idx, "type", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectItem value="Theory">Theory</SelectItem>
+                          <SelectItem value="Numerical">Numerical</SelectItem>
+                          <SelectItem value="Applied">Applied</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Concept Tag</Label>
+                    <Input
+                      value={q.concept_tag}
+                      onChange={(e) => update(idx, "concept_tag", e.target.value)}
+                      placeholder="basic_arithmetic"
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-fit gap-2"
+            onClick={addQuestion}
+          >
+            <PlusIcon className="size-4" />
+            Add Another Question
+          </Button>
+
+          <Separator />
+
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={loading} className="w-fit">
+              {loading ? "Submitting…" : `Submit ${questions.length} Question${questions.length > 1 ? "s" : ""}`}
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {questions.length} question{questions.length > 1 ? "s" : ""} ready
+            </span>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}

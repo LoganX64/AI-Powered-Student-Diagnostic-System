@@ -1,15 +1,11 @@
 import * as React from "react";
 import {
   LayoutDashboardIcon,
-  UsersIcon,
+  GraduationCapIcon,
+  BookOpenIcon,
   ClipboardListIcon,
-  BarChart3Icon,
-  MessageSquareIcon,
   Settings2Icon,
   CircleHelpIcon,
-  GraduationCapIcon,
-  CalendarIcon,
-  BookOpenIcon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -37,34 +33,19 @@ const data = {
       icon: <LayoutDashboardIcon />,
     },
     {
-      title: "My Students",
-      url: "#",
-      icon: <UsersIcon />,
+      title: "Students",
+      url: "/coach/students",
+      icon: <GraduationCapIcon />,
     },
     {
-      title: "Assessments",
-      url: "#",
-      icon: <ClipboardListIcon />,
-    },
-    {
-      title: "Analytics",
-      url: "#",
-      icon: <BarChart3Icon />,
-    },
-    {
-      title: "Lessons",
-      url: "#",
+      title: "Subjects",
+      url: "/coach/subjects",
       icon: <BookOpenIcon />,
     },
     {
-      title: "Schedule",
-      url: "#",
-      icon: <CalendarIcon />,
-    },
-    {
-      title: "Messages",
-      url: "#",
-      icon: <MessageSquareIcon />,
+      title: "Tests",
+      url: "/coach/tests",
+      icon: <ClipboardListIcon />,
     },
   ],
   navSecondary: [
