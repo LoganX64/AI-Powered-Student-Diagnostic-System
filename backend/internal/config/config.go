@@ -13,6 +13,7 @@ type Config struct {
 	DBURL             string
 	JWTSecret         string
 	JWTExpiry         string
+	Port              string
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
 	DBConnMaxLifetime time.Duration
@@ -28,6 +29,7 @@ func LoadConfig() *Config {
 	dbURL := os.Getenv("DB_URL")
 	jwtSecret := os.Getenv("JWT_SECRET")
 	jwtExpiry := os.Getenv("JWT_EXPIRY")
+	port := os.Getenv("PORT")
 
 	maxOpenStr := os.Getenv("DB_MAX_OPEN_CONNS")
 	maxIdleStr := os.Getenv("DB_MAX_IDLE_CONNS")
@@ -41,11 +43,15 @@ func LoadConfig() *Config {
 		log.Fatal("JWT_SECRET is not set")
 	}
 
-	if jwtExpiry == "" {
-		jwtExpiry = "4h" // default to 4 hours
+	if port == "" {
+		log.Fatal("PORT is not set")
 	}
 
-	// Defaults
+	if jwtExpiry == "" {
+		log.Fatal("JWT_EXPIRY is not set")
+	}
+
+	// Defaults (only if not provided)
 	maxOpen := 25
 	maxIdle := 25
 	maxLifetime := 5 * time.Minute
@@ -70,6 +76,7 @@ func LoadConfig() *Config {
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
 		JWTExpiry:         jwtExpiry,
+		Port:              port,
 		DBMaxOpenConns:    maxOpen,
 		DBMaxIdleConns:    maxIdle,
 		DBConnMaxLifetime: maxLifetime,

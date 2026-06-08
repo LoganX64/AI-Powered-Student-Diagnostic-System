@@ -39,5 +39,5 @@ func main() {
 	conn := db.InitDB(cfg)
 
 	r := routes.SetupRouter(conn)
-	r.Run(":8080")
+	r.Run(":" + cfg.Port)
 }
