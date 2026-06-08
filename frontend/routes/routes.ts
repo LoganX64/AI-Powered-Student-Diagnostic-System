@@ -1,13 +1,12 @@
 import { createBrowserRouter } from "react-router-dom";
-import App from "../src/App.tsx";
 import { LandingPage } from "../src/features/landing/LandingPage.tsx";
 import { AboutPage } from "../src/features/landing/AboutPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
 import { StudentInstructionsPage } from "../src/features/student/StudentInstructionsPage.tsx";
 import { StudentQuizPage } from "../src/features/student/StudentQuizPage.tsx";
 import { StudentSubmittedPage } from "../src/features/student/StudentSubmittedPage.tsx";
-import { AdminSigninPage } from "../src/features/admin/AdminSigninPage";
-import { AdminSignupForm } from "../src/components/admin/signup-form.tsx";
+import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
+import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
 import { AdminDashboardPage } from "../src/features/admin/AdminDashboardPage.tsx";
 import { CoachesPage } from "../src/features/admin/CoachesPage.tsx";
 import { StudentsPage } from "../src/features/admin/StudentsPage.tsx";
@@ -20,22 +19,15 @@ import { CoachSubjectsPage } from "../src/features/coach/CoachSubjectsPage.tsx";
 import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
 
 const router = createBrowserRouter([
-  // Full-width pages — outside the narrow App shell
+  // Public pages
   { path: "/", Component: LandingPage },
   { path: "about", Component: AboutPage },
 
-  {
-    path: "/",
-    Component: App,
-    children: [
-      { path: "student-login", Component: StudentLoginPage },
-      // Admin auth
-      { path: "admin-signin", Component: AdminSigninPage },
-      { path: "admin-signup", Component: AdminSignupForm },
-      // Coach auth
-      { path: "coach-signin", Component: CoachSigninPage },
-    ],
-  },
+  // Auth pages — centered layout
+  { path: "student-login", Component: StudentLoginPage },
+  { path: "admin-signin", Component: AdminSigninPage },
+  { path: "admin-signup", Component: AdminSignupPage },
+  { path: "coach-signin", Component: CoachSigninPage },
 
   // Admin dashboard — full-width
   { path: "admin/dashboard", Component: AdminDashboardPage },
@@ -50,7 +42,7 @@ const router = createBrowserRouter([
   { path: "coach/subjects", Component: CoachSubjectsPage },
   { path: "coach/tests", Component: CoachTestsPage },
 
-  // Student flow
+  // Student flow — full-width
   { path: "instructions", Component: StudentInstructionsPage },
   { path: "quiz", Component: StudentQuizPage },
   { path: "submitted", Component: StudentSubmittedPage },

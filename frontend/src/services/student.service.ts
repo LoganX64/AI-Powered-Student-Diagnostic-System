@@ -1,3 +1,5 @@
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+
 export type StudentLoginPayload = {
   student_code: string;
 };
@@ -9,7 +11,7 @@ export type StudentLoginResponse = {
 export async function loginStudent(
   data: StudentLoginPayload,
 ): Promise<StudentLoginResponse> {
-  const response = await fetch("/student/login", {
+  const response = await fetch(`${BASE_URL}/student/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

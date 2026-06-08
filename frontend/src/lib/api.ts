@@ -1,3 +1,5 @@
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+
 /**
  * Shared fetch wrapper that attaches the admin JWT and handles errors.
  */
@@ -16,7 +18,7 @@ export async function apiFetch<T = unknown>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(`${BASE_URL}${url}`, { ...options, headers });
 
   const payload = await res.json().catch(() => ({ error: "Invalid response" }));
 
