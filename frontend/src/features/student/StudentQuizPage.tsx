@@ -77,6 +77,15 @@ export function StudentQuizPage() {
 
   const currentQuestion = questions[currentIndex];
 
+  const handleSubmit = () => {
+    // Store answers so the submitted page (or future API call) can access them
+    sessionStorage.setItem("quiz_answers", JSON.stringify(answers));
+    // Clear exam timer and started flag
+    sessionStorage.removeItem("exam_timer");
+    sessionStorage.removeItem("exam_started");
+    navigate("/submitted", { replace: true });
+  };
+
   // Timer — starts running once the student accepted on the instructions page
   const examStarted = sessionStorage.getItem("exam_started") === "true";
   const timeLeft = useExamTimer(
@@ -100,15 +109,6 @@ export function StudentQuizPage() {
 
   const handleNavigate = (index: number) => {
     setCurrentIndex(index);
-  };
-
-  const handleSubmit = () => {
-    // Store answers so the submitted page (or future API call) can access them
-    sessionStorage.setItem("quiz_answers", JSON.stringify(answers));
-    // Clear exam timer and started flag
-    sessionStorage.removeItem("exam_timer");
-    sessionStorage.removeItem("exam_started");
-    navigate("/submitted", { replace: true });
   };
 
   const isLast = currentIndex === questions.length - 1;

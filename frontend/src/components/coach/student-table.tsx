@@ -177,6 +177,7 @@ export function CoachStudentTable() {
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
   const [globalFilter, setGlobalFilter] = React.useState("");
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: studentData,
     columns,
