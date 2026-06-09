@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createAssignment } from "@/services/coach.service";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { createAssignment, getStudents, getTests } from "@/services/coach.service";
+import type { Student, Test } from "@/services/admin.service";
 
 export type CoachAssignment = {
   assignment_id: number;
@@ -19,16 +27,23 @@ type Props = {
 
 export function CreateAssignmentForm({ onCreated }: Props) {
   const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [tests, setTests] = useState<Test[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedTestId, setSelectedTestId] = useState("");
 
-  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+  useEffect(() => {
+    getStudents().then(setStudents).catch(() => {});
+    getTests().then(setTests).catch(() => {});
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-
-    const studentId = Number(fd.get("student_id"));
-    const testId = Number(fd.get("test_id"));
+    const studentId = Number(selectedStudentId);
+    const testId = Number(selectedTestId);
 
     if (!studentId || !testId) {
-      toast.error("All IDs must be valid positive numbers");
+      toast.error("Please select both a student and a test");
       return;
     }
 
@@ -47,7 +62,8 @@ export function CreateAssignmentForm({ onCreated }: Props) {
       };
       onCreated(newAssignment);
       toast.success(`Test assigned to student ${studentId}`);
-      (e.target as HTMLFormElement).reset();
+      setSelectedStudentId("");
+      setSelectedTestId("");
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -67,26 +83,46 @@ export function CreateAssignmentForm({ onCreated }: Props) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="assign-student-id">Student ID</Label>
-              <Input
-                id="assign-student-id"
-                name="student_id"
-                type="number"
-                min={1}
-                placeholder="1"
-                required
-              />
+              <Label>Student</Label>
+              <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a student" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {students.length === 0 ? (
+                      <SelectItem value="none" disabled>No students found</SelectItem>
+                    ) : (
+                      students.map((s) => (
+                        <SelectItem key={s.student_id} value={s.student_id.toString()}>
+                          {s.name} ({s.student_code})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="assign-test-id">Test ID</Label>
-              <Input
-                id="assign-test-id"
-                name="test_id"
-                type="number"
-                min={1}
-                placeholder="1"
-                required
-              />
+              <Label>Test</Label>
+              <Select value={selectedTestId} onValueChange={setSelectedTestId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a test" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {tests.length === 0 ? (
+                      <SelectItem value="none" disabled>No tests found</SelectItem>
+                    ) : (
+                      tests.map((t) => (
+                        <SelectItem key={t.test_id} value={t.test_id.toString()}>
+                          {t.title} (ID: {t.test_id})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
