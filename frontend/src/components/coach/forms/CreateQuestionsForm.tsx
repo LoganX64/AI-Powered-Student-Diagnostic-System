@@ -261,8 +261,7 @@ export function CreateQuestionsForm({ onCreated }: Props) {
                       <SelectContent>
                         <SelectGroup>
                           <SelectItem value="Theory">Theory</SelectItem>
-                          <SelectItem value="Numerical">Numerical</SelectItem>
-                          <SelectItem value="Applied">Applied</SelectItem>
+                          <SelectItem value="Practical">Practical</SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
