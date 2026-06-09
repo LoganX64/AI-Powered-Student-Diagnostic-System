@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createSubject } from "@/services/coach.service";
 
 export type CoachSubject = {
   subject_id: number;
@@ -22,27 +23,28 @@ export function CreateSubjectForm({ onCreated }: Props) {
     const fd = new FormData(e.currentTarget);
     const name = fd.get("name") as string;
 
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-
-    const newSubject: CoachSubject = {
-      subject_id: Date.now(),
-      name,
-    };
-
-    onCreated(newSubject);
-    toast.success(`Subject "${name}" created`);
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await createSubject({ name });
+      const newSubject: CoachSubject = {
+        subject_id: res.subject_id,
+        name,
+      };
+      onCreated(newSubject);
+      toast.success(`Subject "${name}" created`);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Create Subject</CardTitle>
-        <CardDescription>
-          Add a new subject to your curriculum.
-        </CardDescription>
+        <CardDescription>Add a new subject to your curriculum.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

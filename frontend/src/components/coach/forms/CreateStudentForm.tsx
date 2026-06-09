@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createStudent } from "@/services/coach.service";
 
 export type CoachStudent = {
   student_id: number;
@@ -26,24 +27,26 @@ export function CreateStudentForm({ onCreated }: Props) {
     const data = {
       name: fd.get("name") as string,
       student_code: fd.get("student_code") as string,
+      coach_id: 0,
     };
 
-    setLoading(true);
-
-    // Simulate API delay
-    await new Promise((r) => setTimeout(r, 300));
-
-    const newStudent: CoachStudent = {
-      student_id: Date.now(),
-      name: data.name,
-      student_code: data.student_code,
-      coach_id: 1,
-    };
-
-    onCreated(newStudent);
-    toast.success(`Student "${data.name}" created`);
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await createStudent(data);
+      const newStudent: CoachStudent = {
+        student_id: res.student_id,
+        name: data.name,
+        student_code: data.student_code,
+        coach_id: 0,
+      };
+      onCreated(newStudent);
+      toast.success(`Student "${data.name}" created`);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

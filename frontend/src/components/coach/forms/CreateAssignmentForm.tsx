@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createAssignment } from "@/services/coach.service";
 
 export type CoachAssignment = {
   assignment_id: number;
@@ -31,20 +32,27 @@ export function CreateAssignmentForm({ onCreated }: Props) {
       return;
     }
 
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-
-    const newAssignment: CoachAssignment = {
-      assignment_id: Date.now(),
-      student_id: studentId,
-      test_id: testId,
-      coach_id: 1,
-    };
-
-    onCreated(newAssignment);
-    toast.success(`Test assigned to student ${studentId}`);
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await createAssignment({
+        student_id: studentId,
+        test_id: testId,
+        coach_id: 0,
+      });
+      const newAssignment: CoachAssignment = {
+        assignment_id: res.assignment_id,
+        student_id: studentId,
+        test_id: testId,
+        coach_id: 0,
+      };
+      onCreated(newAssignment);
+      toast.success(`Test assigned to student ${studentId}`);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
