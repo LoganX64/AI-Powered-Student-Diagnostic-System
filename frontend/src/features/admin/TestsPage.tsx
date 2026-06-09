@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CreateTestForm } from "@/components/admin/forms/CreateTestForm";
 import { CreateQuestionsForm } from "@/components/admin/forms/CreateQuestionsForm";
 import { CreateAssignmentForm } from "@/components/admin/forms/CreateAssignmentForm";
-import { ClipboardListIcon, HelpCircleIcon, LinkIcon } from "lucide-react";
+import { ClipboardListIcon, LinkIcon } from "lucide-react";
 
 const TABS = [
   { value: "test", label: "Create Test & Questions", icon: ClipboardListIcon },
