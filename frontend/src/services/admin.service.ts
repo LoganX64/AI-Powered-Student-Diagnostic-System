@@ -49,6 +49,14 @@ export type CreateAssignmentPayload = {
 
 // ─── Types (rows returned by list endpoints) ──────────────────────────────────
 
+export type Test = {
+  test_id: number;
+  title: string;
+  subject_id: number;
+  coach_id: number;
+  duration: number;
+};
+
 export type Coach = {
   coach_id: number;
   user_id: number;
@@ -120,3 +128,17 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
     method: "POST",
     body: JSON.stringify(data),
   });
+
+// ─── List endpoints ────────────────────────────────────────────────────────────
+
+export const getTests = () =>
+  apiFetch<Test[]>("/admin/tests");
+
+export const getStudents = () =>
+  apiFetch<Student[]>("/admin/students");
+
+export const getCoaches = () =>
+  apiFetch<Coach[]>("/admin/coaches");
+
+export const getSubjects = () =>
+  apiFetch<Subject[]>("/admin/subjects");
