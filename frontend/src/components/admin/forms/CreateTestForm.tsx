@@ -6,7 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createTest, type CreateTestPayload } from "@/services/admin.service";
 
-export function CreateTestForm() {
+type Props = {
+  onCreated?: (testId: number) => void;
+};
+
+export function CreateTestForm({ onCreated }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
@@ -41,6 +45,7 @@ export function CreateTestForm() {
       setLoading(true);
       const res = await createTest(data);
       toast.success(`Test created — ID: ${res.test_id}`);
+      onCreated?.(res.test_id);
       (e.target as HTMLFormElement).reset();
     } catch (err) {
       toast.error((err as Error).message);

@@ -26,19 +26,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ClipboardListIcon, HelpCircleIcon, LinkIcon } from "lucide-react";
+import { ClipboardListIcon, LinkIcon } from "lucide-react";
 import { CreateTestForm, type CoachTest } from "@/components/coach/forms/CreateTestForm";
 import { CreateQuestionsForm } from "@/components/coach/forms/CreateQuestionsForm";
 import { CreateAssignmentForm, type CoachAssignment } from "@/components/coach/forms/CreateAssignmentForm";
 
 const TABS = [
-  { value: "test", label: "Test", icon: ClipboardListIcon },
-  { value: "questions", label: "Questions", icon: HelpCircleIcon },
+  { value: "test", label: "Create Test & Questions", icon: ClipboardListIcon },
   { value: "assign", label: "Assign", icon: LinkIcon },
 ];
 
 export function CoachTestsPage() {
   const [tests, setTests] = useState<CoachTest[]>([]);
+  const [createdTestId, setCreatedTestId] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<CoachAssignment[]>([]);
 
   return (
@@ -66,9 +66,38 @@ export function CoachTestsPage() {
             </TabsList>
 
             <TabsContent value="test" className="flex flex-col gap-6">
-              <CreateTestForm
-                onCreated={(test) => setTests((prev) => [test, ...prev])}
-              />
+              {createdTestId === null ? (
+                <CreateTestForm
+                  onCreated={(test) => {
+                    setTests((prev) => [test, ...prev]);
+                    setCreatedTestId(test.test_id);
+                  }}
+                />
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 rounded-lg border border-dashed p-4">
+                    <span className="text-sm text-muted-foreground">
+                      Test created with ID <span className="font-mono font-semibold text-foreground">{createdTestId}</span>. Now add questions below.
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCreatedTestId(null);
+                        toast.info("Ready to create a new test");
+                      }}
+                    >
+                      Create Another Test
+                    </Button>
+                  </div>
+                  <CreateQuestionsForm
+                    testId={createdTestId}
+                    onCreated={(id, count) => {
+                      toast.success(`${count} question(s) added to test ${id}`);
+                    }}
+                  />
+                </>
+              )}
 
               {tests.length > 0 && (
                 <div className="flex flex-col gap-3">
@@ -139,14 +168,6 @@ export function CoachTestsPage() {
                   </div>
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="questions">
-              <CreateQuestionsForm
-                onCreated={(testId, count) => {
-                  toast.success(`${count} question(s) added to test ${testId}`);
-                }}
-              />
             </TabsContent>
 
             <TabsContent value="assign" className="flex flex-col gap-6">

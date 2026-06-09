@@ -34,8 +34,13 @@ const emptyQuestion = (): QuestionDraft => ({
   concept_tag: "",
 });
 
-export function CreateQuestionsForm() {
-  const [testId, setTestId] = useState("");
+type Props = {
+  testId?: number;
+  onCreated?: (testId: number, count: number) => void;
+};
+
+export function CreateQuestionsForm({ testId: testIdProp, onCreated }: Props) {
+  const [testId, setTestId] = useState(testIdProp?.toString() ?? "");
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
   const [loading, setLoading] = useState(false);
 
@@ -64,8 +69,9 @@ export function CreateQuestionsForm() {
       setLoading(true);
       const res = await createQuestions(id, questions);
       toast.success(`${res.count} question(s) added to test ${id}`);
-      setTestId("");
+      onCreated?.(id, res.count);
       setQuestions([emptyQuestion()]);
+      if (!testIdProp) setTestId("");
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -93,6 +99,7 @@ export function CreateQuestionsForm() {
               placeholder="1"
               value={testId}
               onChange={(e) => setTestId(e.target.value)}
+              readOnly={!!testIdProp}
               required
               className="max-w-[180px]"
             />

@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -8,12 +11,13 @@ import { CreateAssignmentForm } from "@/components/admin/forms/CreateAssignmentF
 import { ClipboardListIcon, HelpCircleIcon, LinkIcon } from "lucide-react";
 
 const TABS = [
-  { value: "test", label: "Test", icon: ClipboardListIcon },
-  { value: "questions", label: "Questions", icon: HelpCircleIcon },
+  { value: "test", label: "Create Test & Questions", icon: ClipboardListIcon },
   { value: "assign", label: "Assign", icon: LinkIcon },
 ];
 
 export function TestsPage() {
+  const [createdTestId, setCreatedTestId] = useState<number | null>(null);
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -38,12 +42,36 @@ export function TestsPage() {
               ))}
             </TabsList>
 
-            <TabsContent value="test">
-              <CreateTestForm />
+            <TabsContent value="test" className="flex flex-col gap-6">
+              {createdTestId === null ? (
+                <CreateTestForm onCreated={(id) => setCreatedTestId(id)} />
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 rounded-lg border border-dashed p-4">
+                    <span className="text-sm text-muted-foreground">
+                      Test created with ID <span className="font-mono font-semibold text-foreground">{createdTestId}</span>. Now add questions below.
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCreatedTestId(null);
+                        toast.info("Ready to create a new test");
+                      }}
+                    >
+                      Create Another Test
+                    </Button>
+                  </div>
+                  <CreateQuestionsForm
+                    testId={createdTestId}
+                    onCreated={(id, count) => {
+                      toast.success(`${count} question(s) added to test ${id}`);
+                    }}
+                  />
+                </>
+              )}
             </TabsContent>
-            <TabsContent value="questions">
-              <CreateQuestionsForm />
-            </TabsContent>
+
             <TabsContent value="assign">
               <CreateAssignmentForm />
             </TabsContent>

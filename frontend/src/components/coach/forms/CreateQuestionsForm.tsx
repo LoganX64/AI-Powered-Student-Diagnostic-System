@@ -14,25 +14,13 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { createQuestions, type CreateQuestionPayload } from "@/services/coach.service";
 
-export type CoachQuestion = {
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: string;
-  marks: number;
-  neg_marks: number;
-  importance: string;
-  difficulty: string;
-  type: string;
-  expected_time: number;
-  concept_tag: string;
-};
+export type CoachQuestion = CreateQuestionPayload;
 
 type Props = {
-  onCreated: (testId: number, count: number) => void;
+  testId?: number;
+  onCreated?: (testId: number, count: number) => void;
 };
 
 const emptyQuestion = (): CoachQuestion => ({
@@ -51,8 +39,8 @@ const emptyQuestion = (): CoachQuestion => ({
   concept_tag: "",
 });
 
-export function CreateQuestionsForm({ onCreated }: Props) {
-  const [testId, setTestId] = useState("");
+export function CreateQuestionsForm({ testId: testIdProp, onCreated }: Props) {
+  const [testId, setTestId] = useState(testIdProp?.toString() ?? "");
   const [questions, setQuestions] = useState<CoachQuestion[]>([emptyQuestion()]);
   const [loading, setLoading] = useState(false);
 
@@ -77,14 +65,18 @@ export function CreateQuestionsForm({ onCreated }: Props) {
       return;
     }
 
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-
-    onCreated(id, questions.length);
-    toast.success(`${questions.length} question(s) added to test ${id}`);
-    setTestId("");
-    setQuestions([emptyQuestion()]);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await createQuestions(id, questions);
+      toast.success(`${res.count} question(s) added to test ${id}`);
+      onCreated?.(id, res.count);
+      setQuestions([emptyQuestion()]);
+      if (!testIdProp) setTestId("");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -106,6 +98,7 @@ export function CreateQuestionsForm({ onCreated }: Props) {
               placeholder="1"
               value={testId}
               onChange={(e) => setTestId(e.target.value)}
+              readOnly={!!testIdProp}
               required
               className="max-w-[180px]"
             />

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createTest } from "@/services/coach.service";
 
 export type CoachTest = {
   test_id: number;
@@ -14,7 +15,7 @@ export type CoachTest = {
 };
 
 type Props = {
-  onCreated: (test: CoachTest) => void;
+  onCreated?: (test: CoachTest) => void;
 };
 
 export function CreateTestForm({ onCreated }: Props) {
@@ -39,24 +40,28 @@ export function CreateTestForm({ onCreated }: Props) {
     const data = {
       title: fd.get("title") as string,
       subject_id: subjectId,
+      coach_id: 0,
       duration,
     };
 
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 300));
-
-    const newTest: CoachTest = {
-      test_id: Date.now(),
-      title: data.title,
-      subject_id: data.subject_id,
-      coach_id: 1,
-      duration: data.duration,
-    };
-
-    onCreated(newTest);
-    toast.success(`Test "${data.title}" created`);
-    (e.target as HTMLFormElement).reset();
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await createTest(data);
+      const newTest: CoachTest = {
+        test_id: res.test_id,
+        title: data.title,
+        subject_id: data.subject_id,
+        coach_id: 0,
+        duration: data.duration,
+      };
+      onCreated?.(newTest);
+      toast.success(`Test "${data.title}" created — ID: ${res.test_id}`);
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
