@@ -863,3 +863,180 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"assignment_id": id})
 }
+
+// ─── List endpoints ────────────────────────────────────────────────────────────
+
+func (h *AdminHandler) getTenantID(userID int) (int, error) {
+	var tenantID int
+	err := h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	return tenantID, err
+}
+
+func (h *AdminHandler) ListTests(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT id, title, subject_id, coach_id, duration FROM tests WHERE tenant_id=$1 ORDER BY id DESC",
+		tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type TestRow struct {
+		TestID    int    `json:"test_id"`
+		Title     string `json:"title"`
+		SubjectID int    `json:"subject_id"`
+		CoachID   int    `json:"coach_id"`
+		Duration  int    `json:"duration"`
+	}
+
+	var tests []TestRow
+	for rows.Next() {
+		var t TestRow
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		tests = append(tests, t)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, tests)
+}
+
+func (h *AdminHandler) ListStudents(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1 ORDER BY id DESC",
+		tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type StudentRow struct {
+		StudentID   int    `json:"student_id"`
+		Name        string `json:"name"`
+		StudentCode string `json:"student_code"`
+		CoachID     int    `json:"coach_id"`
+	}
+
+	var students []StudentRow
+	for rows.Next() {
+		var s StudentRow
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		students = append(students, s)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, students)
+}
+
+func (h *AdminHandler) ListCoaches(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		`SELECT c.id, c.user_id, c.name, u.email
+		 FROM coaches c JOIN users u ON c.user_id = u.id
+		 WHERE c.tenant_id=$1 ORDER BY c.id DESC`,
+		tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type CoachRow struct {
+		CoachID int    `json:"coach_id"`
+		UserID  int    `json:"user_id"`
+		Name    string `json:"name"`
+		Email   string `json:"email"`
+	}
+
+	var coaches []CoachRow
+	for rows.Next() {
+		var c2 CoachRow
+		if err := rows.Scan(&c2.CoachID, &c2.UserID, &c2.Name, &c2.Email); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		coaches = append(coaches, c2)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, coaches)
+}
+
+func (h *AdminHandler) ListSubjects(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT id, name FROM subjects WHERE tenant_id=$1 ORDER BY id DESC",
+		tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type SubjectRow struct {
+		SubjectID int    `json:"subject_id"`
+		Name      string `json:"name"`
+	}
+
+	var subjects []SubjectRow
+	for rows.Next() {
+		var s SubjectRow
+		if err := rows.Scan(&s.SubjectID, &s.Name); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		subjects = append(subjects, s)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, subjects)
+}

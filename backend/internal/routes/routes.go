@@ -65,6 +65,11 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.POST("/tests", adminHandler.CreateTest)
 		admin.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		admin.POST("/assignments", adminHandler.CreateAssignment)
+
+		admin.GET("/tests", adminHandler.ListTests)
+		admin.GET("/students", adminHandler.ListStudents)
+		admin.GET("/coaches", adminHandler.ListCoaches)
+		admin.GET("/subjects", adminHandler.ListSubjects)
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 		admin.GET("/students/:id/subjects/:subject_id/results", adminHandler.GetStudentSubjectResults)
 	}
@@ -85,6 +90,10 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		coach.POST("/tests/:id/questions", coachHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
 		coach.POST("/subjects", adminHandler.CreateSubject)
+
+		coach.GET("/tests", coachHandler.ListTests)
+		coach.GET("/students", coachHandler.ListStudents)
+		coach.GET("/subjects", coachHandler.ListSubjects)
 
 		// update own password
 		coach.PUT("/password", authHandler.UpdatePassword)

@@ -282,3 +282,130 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"assignment_id": id})
 }
+
+// ─── List endpoints ────────────────────────────────────────────────────────────
+
+func (h *CoachHandler) ListTests(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	coachID, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT id, title, subject_id, coach_id, duration FROM tests WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC",
+		tenantID, coachID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type TestRow struct {
+		TestID    int    `json:"test_id"`
+		Title     string `json:"title"`
+		SubjectID int    `json:"subject_id"`
+		CoachID   int    `json:"coach_id"`
+		Duration  int    `json:"duration"`
+	}
+
+	var tests []TestRow
+	for rows.Next() {
+		var t TestRow
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		tests = append(tests, t)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, tests)
+}
+
+func (h *CoachHandler) ListStudents(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	coachID, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC",
+		tenantID, coachID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type StudentRow struct {
+		StudentID   int    `json:"student_id"`
+		Name        string `json:"name"`
+		StudentCode string `json:"student_code"`
+		CoachID     int    `json:"coach_id"`
+	}
+
+	var students []StudentRow
+	for rows.Next() {
+		var s StudentRow
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		students = append(students, s)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, students)
+}
+
+func (h *CoachHandler) ListSubjects(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	_, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		"SELECT id, name FROM subjects WHERE tenant_id=$1 ORDER BY id DESC",
+		tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type SubjectRow struct {
+		SubjectID int    `json:"subject_id"`
+		Name      string `json:"name"`
+	}
+
+	var subjects []SubjectRow
+	for rows.Next() {
+		var s SubjectRow
+		if err := rows.Scan(&s.SubjectID, &s.Name); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		subjects = append(subjects, s)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, subjects)
+}
