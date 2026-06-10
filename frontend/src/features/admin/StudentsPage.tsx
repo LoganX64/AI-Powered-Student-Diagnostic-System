@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Trash2Icon, UserPlusIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -29,12 +29,16 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createStudent, deleteStudent, type CreateStudentPayload, type Student } from "@/services/admin.service";
+import { createStudent, deleteStudent, getStudents, type CreateStudentPayload, type Student } from "@/services/admin.service";
 
 export function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    getStudents().then(setStudents).catch(() => {});
+  }, []);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();

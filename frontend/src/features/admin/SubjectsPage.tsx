@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Trash2Icon, BookOpenIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -29,12 +29,16 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createSubject, deleteSubject, type Subject } from "@/services/admin.service";
+import { createSubject, deleteSubject, getSubjects, type Subject } from "@/services/admin.service";
 
 export function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    getSubjects().then(setSubjects).catch(() => {});
+  }, []);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();

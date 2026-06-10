@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Trash2Icon, UserPlusIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -29,12 +29,16 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createCoach, deleteCoach, type CreateCoachPayload, type Coach } from "@/services/admin.service";
+import { createCoach, deleteCoach, getCoaches, type CreateCoachPayload, type Coach } from "@/services/admin.service";
 
 export function CoachesPage() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  useEffect(() => {
+    getCoaches().then(setCoaches).catch(() => {});
+  }, []);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
