@@ -44,6 +44,7 @@ import {
   QuestionFormFields,
   type QuestionDraft,
 } from "@/components/admin/forms/QuestionFormFields";
+import { QuestionCard } from "@/components/admin/QuestionCard";
 
 type TestDetail = {
   test_id: number;
@@ -418,73 +419,15 @@ export function TestDetailPage() {
                     </div>
                   )}
 
-                  <div className="rounded-lg border overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-16">#</TableHead>
-                          <TableHead>Question</TableHead>
-                          <TableHead className="w-16">A</TableHead>
-                          <TableHead className="w-16">B</TableHead>
-                          <TableHead className="w-16">C</TableHead>
-                          <TableHead className="w-16">D</TableHead>
-                          <TableHead className="w-16">Answer</TableHead>
-                          <TableHead className="w-16">Marks</TableHead>
-                          <TableHead className="w-16">Neg</TableHead>
-                          <TableHead className="w-20">Difficulty</TableHead>
-                          <TableHead className="w-16">Import</TableHead>
-                          <TableHead className="w-16">Type</TableHead>
-                          <TableHead className="w-16">Time</TableHead>
-                          <TableHead className="w-24">Tag</TableHead>
-                          <TableHead className="w-16"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {questions.map((q, idx) => (
-                          <TableRow key={q.id}>
-                            <TableCell className="font-mono text-sm text-muted-foreground">
-                              {questionOffset + idx + 1}
-                            </TableCell>
-                            <TableCell className="font-medium max-w-md truncate">{q.question_text}</TableCell>
-                            <TableCell className="text-sm">{q.option_a}</TableCell>
-                            <TableCell className="text-sm">{q.option_b}</TableCell>
-                            <TableCell className="text-sm">{q.option_c}</TableCell>
-                            <TableCell className="text-sm">{q.option_d}</TableCell>
-                            <TableCell>
-                              <Badge variant="default">{q.correct_answer}</Badge>
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{q.marks}</TableCell>
-                            <TableCell className="text-muted-foreground">{q.neg_marks}</TableCell>
-                            <TableCell>
-                              <Badge variant={
-                                q.difficulty === "E" ? "secondary" :
-                                q.difficulty === "M" ? "outline" : "destructive"
-                              }>
-                                {q.difficulty === "E" ? "Easy" : q.difficulty === "M" ? "Medium" : "Hard"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={q.importance === "A" ? "default" : q.importance === "B" ? "secondary" : "outline"}>
-                                {q.importance}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">{q.type}</TableCell>
-                            <TableCell className="text-sm">{q.expected_time}m</TableCell>
-                            <TableCell className="text-sm truncate max-w-[120px]" title={q.concept_tag}>{q.concept_tag}</TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                onClick={() => startEditQuestion(q)}
-                              >
-                                <PencilIcon className="size-3" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                  <div className="flex flex-col gap-3">
+                    {questions.map((q, idx) => (
+                      <QuestionCard
+                        key={q.id}
+                        index={questionOffset + idx + 1}
+                        question={q}
+                        onEdit={() => startEditQuestion(q)}
+                      />
+                    ))}
                   </div>
 
                   {questionTotal > PAGE_SIZE && (
