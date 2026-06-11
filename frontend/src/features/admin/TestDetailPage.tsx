@@ -398,35 +398,34 @@ export function TestDetailPage() {
                 </div>
               ) : (
                 <>
-                  {/* Edit question panel */}
-                  {editingQuestionId && (
-                    <div className="flex flex-col gap-3 rounded-lg border p-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold">Edit Question</h4>
-                      </div>
-                      <QuestionFormFields
-                        q={questionForm as QuestionDraft}
-                        onChange={(field, value) => setQuestionForm((prev) => ({ ...prev, [field]: value }))}
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
-                          <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex flex-col gap-3">
                     {questions.map((q, idx) => (
-                      <QuestionCard
-                        key={q.id}
-                        index={questionOffset + idx + 1}
-                        question={q}
-                        onEdit={() => startEditQuestion(q)}
-                      />
+                      <div key={q.id}>
+                        <QuestionCard
+                          index={questionOffset + idx + 1}
+                          question={q}
+                          onEdit={() => startEditQuestion(q)}
+                        />
+                        {editingQuestionId === q.id && (
+                          <div className="mt-3 flex flex-col gap-3 rounded-lg border p-4">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-semibold">Edit Question {questionOffset + idx + 1}</h4>
+                            </div>
+                            <QuestionFormFields
+                              q={questionForm as QuestionDraft}
+                              onChange={(field, value) => setQuestionForm((prev) => ({ ...prev, [field]: value }))}
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
+                                <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
 
