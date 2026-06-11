@@ -93,7 +93,7 @@ export function TestDetailPage() {
     if (!id) return;
     try {
       const res = await getAssignments({ limit: PAGE_SIZE, offset: off, test_id: Number(id) });
-      setAssignments(res.data);
+      setAssignments(res.data ?? []);
       setAssignmentTotal(res.total);
     } catch {
       // silently ignore
@@ -104,7 +104,7 @@ export function TestDetailPage() {
     if (!id) return;
     try {
       const res = await apiFetch<PaginatedResponse<Question>>(`/admin/tests/${id}/questions?limit=${PAGE_SIZE}&offset=${off}`);
-      setQuestions(res.data);
+      setQuestions(res.data ?? []);
       setQuestionTotal(res.total);
     } catch {
       // silently ignore
