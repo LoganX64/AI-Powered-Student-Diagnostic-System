@@ -5,6 +5,7 @@ import {
   GraduationCapIcon,
   BookOpenIcon,
   ClipboardListIcon,
+  FilePlusIcon,
   Settings2Icon,
   CircleHelpIcon,
   CommandIcon,
@@ -40,6 +41,11 @@ const data = {
       title: "Subjects",
       url: "/admin/subjects",
       icon: <BookOpenIcon />,
+    },
+    {
+      title: "Create Test",
+      url: "/admin/tests",
+      icon: <FilePlusIcon />,
     },
     {
       title: "All Tests",
