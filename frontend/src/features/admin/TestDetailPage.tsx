@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -60,7 +60,6 @@ const PAGE_SIZE = 50;
 export function TestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const testId = Number(id);
 
   const [test, setTest] = useState<TestDetail | null>(null);
@@ -85,13 +84,10 @@ export function TestDetailPage() {
       setTest(data);
       setTestForm({ title: data.title, subject_id: data.subject_id, coach_id: data.coach_id, duration: data.duration });
     }).catch(() => {});
-  }, [id]);
-
-  useEffect(() => {
-    if (searchParams.get("edit") === "true") {
+    if (window.location.search.includes("edit=true")) {
       setEditingTest(true);
     }
-  }, [searchParams]);
+  }, [id]);
 
   const fetchAssignments = useCallback(async (off: number) => {
     if (!id) return;
