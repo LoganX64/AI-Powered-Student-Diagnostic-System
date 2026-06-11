@@ -141,6 +141,7 @@ export type PaginatedResponse<T> = {
 export type PaginationParams = {
   limit?: number;
   offset?: number;
+  search?: string;
 };
 
 // ─── List endpoints ────────────────────────────────────────────────────────────
@@ -149,6 +150,7 @@ export const getTests = (params?: PaginationParams) => {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.search) query.set("search", params.search);
   const qs = query.toString();
   return apiFetch<PaginatedResponse<Test>>(`/admin/tests${qs ? `?${qs}` : ""}`);
 };
