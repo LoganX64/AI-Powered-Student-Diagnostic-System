@@ -915,6 +915,103 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 	c.JSON(http.StatusOK, tests)
 }
 
+func (h *AdminHandler) GetTest(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	testID := c.Param("id")
+
+	var test struct {
+		TestID    int    `json:"test_id"`
+		Title     string `json:"title"`
+		SubjectID int    `json:"subject_id"`
+		CoachID   int    `json:"coach_id"`
+		Duration  int    `json:"duration"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	err = h.DB.QueryRow(
+		"SELECT id, title, subject_id, coach_id, duration, created_at FROM tests WHERE id=$1 AND tenant_id=$2",
+		testID, tenantID,
+	).Scan(&test.TestID, &test.Title, &test.SubjectID, &test.CoachID, &test.Duration, &test.CreatedAt)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, test)
+}
+
+func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	testID := c.Param("id")
+
+	var exists bool
+	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	rows, err := h.DB.Query(
+		`SELECT id, question_text, option_a, option_b, option_c, option_d,
+		        correct_answer, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag
+		 FROM questions WHERE test_id=$1 ORDER BY id ASC`,
+		testID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type QuestionRow struct {
+		ID            int     `json:"id"`
+		QuestionText  string  `json:"question_text"`
+		OptionA       string  `json:"option_a"`
+		OptionB       string  `json:"option_b"`
+		OptionC       string  `json:"option_c"`
+		OptionD       string  `json:"option_d"`
+		CorrectAnswer string  `json:"correct_answer"`
+		Marks         float64 `json:"marks"`
+		NegMarks      float64 `json:"neg_marks"`
+		Importance    string  `json:"importance"`
+		Difficulty    string  `json:"difficulty"`
+		Type          string  `json:"type"`
+		ExpectedTime  float64 `json:"expected_time"`
+		ConceptTag    string  `json:"concept_tag"`
+	}
+
+	var questions []QuestionRow
+	for rows.Next() {
+		var q QuestionRow
+		if err := rows.Scan(
+			&q.ID, &q.QuestionText, &q.OptionA, &q.OptionB, &q.OptionC, &q.OptionD,
+			&q.CorrectAnswer, &q.Marks, &q.NegMarks, &q.Importance, &q.Difficulty, &q.Type, &q.ExpectedTime, &q.ConceptTag,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		questions = append(questions, q)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, questions)
+}
+
 func (h *AdminHandler) ListStudents(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	tenantID, err := h.getTenantID(userID)
