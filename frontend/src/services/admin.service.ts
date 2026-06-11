@@ -137,6 +137,11 @@ export const updateTest = (testId: number, data: CreateTestPayload) =>
     body: JSON.stringify(data),
   });
 
+export const deleteTest = (testId: number) =>
+  apiFetch<{ message: string }>(`/admin/tests/${testId}`, {
+    method: "DELETE",
+  });
+
 export const createQuestions = (testId: number, data: CreateQuestionPayload[]) =>
   apiFetch<{ question_ids: number[]; count: number }>(`/admin/tests/${testId}/questions`, {
     method: "POST",
