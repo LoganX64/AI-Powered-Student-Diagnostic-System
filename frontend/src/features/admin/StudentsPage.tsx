@@ -45,11 +45,13 @@ export function StudentsPage() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const fetchCoaches = useCallback(async (search: string) => {
     try {
-      const res = await getCoaches({ search, limit: 20 });
+      const res = await getCoaches({ search, limit: 10 });
       setCoaches(res.data ?? []);
     } catch {
       setCoaches([]);
@@ -100,6 +102,10 @@ export function StudentsPage() {
     setCoachSearch(value);
     setSelectedCoach(null);
     setShowDropdown(true);
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
   };
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
@@ -184,18 +190,29 @@ export function StudentsPage() {
                       required
                     />
                   </div>
-                  <div className="flex flex-col gap-2 relative" ref={dropdownRef}>
+                  <div className="flex flex-col gap-2">
                     <Label htmlFor="student-coach">Coach</Label>
                     <Input
+                      ref={inputRef}
                       id="student-coach"
                       placeholder="Search coach by name…"
                       value={coachSearch}
                       onChange={(e) => handleCoachInputChange(e.target.value)}
-                      onFocus={() => setShowDropdown(true)}
+                      onFocus={() => {
+                        setShowDropdown(true);
+                        if (inputRef.current) {
+                          const rect = inputRef.current.getBoundingClientRect();
+                          setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                        }
+                      }}
                       required
                     />
                     {showDropdown && coaches.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
+                      <div
+                        ref={dropdownRef}
+                        style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                        className="z-50 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+                      >
                         {coaches.map((coach) => (
                           <button
                             type="button"
@@ -212,7 +229,10 @@ export function StudentsPage() {
                       </div>
                     )}
                     {showDropdown && coachSearch && coaches.length === 0 && (
-                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+                      <div
+                        style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                        className="z-50 rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md"
+                      >
                         No coaches found
                       </div>
                     )}
