@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Trash2Icon, BookOpenIcon } from "lucide-react";
+import { Trash2Icon, BookOpenIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -31,14 +31,28 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { createSubject, deleteSubject, getSubjects, type Subject } from "@/services/admin.service";
 
+const PAGE_SIZE = 50;
+
 export function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+
+  const fetchSubjects = useCallback(async (off: number) => {
+    try {
+      const res = await getSubjects({ limit: PAGE_SIZE, offset: off });
+      setSubjects(res.data);
+      setTotal(res.total);
+    } catch {
+      // silently ignore
+    }
+  }, []);
 
   useEffect(() => {
-    getSubjects().then(setSubjects).catch(() => {});
-  }, []);
+    fetchSubjects(offset);
+  }, [offset, fetchSubjects]);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
@@ -48,9 +62,9 @@ export function SubjectsPage() {
     try {
       setCreating(true);
       const res = await createSubject({ name });
-      setSubjects((prev) => [{ subject_id: res.subject_id, name }, ...prev]);
       toast.success(`Subject "${name}" created — ID: ${res.subject_id}`);
       (e.target as HTMLFormElement).reset();
+      fetchSubjects(offset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -62,8 +76,8 @@ export function SubjectsPage() {
     try {
       setDeletingId(subject.subject_id);
       await deleteSubject(subject.subject_id);
-      setSubjects((prev) => prev.filter((s) => s.subject_id !== subject.subject_id));
       toast.success(`Subject "${subject.name}" deleted`);
+      fetchSubjects(offset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -115,7 +129,7 @@ export function SubjectsPage() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">All Subjects</h2>
-              <Badge variant="secondary">{subjects.length}</Badge>
+              <Badge variant="secondary">{total}</Badge>
             </div>
 
             {subjects.length === 0 ? (
@@ -179,6 +193,33 @@ export function SubjectsPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {total > PAGE_SIZE && (
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset === 0}
+                    onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                  >
+                    <ChevronLeftIcon className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset + PAGE_SIZE >= total}
+                    onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                  >
+                    Next <ChevronRightIcon className="size-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
