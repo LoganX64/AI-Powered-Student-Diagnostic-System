@@ -76,6 +76,18 @@ export type Subject = {
   name: string;
 };
 
+export type Assignment = {
+  id: number;
+  student_id: number;
+  student_name: string;
+  student_code: string;
+  test_id: number;
+  test_title: string;
+  coach_id: number;
+  status: string;
+  assigned_at: string;
+};
+
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
 export const createCoach = (data: CreateCoachPayload) =>
@@ -177,4 +189,13 @@ export const getSubjects = (params?: PaginationParams) => {
   if (params?.offset) query.set("offset", params.offset.toString());
   const qs = query.toString();
   return apiFetch<PaginatedResponse<Subject>>(`/admin/subjects${qs ? `?${qs}` : ""}`);
+};
+
+export const getAssignments = (params?: PaginationParams & { test_id?: number }) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.test_id) query.set("test_id", params.test_id.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Assignment>>(`/admin/assignments${qs ? `?${qs}` : ""}`);
 };

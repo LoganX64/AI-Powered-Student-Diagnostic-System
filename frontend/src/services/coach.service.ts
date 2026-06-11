@@ -10,6 +10,7 @@ import type {
   Test,
   Student,
   Subject,
+  Assignment,
 } from "./admin.service";
 
 export type {
@@ -77,4 +78,13 @@ export const getSubjects = (params?: PaginationParams) => {
   if (params?.offset) query.set("offset", params.offset.toString());
   const qs = query.toString();
   return apiFetch<PaginatedResponse<Subject>>(`/coach/subjects${qs ? `?${qs}` : ""}`);
+};
+
+export const getAssignments = (params?: PaginationParams & { test_id?: number }) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.test_id) query.set("test_id", params.test_id.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Assignment>>(`/coach/assignments${qs ? `?${qs}` : ""}`);
 };
