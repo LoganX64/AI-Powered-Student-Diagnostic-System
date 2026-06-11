@@ -44,7 +44,7 @@ const data = {
     },
     {
       title: "All Tests",
-      url: "/coach/tests",
+      url: "/coach/all-tests",
       icon: <ClipboardListIcon />,
     },
   ],

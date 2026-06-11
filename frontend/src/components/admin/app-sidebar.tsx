@@ -43,7 +43,7 @@ const data = {
     },
     {
       title: "All Tests",
-      url: "/admin/tests",
+      url: "/admin/all-tests",
       icon: <ClipboardListIcon />,
     },
   ],
