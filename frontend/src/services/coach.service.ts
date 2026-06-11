@@ -19,6 +19,12 @@ export type {
   CreateQuestionPayload,
   CreateAssignmentPayload,
   CreateSubjectPayload,
+  Test,
+  Student,
+  Subject,
+  Assignment,
+  PaginatedResponse,
+  PaginationParams,
 };
 
 // ─── API Calls ────────────────────────────────────────────────────────────────
