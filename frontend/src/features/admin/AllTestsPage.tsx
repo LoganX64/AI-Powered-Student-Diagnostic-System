@@ -9,6 +9,7 @@ import {
   PencilIcon,
   SaveIcon,
   XIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -17,6 +18,17 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -30,6 +42,7 @@ import {
   getTests,
   createQuestions,
   updateQuestion,
+  deleteTest,
   type Test,
   type CreateQuestionPayload,
   type PaginatedResponse,
@@ -175,6 +188,21 @@ export function AllTestsPage() {
     setSearch(searchInput);
   };
 
+  const handleDeleteTest = async (testId: number, testTitle: string) => {
+    try {
+      await deleteTest(testId);
+      toast.success(`Test "${testTitle}" deleted`);
+      setTests((prev) => prev.filter((t) => t.test_id !== testId));
+      setTotal((prev) => prev - 1);
+      if (expandedTestId === testId) {
+        setExpandedTestId(null);
+        setQuestions([]);
+      }
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -224,6 +252,39 @@ export function AllTestsPage() {
                         <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
                         <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>
                         <span className="text-sm text-muted-foreground">{test.duration}m</span>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-destructive"
+                              aria-label={`Delete ${test.title}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Trash2Icon className="size-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Test</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete{" "}
+                                <span className="font-semibold">{test.title}</span>?
+                                This will also delete all related questions.
+                                This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteTest(test.test_id, test.title)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
 
                       {isExpanded && (
