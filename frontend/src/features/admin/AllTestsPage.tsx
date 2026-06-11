@@ -6,7 +6,6 @@ import {
   ChevronDownIcon,
   ChevronRightIcon as ChevronRightSmallIcon,
   PlusIcon,
-  PencilIcon,
   SaveIcon,
   XIcon,
   Trash2Icon,
@@ -29,14 +28,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import {
   getTests,
@@ -52,6 +43,7 @@ import {
   emptyQuestion,
   type QuestionDraft,
 } from "@/components/admin/forms/QuestionFormFields";
+import { QuestionCard } from "@/components/admin/QuestionCard";
 
 const PAGE_SIZE = 50;
 
@@ -357,59 +349,15 @@ export function AllTestsPage() {
                                   <PlusIcon className="size-3 mr-1" /> Add
                                 </Button>
                               </div>
-                              <div className="rounded-md border overflow-x-auto">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead className="w-10">#</TableHead>
-                                      <TableHead>Question</TableHead>
-                                      <TableHead className="w-12">A</TableHead>
-                                      <TableHead className="w-12">B</TableHead>
-                                      <TableHead className="w-12">C</TableHead>
-                                      <TableHead className="w-12">D</TableHead>
-                                      <TableHead className="w-12">Ans</TableHead>
-                                      <TableHead className="w-14">Marks</TableHead>
-                                      <TableHead className="w-14">Neg</TableHead>
-                                      <TableHead className="w-16">Diff</TableHead>
-                                      <TableHead className="w-16">Import</TableHead>
-                                      <TableHead className="w-16">Type</TableHead>
-                                      <TableHead className="w-16">Time</TableHead>
-                                      <TableHead className="w-20">Tag</TableHead>
-                                      <TableHead className="w-10"></TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {questions.map((q, idx) => (
-                                      <TableRow key={q.id}>
-                                        <TableCell className="font-mono text-xs text-muted-foreground">{idx + 1}</TableCell>
-                                        <TableCell className="font-medium max-w-[200px] truncate text-sm">{q.question_text}</TableCell>
-                                        <TableCell className="text-xs">{q.option_a}</TableCell>
-                                        <TableCell className="text-xs">{q.option_b}</TableCell>
-                                        <TableCell className="text-xs">{q.option_c}</TableCell>
-                                        <TableCell className="text-xs">{q.option_d}</TableCell>
-                                        <TableCell><Badge variant="default" className="text-xs">{q.correct_answer}</Badge></TableCell>
-                                        <TableCell className="text-muted-foreground text-xs">{q.marks}</TableCell>
-                                        <TableCell className="text-muted-foreground text-xs">{q.neg_marks}</TableCell>
-                                        <TableCell>
-                                          <Badge variant={q.difficulty === "E" ? "secondary" : q.difficulty === "M" ? "outline" : "destructive"} className="text-xs">
-                                            {q.difficulty === "E" ? "Easy" : q.difficulty === "M" ? "Med" : "Hard"}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge variant={q.importance === "A" ? "default" : q.importance === "B" ? "secondary" : "outline"} className="text-xs">
-                                            {q.importance}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-xs">{q.type}</TableCell>
-                                        <TableCell className="text-xs">{q.expected_time}m</TableCell>
-                                        <TableCell className="text-xs truncate max-w-[100px]" title={q.concept_tag}>{q.concept_tag}</TableCell>
-                                        <TableCell>
-                                          <Button variant="ghost" size="icon" className="size-7" onClick={() => startEditQuestion(q)}><PencilIcon className="size-3" /></Button>
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
+                              <div className="flex flex-col gap-3">
+                                {questions.map((q, idx) => (
+                                  <QuestionCard
+                                    key={q.id}
+                                    index={idx + 1}
+                                    question={q}
+                                    onEdit={() => startEditQuestion(q)}
+                                  />
+                                ))}
                               </div>
                             </>
                           )}
