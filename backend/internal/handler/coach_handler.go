@@ -13,6 +13,22 @@ type CoachHandler struct {
 	DB *sql.DB
 }
 
+func parseCoachPagination(c *gin.Context) (int, int) {
+	limit := 50
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
+			limit = v
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+	return limit, offset
+}
+
 func NewCoachHandler(db *sql.DB) *CoachHandler {
 	return &CoachHandler{DB: db}
 }
@@ -293,9 +309,18 @@ func (h *CoachHandler) ListTests(c *gin.Context) {
 		return
 	}
 
+	limit, offset := parseCoachPagination(c)
+
+	var total int
+	err = h.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE tenant_id=$1 AND coach_id=$2", tenantID, coachID).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	rows, err := h.DB.Query(
-		"SELECT id, title, subject_id, coach_id, duration FROM tests WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC",
-		tenantID, coachID,
+		"SELECT id, title, subject_id, coach_id, duration FROM tests WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC LIMIT $3 OFFSET $4",
+		tenantID, coachID, limit, offset,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -325,7 +350,7 @@ func (h *CoachHandler) ListTests(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, tests)
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": tests})
 }
 
 func (h *CoachHandler) ListStudents(c *gin.Context) {
@@ -336,9 +361,18 @@ func (h *CoachHandler) ListStudents(c *gin.Context) {
 		return
 	}
 
+	limit, offset := parseCoachPagination(c)
+
+	var total int
+	err = h.DB.QueryRow("SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND coach_id=$2", tenantID, coachID).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	rows, err := h.DB.Query(
-		"SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC",
-		tenantID, coachID,
+		"SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC LIMIT $3 OFFSET $4",
+		tenantID, coachID, limit, offset,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -367,7 +401,7 @@ func (h *CoachHandler) ListStudents(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, students)
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": students})
 }
 
 func (h *CoachHandler) ListSubjects(c *gin.Context) {
@@ -378,9 +412,18 @@ func (h *CoachHandler) ListSubjects(c *gin.Context) {
 		return
 	}
 
+	limit, offset := parseCoachPagination(c)
+
+	var total int
+	err = h.DB.QueryRow("SELECT COUNT(*) FROM subjects WHERE tenant_id=$1", tenantID).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	rows, err := h.DB.Query(
-		"SELECT id, name FROM subjects WHERE tenant_id=$1 ORDER BY id DESC",
-		tenantID,
+		"SELECT id, name FROM subjects WHERE tenant_id=$1 ORDER BY id DESC LIMIT $2 OFFSET $3",
+		tenantID, limit, offset,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -407,5 +450,5 @@ func (h *CoachHandler) ListSubjects(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, subjects)
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": subjects})
 }
