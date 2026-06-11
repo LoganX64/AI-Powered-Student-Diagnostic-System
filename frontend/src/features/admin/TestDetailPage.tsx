@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, XIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
@@ -36,6 +36,8 @@ type TestDetail = {
   coach_id: number;
   duration: number;
   created_at: string;
+  subject_name: string;
+  coach_name: string;
 };
 
 type Question = {
@@ -120,13 +122,18 @@ export function TestDetailPage() {
   }, [questionOffset, fetchQuestions]);
 
   const handleSaveTest = async () => {
-    if (!testForm.title || !testForm.subject_id || !testForm.coach_id || !testForm.duration) {
-      toast.error("All fields are required");
+    if (!testForm.title || !testForm.duration) {
+      toast.error("Title and duration are required");
       return;
     }
     try {
       setSavingTest(true);
-      await updateTest(testId, testForm as CreateTestPayload);
+      await updateTest(testId, {
+        title: testForm.title,
+        subject_id: test.subject_id,
+        coach_id: test.coach_id,
+        duration: testForm.duration,
+      });
       toast.success("Test updated");
       setEditingTest(false);
       const data = await apiFetch<TestDetail>(`/admin/tests/${id}`);
@@ -215,24 +222,6 @@ export function TestDetailPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-subject">Subject ID</Label>
-                    <Input
-                      id="edit-subject"
-                      type="number"
-                      value={testForm.subject_id}
-                      onChange={(e) => setTestForm({ ...testForm, subject_id: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-coach">Coach ID</Label>
-                    <Input
-                      id="edit-coach"
-                      type="number"
-                      value={testForm.coach_id}
-                      onChange={(e) => setTestForm({ ...testForm, coach_id: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
                     <Label htmlFor="edit-duration">Duration (minutes)</Label>
                     <Input
                       id="edit-duration"
@@ -256,8 +245,8 @@ export function TestDetailPage() {
                 <h2 className="text-lg font-semibold">{test.title}</h2>
                 <Badge variant="outline">ID: {test.test_id}</Badge>
                 <Badge variant="secondary">Duration: {test.duration}s</Badge>
-                <Badge variant="secondary">Subject: {test.subject_id}</Badge>
-                <Badge variant="secondary">Coach: {test.coach_id}</Badge>
+                <Badge variant="secondary">Subject: {test.subject_name || `#${test.subject_id}`}</Badge>
+                <Badge variant="secondary">Coach: {test.coach_name || `#${test.coach_id}`}</Badge>
                 <Button
                   variant="outline"
                   size="sm"
@@ -339,8 +328,15 @@ export function TestDetailPage() {
             {/* Questions tab */}
             <TabsContent value="questions" className="flex flex-col gap-3">
               {questions.length === 0 ? (
-                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
+                <div className="flex flex-col h-32 items-center justify-center rounded-lg border border-dashed gap-3">
                   <p className="text-sm text-muted-foreground">No questions in this test.</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate("/admin/tests")}
+                  >
+                    <PlusIcon className="size-4 mr-1" /> Add Questions
+                  </Button>
                 </div>
               ) : (
                 <>
