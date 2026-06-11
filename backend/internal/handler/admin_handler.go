@@ -1310,3 +1310,151 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": assignments})
 }
+
+func (h *AdminHandler) UpdateTest(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	var req CreateTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	role := c.GetString("role")
+
+	var tenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if role == "coach" {
+		coachID, err := h.getCoachIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
+			return
+		}
+	} else if role == "admin" {
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
+			return
+		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4 WHERE id=$5 AND tenant_id=$6`,
+		req.Title, req.SubjectID, req.CoachID, req.Duration, testID, tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "test updated successfully"})
+}
+
+func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	questionID, err := strconv.Atoi(c.Param("qid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		return
+	}
+
+	var req CreateQuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if validationErr := validateQuestionRequest(req); validationErr != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": validationErr})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	role := c.GetString("role")
+
+	var tenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if role == "coach" {
+		coachID, err := h.getCoachIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
+			return
+		}
+	} else if role == "admin" {
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
+			return
+		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`UPDATE questions SET
+			question_text=$1, option_a=$2, option_b=$3, option_c=$4, option_d=$5,
+			correct_answer=$6, marks=$7, neg_marks=$8, importance=$9, difficulty=$10,
+			type=$11, expected_time=$12, concept_tag=$13
+		 WHERE id=$14 AND test_id=$15`,
+		req.QuestionText, req.OptionA, req.OptionB, req.OptionC, req.OptionD,
+		req.CorrectAnswer, req.Marks, req.NegMarks,
+		req.Importance, req.Difficulty, req.Type, req.ExpectedTime, req.ConceptTag,
+		questionID, testID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "question updated successfully"})
+}

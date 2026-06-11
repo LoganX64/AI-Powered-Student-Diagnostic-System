@@ -66,6 +66,9 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		admin.POST("/assignments", adminHandler.CreateAssignment)
 
+		admin.PUT("/tests/:id", adminHandler.UpdateTest)
+		admin.PUT("/tests/:id/questions/:qid", adminHandler.UpdateQuestion)
+
 		admin.GET("/tests", adminHandler.ListTests)
 		admin.GET("/tests/:id", adminHandler.GetTest)
 		admin.GET("/tests/:id/questions", adminHandler.GetTestQuestions)
@@ -93,6 +96,9 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		coach.POST("/tests/:id/questions", coachHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
 		coach.POST("/subjects", adminHandler.CreateSubject)
+
+		coach.PUT("/tests/:id", adminHandler.UpdateTest)
+		coach.PUT("/tests/:id/questions/:qid", adminHandler.UpdateQuestion)
 
 		coach.GET("/tests", coachHandler.ListTests)
 		coach.GET("/students", coachHandler.ListStudents)
