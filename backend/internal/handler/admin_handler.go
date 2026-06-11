@@ -1383,6 +1383,62 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "test updated successfully"})
 }
 
+func (h *AdminHandler) DeleteTest(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	role := c.GetString("role")
+
+	var tenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if role == "coach" {
+		coachID, err := h.getCoachIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
+			return
+		}
+	} else if role == "admin" {
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+			return
+		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		return
+	}
+
+	result, err := h.DB.Exec("DELETE FROM tests WHERE id=$1 AND tenant_id=$2", testID, tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "test deleted successfully"})
+}
+
 func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
