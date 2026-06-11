@@ -899,16 +899,16 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 	limit, offset := parsePagination(c)
 	search := c.Query("search")
 
-	baseQuery := "FROM tests WHERE tenant_id=$1"
+	baseQuery := "FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE t.tenant_id=$1"
 	countQuery := "SELECT COUNT(*) " + baseQuery
-	dataQuery := "SELECT id, title, subject_id, coach_id, duration " + baseQuery
+	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, '') " + baseQuery
 
 	args := []interface{}{tenantID}
 
 	if search != "" {
-		baseQuery += " AND title ILIKE $" + strconv.Itoa(len(args)+1)
+		baseQuery += " AND t.title ILIKE $" + strconv.Itoa(len(args)+1)
 		countQuery = "SELECT COUNT(*) " + baseQuery
-		dataQuery = "SELECT id, title, subject_id, coach_id, duration " + baseQuery
+		dataQuery = "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, '') " + baseQuery
 		args = append(args, "%"+search+"%")
 	}
 
@@ -930,17 +930,19 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 	defer rows.Close()
 
 	type TestRow struct {
-		TestID    int    `json:"test_id"`
-		Title     string `json:"title"`
-		SubjectID int    `json:"subject_id"`
-		CoachID   int    `json:"coach_id"`
-		Duration  int    `json:"duration"`
+		TestID      int    `json:"test_id"`
+		Title       string `json:"title"`
+		SubjectID   int    `json:"subject_id"`
+		CoachID     int    `json:"coach_id"`
+		Duration    int    `json:"duration"`
+		SubjectName string `json:"subject_name"`
+		CoachName   string `json:"coach_name"`
 	}
 
 	var tests []TestRow
 	for rows.Next() {
 		var t TestRow
-		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration); err != nil {
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
 			return
 		}
