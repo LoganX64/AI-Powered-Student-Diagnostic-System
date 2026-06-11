@@ -967,18 +967,25 @@ func (h *AdminHandler) GetTest(c *gin.Context) {
 	testID := c.Param("id")
 
 	var test struct {
-		TestID    int    `json:"test_id"`
-		Title     string `json:"title"`
-		SubjectID int    `json:"subject_id"`
-		CoachID   int    `json:"coach_id"`
-		Duration  int    `json:"duration"`
-		CreatedAt string `json:"created_at"`
+		TestID      int    `json:"test_id"`
+		Title       string `json:"title"`
+		SubjectID   int    `json:"subject_id"`
+		CoachID     int    `json:"coach_id"`
+		Duration    int    `json:"duration"`
+		CreatedAt   string `json:"created_at"`
+		SubjectName string `json:"subject_name"`
+		CoachName   string `json:"coach_name"`
 	}
 
 	err = h.DB.QueryRow(
-		"SELECT id, title, subject_id, coach_id, duration, created_at FROM tests WHERE id=$1 AND tenant_id=$2",
+		`SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, t.created_at,
+		        COALESCE(s.name, ''), COALESCE(c.name, '')
+		 FROM tests t
+		 LEFT JOIN subjects s ON t.subject_id = s.id
+		 LEFT JOIN coaches c ON t.coach_id = c.id
+		 WHERE t.id=$1 AND t.tenant_id=$2`,
 		testID, tenantID,
-	).Scan(&test.TestID, &test.Title, &test.SubjectID, &test.CoachID, &test.Duration, &test.CreatedAt)
+	).Scan(&test.TestID, &test.Title, &test.SubjectID, &test.CoachID, &test.Duration, &test.CreatedAt, &test.SubjectName, &test.CoachName)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
 		return
