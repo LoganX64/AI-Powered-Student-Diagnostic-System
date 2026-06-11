@@ -21,8 +21,8 @@ export function CreateAssignmentForm() {
   const [selectedTestId, setSelectedTestId] = useState("");
 
   useEffect(() => {
-    getStudents().then(setStudents).catch(() => {});
-    getTests().then(setTests).catch(() => {});
+    getStudents({ limit: 10000 }).then((res) => setStudents(res.data)).catch(() => {});
+    getTests({ limit: 10000 }).then((res) => setTests(res.data)).catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

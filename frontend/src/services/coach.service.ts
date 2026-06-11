@@ -12,6 +12,14 @@ import type {
   Subject,
 } from "./admin.service";
 
+export type {
+  CreateStudentPayload,
+  CreateTestPayload,
+  CreateQuestionPayload,
+  CreateAssignmentPayload,
+  CreateSubjectPayload,
+};
+
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
 export const createStudent = (data: CreateStudentPayload) =>

@@ -876,7 +876,7 @@ func parsePagination(c *gin.Context) (int, int) {
 	limit := 50
 	offset := 0
 	if l := c.Query("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 10000 {
 			limit = v
 		}
 	}
