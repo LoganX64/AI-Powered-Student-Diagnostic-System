@@ -28,6 +28,10 @@ import {
   type CreateQuestionPayload,
   type PaginatedResponse,
 } from "@/services/admin.service";
+import {
+  QuestionFormFields,
+  type QuestionDraft,
+} from "@/components/admin/forms/QuestionFormFields";
 
 type TestDetail = {
   test_id: number;
@@ -340,6 +344,27 @@ export function TestDetailPage() {
                 </div>
               ) : (
                 <>
+                  {/* Edit question panel */}
+                  {editingQuestionId && (
+                    <div className="flex flex-col gap-3 rounded-lg border p-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold">Edit Question</h4>
+                      </div>
+                      <QuestionFormFields
+                        q={questionForm as QuestionDraft}
+                        onChange={(field, value) => setQuestionForm((prev) => ({ ...prev, [field]: value }))}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
+                          <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="rounded-lg border overflow-hidden">
                     <Table>
                       <TableHeader>
@@ -357,133 +382,40 @@ export function TestDetailPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {questions.map((q, idx) => {
-                          const isEditing = editingQuestionId === q.id;
-                          return (
-                            <TableRow key={q.id}>
-                              <TableCell className="font-mono text-sm text-muted-foreground">
-                                {questionOffset + idx + 1}
-                              </TableCell>
-                              {isEditing ? (
-                                <>
-                                  <TableCell>
-                                    <Input
-                                      value={questionForm.question_text ?? ""}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, question_text: e.target.value })}
-                                      className="min-w-[200px]"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      value={questionForm.option_a ?? ""}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, option_a: e.target.value })}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      value={questionForm.option_b ?? ""}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, option_b: e.target.value })}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      value={questionForm.option_c ?? ""}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, option_c: e.target.value })}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      value={questionForm.option_d ?? ""}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, option_d: e.target.value })}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <select
-                                      className="border rounded px-2 py-1 text-sm bg-background"
-                                      value={questionForm.correct_answer ?? "A"}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, correct_answer: e.target.value as "A" | "B" | "C" | "D" })}
-                                    >
-                                      <option value="A">A</option>
-                                      <option value="B">B</option>
-                                      <option value="C">C</option>
-                                      <option value="D">D</option>
-                                    </select>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Input
-                                      type="number"
-                                      value={questionForm.marks ?? 0}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, marks: Number(e.target.value) })}
-                                      className="w-16"
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <select
-                                      className="border rounded px-2 py-1 text-sm bg-background"
-                                      value={questionForm.difficulty ?? "M"}
-                                      onChange={(e) => setQuestionForm({ ...questionForm, difficulty: e.target.value })}
-                                    >
-                                      <option value="E">Easy</option>
-                                      <option value="M">Medium</option>
-                                      <option value="H">Hard</option>
-                                    </select>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-7"
-                                        onClick={() => handleSaveQuestion(q.id)}
-                                        disabled={savingQuestion}
-                                      >
-                                        <SaveIcon className="size-3" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="size-7"
-                                        onClick={() => setEditingQuestionId(null)}
-                                      >
-                                        <XIcon className="size-3" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </>
-                              ) : (
-                                <>
-                                  <TableCell className="font-medium max-w-md truncate">{q.question_text}</TableCell>
-                                  <TableCell className="text-sm">{q.option_a}</TableCell>
-                                  <TableCell className="text-sm">{q.option_b}</TableCell>
-                                  <TableCell className="text-sm">{q.option_c}</TableCell>
-                                  <TableCell className="text-sm">{q.option_d}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="default">{q.correct_answer}</Badge>
-                                  </TableCell>
-                                  <TableCell className="text-muted-foreground">{q.marks}</TableCell>
-                                  <TableCell>
-                                    <Badge variant={
-                                      q.difficulty === "E" ? "secondary" :
-                                      q.difficulty === "M" ? "outline" : "destructive"
-                                    }>
-                                      {q.difficulty === "E" ? "Easy" : q.difficulty === "M" ? "Medium" : "Hard"}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-7"
-                                      onClick={() => startEditQuestion(q)}
-                                    >
-                                      <PencilIcon className="size-3" />
-                                    </Button>
-                                  </TableCell>
-                                </>
-                              )}
-                            </TableRow>
-                          );
-                        })}
+                        {questions.map((q, idx) => (
+                          <TableRow key={q.id}>
+                            <TableCell className="font-mono text-sm text-muted-foreground">
+                              {questionOffset + idx + 1}
+                            </TableCell>
+                            <TableCell className="font-medium max-w-md truncate">{q.question_text}</TableCell>
+                            <TableCell className="text-sm">{q.option_a}</TableCell>
+                            <TableCell className="text-sm">{q.option_b}</TableCell>
+                            <TableCell className="text-sm">{q.option_c}</TableCell>
+                            <TableCell className="text-sm">{q.option_d}</TableCell>
+                            <TableCell>
+                              <Badge variant="default">{q.correct_answer}</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{q.marks}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                q.difficulty === "E" ? "secondary" :
+                                q.difficulty === "M" ? "outline" : "destructive"
+                              }>
+                                {q.difficulty === "E" ? "Easy" : q.difficulty === "M" ? "Medium" : "Hard"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={() => startEditQuestion(q)}
+                              >
+                                <PencilIcon className="size-3" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </div>
