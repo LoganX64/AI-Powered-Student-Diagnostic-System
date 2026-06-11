@@ -96,8 +96,8 @@ export function AllTestsPage() {
                     <TableRow>
                       <TableHead className="w-16">ID</TableHead>
                       <TableHead>Title</TableHead>
-                      <TableHead className="w-24">Subject ID</TableHead>
-                      <TableHead className="w-24">Coach ID</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Coach</TableHead>
                       <TableHead className="w-24">Duration</TableHead>
                       <TableHead className="w-20 text-right">Action</TableHead>
                     </TableRow>
@@ -110,10 +110,10 @@ export function AllTestsPage() {
                         </TableCell>
                         <TableCell className="font-medium">{test.title}</TableCell>
                         <TableCell className="text-muted-foreground">
-                          {test.subject_id}
+                          {test.subject_name || `#${test.subject_id}`}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {test.coach_id}
+                          {test.coach_name || `#${test.coach_id}`}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {test.duration}s
