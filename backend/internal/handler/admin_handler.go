@@ -1120,20 +1120,32 @@ func (h *AdminHandler) ListCoaches(c *gin.Context) {
 	}
 
 	limit, offset := parsePagination(c)
+	search := c.Query("search")
+
+	baseQuery := "FROM coaches c JOIN users u ON c.user_id = u.id WHERE c.tenant_id=$1"
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	dataQuery := "SELECT c.id, c.user_id, c.name, u.email " + baseQuery
+
+	args := []interface{}{tenantID}
+
+	if search != "" {
+		baseQuery += " AND c.name ILIKE $" + strconv.Itoa(len(args)+1)
+		countQuery = "SELECT COUNT(*) " + baseQuery
+		dataQuery = "SELECT c.id, c.user_id, c.name, u.email " + baseQuery
+		args = append(args, "%"+search+"%")
+	}
 
 	var total int
-	err = h.DB.QueryRow("SELECT COUNT(*) FROM coaches WHERE tenant_id=$1", tenantID).Scan(&total)
+	err = h.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	rows, err := h.DB.Query(
-		`SELECT c.id, c.user_id, c.name, u.email
-		 FROM coaches c JOIN users u ON c.user_id = u.id
-		 WHERE c.tenant_id=$1 ORDER BY c.id DESC LIMIT $2 OFFSET $3`,
-		tenantID, limit, offset,
-	)
+	dataQuery += " ORDER BY c.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
+
+	rows, err := h.DB.Query(dataQuery, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
