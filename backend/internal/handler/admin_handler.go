@@ -1212,3 +1212,73 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": subjects})
 }
+
+func (h *AdminHandler) ListAssignments(c *gin.Context) {
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	limit, offset := parsePagination(c)
+	testID := c.Query("test_id")
+
+	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE s.tenant_id=$1"
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	dataQuery := `SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at ` + baseQuery
+
+	args := []interface{}{tenantID}
+
+	if testID != "" {
+		baseQuery += " AND a.test_id=$" + strconv.Itoa(len(args)+1)
+		countQuery = "SELECT COUNT(*) " + baseQuery
+		dataQuery = `SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at ` + baseQuery
+		args = append(args, testID)
+	}
+
+	var total int
+	err = h.DB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	dataQuery += " ORDER BY a.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
+
+	rows, err := h.DB.Query(dataQuery, args...)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type AssignmentRow struct {
+		ID          int     `json:"id"`
+		StudentID   int     `json:"student_id"`
+		StudentName string  `json:"student_name"`
+		StudentCode string  `json:"student_code"`
+		TestID      int     `json:"test_id"`
+		TestTitle   string  `json:"test_title"`
+		CoachID     int     `json:"coach_id"`
+		Status      string  `json:"status"`
+		AssignedAt  string  `json:"assigned_at"`
+	}
+
+	var assignments []AssignmentRow
+	for rows.Next() {
+		var a AssignmentRow
+		if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.StudentCode, &a.TestID, &a.TestTitle, &a.CoachID, &a.Status, &a.AssignedAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		assignments = append(assignments, a)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": assignments})
+}

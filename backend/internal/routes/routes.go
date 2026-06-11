@@ -72,6 +72,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.GET("/students", adminHandler.ListStudents)
 		admin.GET("/coaches", adminHandler.ListCoaches)
 		admin.GET("/subjects", adminHandler.ListSubjects)
+		admin.GET("/assignments", adminHandler.ListAssignments)
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 		admin.GET("/students/:id/subjects/:subject_id/results", adminHandler.GetStudentSubjectResults)
 	}
