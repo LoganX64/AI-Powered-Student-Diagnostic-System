@@ -43,7 +43,7 @@ const data = {
       icon: <BookOpenIcon />,
     },
     {
-      title: "Tests",
+      title: "All Tests",
       url: "/coach/tests",
       icon: <ClipboardListIcon />,
     },
