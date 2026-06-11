@@ -73,15 +73,9 @@ export function StudentsPage() {
     try {
       setCreating(true);
       const res = await createStudent(data);
-      const newStudent: Student = {
-        student_id: res.student_id,
-        name: data.name,
-        student_code: data.student_code,
-        coach_id: data.coach_id,
-      };
-      setStudents((prev) => [newStudent, ...prev]);
       toast.success(`Student "${data.name}" created — ID: ${res.student_id}`);
       (e.target as HTMLFormElement).reset();
+      fetchStudents(offset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -93,8 +87,8 @@ export function StudentsPage() {
     try {
       setDeletingId(student.student_id);
       await deleteStudent(student.student_id);
-      setStudents((prev) => prev.filter((s) => s.student_id !== student.student_id));
       toast.success(`Student "${student.name}" deleted`);
+      fetchStudents(offset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -166,7 +160,7 @@ export function StudentsPage() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">All Students</h2>
-              <Badge variant="secondary">{students.length}</Badge>
+              <Badge variant="secondary">{total}</Badge>
             </div>
 
             {students.length === 0 ? (
@@ -241,6 +235,33 @@ export function StudentsPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {total > PAGE_SIZE && (
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset === 0}
+                    onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                  >
+                    <ChevronLeftIcon className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset + PAGE_SIZE >= total}
+                    onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                  >
+                    Next <ChevronRightIcon className="size-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
