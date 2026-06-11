@@ -897,18 +897,32 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 	}
 
 	limit, offset := parsePagination(c)
+	search := c.Query("search")
+
+	baseQuery := "FROM tests WHERE tenant_id=$1"
+	countQuery := "SELECT COUNT(*) " + baseQuery
+	dataQuery := "SELECT id, title, subject_id, coach_id, duration " + baseQuery
+
+	args := []interface{}{tenantID}
+
+	if search != "" {
+		baseQuery += " AND title ILIKE $" + strconv.Itoa(len(args)+1)
+		countQuery = "SELECT COUNT(*) " + baseQuery
+		dataQuery = "SELECT id, title, subject_id, coach_id, duration " + baseQuery
+		args = append(args, "%"+search+"%")
+	}
 
 	var total int
-	err = h.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE tenant_id=$1", tenantID).Scan(&total)
+	err = h.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	rows, err := h.DB.Query(
-		"SELECT id, title, subject_id, coach_id, duration FROM tests WHERE tenant_id=$1 ORDER BY id DESC LIMIT $2 OFFSET $3",
-		tenantID, limit, offset,
-	)
+	dataQuery += " ORDER BY id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
+
+	rows, err := h.DB.Query(dataQuery, args...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
