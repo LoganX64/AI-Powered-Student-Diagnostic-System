@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -29,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createStudent, deleteStudent, getStudents, type CreateStudentPayload, type Student } from "@/services/admin.service";
+import { createStudent, deleteStudent, getStudents, getCoaches, type CreateStudentPayload, type Student, type Coach } from "@/services/admin.service";
 
 const PAGE_SIZE = 50;
 
@@ -39,6 +39,42 @@ export function StudentsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+
+  const [coachSearch, setCoachSearch] = useState("");
+  const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
+  const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const fetchCoaches = useCallback(async (search: string) => {
+    try {
+      const res = await getCoaches({ search, limit: 20 });
+      setCoaches(res.data ?? []);
+    } catch {
+      setCoaches([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchCoaches(coachSearch);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [coachSearch, fetchCoaches]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const fetchStudents = useCallback(async (off: number) => {
     try {
@@ -54,20 +90,31 @@ export function StudentsPage() {
     fetchStudents(offset);
   }, [offset, fetchStudents]);
 
+  const handleCoachSelect = (coach: Coach) => {
+    setSelectedCoach(coach);
+    setCoachSearch(coach.name);
+    setShowDropdown(false);
+  };
+
+  const handleCoachInputChange = (value: string) => {
+    setCoachSearch(value);
+    setSelectedCoach(null);
+    setShowDropdown(true);
+  };
+
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const coachId = Number(fd.get("coach_id"));
 
-    if (!coachId || coachId < 1) {
-      toast.error("Coach ID must be a valid positive number");
+    if (!selectedCoach) {
+      toast.error("Please select a coach from the list");
       return;
     }
 
+    const fd = new FormData(e.currentTarget);
     const data: CreateStudentPayload = {
       name: fd.get("name") as string,
       student_code: fd.get("student_code") as string,
-      coach_id: coachId,
+      coach_id: selectedCoach.coach_id,
     };
 
     try {
@@ -75,6 +122,8 @@ export function StudentsPage() {
       const res = await createStudent(data);
       toast.success(`Student "${data.name}" created — ID: ${res.student_id}`);
       (e.target as HTMLFormElement).reset();
+      setCoachSearch("");
+      setSelectedCoach(null);
       fetchStudents(offset);
     } catch (err) {
       toast.error((err as Error).message);
@@ -135,16 +184,38 @@ export function StudentsPage() {
                       required
                     />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="student-coach-id">Coach ID</Label>
+                  <div className="flex flex-col gap-2 relative" ref={dropdownRef}>
+                    <Label htmlFor="student-coach">Coach</Label>
                     <Input
-                      id="student-coach-id"
-                      name="coach_id"
-                      type="number"
-                      min={1}
-                      placeholder="1"
+                      id="student-coach"
+                      placeholder="Search coach by name…"
+                      value={coachSearch}
+                      onChange={(e) => handleCoachInputChange(e.target.value)}
+                      onFocus={() => setShowDropdown(true)}
                       required
                     />
+                    {showDropdown && coaches.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
+                        {coaches.map((coach) => (
+                          <button
+                            type="button"
+                            key={coach.coach_id}
+                            className={`flex w-full items-center px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                              selectedCoach?.coach_id === coach.coach_id ? "bg-accent text-accent-foreground" : ""
+                            }`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleCoachSelect(coach)}
+                          >
+                            {coach.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showDropdown && coachSearch && coaches.length === 0 && (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
+                        No coaches found
+                      </div>
+                    )}
                   </div>
                 </div>
                 <Button type="submit" disabled={creating} className="w-fit">
