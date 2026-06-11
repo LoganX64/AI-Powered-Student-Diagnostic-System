@@ -97,6 +97,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		coach.GET("/tests", coachHandler.ListTests)
 		coach.GET("/students", coachHandler.ListStudents)
 		coach.GET("/subjects", coachHandler.ListSubjects)
+		coach.GET("/assignments", coachHandler.ListAssignments)
 
 		// update own password
 		coach.PUT("/password", authHandler.UpdatePassword)
