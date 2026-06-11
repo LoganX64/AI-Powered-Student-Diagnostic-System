@@ -131,9 +131,21 @@ export const createTest = (data: CreateTestPayload) =>
     body: JSON.stringify(data),
   });
 
+export const updateTest = (testId: number, data: CreateTestPayload) =>
+  apiFetch<{ message: string }>(`/admin/tests/${testId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
 export const createQuestions = (testId: number, data: CreateQuestionPayload[]) =>
   apiFetch<{ question_ids: number[]; count: number }>(`/admin/tests/${testId}/questions`, {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateQuestion = (testId: number, questionId: number, data: CreateQuestionPayload) =>
+  apiFetch<{ message: string }>(`/admin/tests/${testId}/questions/${questionId}`, {
+    method: "PUT",
     body: JSON.stringify(data),
   });
 
