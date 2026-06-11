@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -31,14 +31,28 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { createCoach, deleteCoach, getCoaches, type CreateCoachPayload, type Coach } from "@/services/admin.service";
 
+const PAGE_SIZE = 50;
+
 export function CoachesPage() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+
+  const fetchCoaches = useCallback(async (off: number) => {
+    try {
+      const res = await getCoaches({ limit: PAGE_SIZE, offset: off });
+      setCoaches(res.data);
+      setTotal(res.total);
+    } catch {
+      // silently ignore
+    }
+  }, []);
 
   useEffect(() => {
-    getCoaches().then(setCoaches).catch(() => {});
-  }, []);
+    fetchCoaches(offset);
+  }, [offset, fetchCoaches]);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
@@ -52,15 +66,9 @@ export function CoachesPage() {
     try {
       setCreating(true);
       const res = await createCoach(data);
-      const newCoach: Coach = {
-        coach_id: res.coach_id,
-        user_id: res.user_id,
-        name: data.name,
-        email: data.email,
-      };
-      setCoaches((prev) => [newCoach, ...prev]);
       toast.success(`Coach "${data.name}" created — ID: ${res.coach_id}`);
       (e.target as HTMLFormElement).reset();
+      fetchCoaches(offset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -72,8 +80,8 @@ export function CoachesPage() {
     try {
       setDeletingId(coach.coach_id);
       await deleteCoach(coach.coach_id);
-      setCoaches((prev) => prev.filter((c) => c.coach_id !== coach.coach_id));
       toast.success(`Coach "${coach.name}" deleted`);
+      fetchCoaches(offset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -148,7 +156,7 @@ export function CoachesPage() {
               <h2 className="text-base font-semibold">
                 All Coaches
               </h2>
-              <Badge variant="secondary">{coaches.length}</Badge>
+              <Badge variant="secondary">{total}</Badge>
             </div>
 
             {coaches.length === 0 ? (
@@ -214,6 +222,33 @@ export function CoachesPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {total > PAGE_SIZE && (
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset === 0}
+                    onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                  >
+                    <ChevronLeftIcon className="size-4" /> Prev
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={offset + PAGE_SIZE >= total}
+                    onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                  >
+                    Next <ChevronRightIcon className="size-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </div>
