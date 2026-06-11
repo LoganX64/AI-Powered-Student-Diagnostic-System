@@ -36,13 +36,13 @@ export const emptyQuestion = (): QuestionDraft => ({
 });
 
 type QuestionFormFieldsProps = {
-  value: QuestionDraft;
+  q: QuestionDraft;
   onChange: (field: keyof QuestionDraft, value: string | number) => void;
   disabled?: boolean;
 };
 
 export function QuestionFormFields({
-  value: q,
+  q,
   onChange,
   disabled,
 }: QuestionFormFieldsProps) {

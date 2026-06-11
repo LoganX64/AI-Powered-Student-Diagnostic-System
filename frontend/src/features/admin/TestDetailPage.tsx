@@ -430,7 +430,12 @@ export function TestDetailPage() {
                           <TableHead className="w-16">D</TableHead>
                           <TableHead className="w-16">Answer</TableHead>
                           <TableHead className="w-16">Marks</TableHead>
+                          <TableHead className="w-16">Neg</TableHead>
                           <TableHead className="w-20">Difficulty</TableHead>
+                          <TableHead className="w-16">Import</TableHead>
+                          <TableHead className="w-16">Type</TableHead>
+                          <TableHead className="w-16">Time</TableHead>
+                          <TableHead className="w-24">Tag</TableHead>
                           <TableHead className="w-16"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -449,6 +454,7 @@ export function TestDetailPage() {
                               <Badge variant="default">{q.correct_answer}</Badge>
                             </TableCell>
                             <TableCell className="text-muted-foreground">{q.marks}</TableCell>
+                            <TableCell className="text-muted-foreground">{q.neg_marks}</TableCell>
                             <TableCell>
                               <Badge variant={
                                 q.difficulty === "E" ? "secondary" :
@@ -457,6 +463,14 @@ export function TestDetailPage() {
                                 {q.difficulty === "E" ? "Easy" : q.difficulty === "M" ? "Medium" : "Hard"}
                               </Badge>
                             </TableCell>
+                            <TableCell>
+                              <Badge variant={q.importance === "A" ? "default" : q.importance === "B" ? "secondary" : "outline"}>
+                                {q.importance}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{q.type}</TableCell>
+                            <TableCell className="text-sm">{q.expected_time}m</TableCell>
+                            <TableCell className="text-sm truncate max-w-[120px]" title={q.concept_tag}>{q.concept_tag}</TableCell>
                             <TableCell>
                               <Button
                                 variant="ghost"
