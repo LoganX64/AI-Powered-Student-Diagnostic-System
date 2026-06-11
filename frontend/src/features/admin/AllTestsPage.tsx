@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { SearchIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon } from "lucide-react";
+import { SearchIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, PencilIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -119,14 +119,24 @@ export function AllTestsPage() {
                           {test.duration}s
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => navigate(`/admin/tests/${test.test_id}`)}
-                          >
-                            <EyeIcon className="size-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => navigate(`/admin/tests/${test.test_id}`)}
+                            >
+                              <EyeIcon className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => navigate(`/admin/tests/${test.test_id}?edit=true`)}
+                            >
+                              <PencilIcon className="size-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
