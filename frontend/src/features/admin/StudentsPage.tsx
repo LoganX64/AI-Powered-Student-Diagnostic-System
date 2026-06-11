@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -31,14 +31,28 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { createStudent, deleteStudent, getStudents, type CreateStudentPayload, type Student } from "@/services/admin.service";
 
+const PAGE_SIZE = 50;
+
 export function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+
+  const fetchStudents = useCallback(async (off: number) => {
+    try {
+      const res = await getStudents({ limit: PAGE_SIZE, offset: off });
+      setStudents(res.data);
+      setTotal(res.total);
+    } catch {
+      // silently ignore
+    }
+  }, []);
 
   useEffect(() => {
-    getStudents().then(setStudents).catch(() => {});
-  }, []);
+    fetchStudents(offset);
+  }, [offset, fetchStudents]);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();

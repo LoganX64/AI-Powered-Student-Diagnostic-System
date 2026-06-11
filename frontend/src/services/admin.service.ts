@@ -129,16 +129,50 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
     body: JSON.stringify(data),
   });
 
+// ─── Pagination types ─────────────────────────────────────────────────────────
+
+export type PaginatedResponse<T> = {
+  total: number;
+  limit: number;
+  offset: number;
+  data: T[];
+};
+
+export type PaginationParams = {
+  limit?: number;
+  offset?: number;
+};
+
 // ─── List endpoints ────────────────────────────────────────────────────────────
 
-export const getTests = () =>
-  apiFetch<Test[]>("/admin/tests");
+export const getTests = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Test>>(`/admin/tests${qs ? `?${qs}` : ""}`);
+};
 
-export const getStudents = () =>
-  apiFetch<Student[]>("/admin/students");
+export const getStudents = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Student>>(`/admin/students${qs ? `?${qs}` : ""}`);
+};
 
-export const getCoaches = () =>
-  apiFetch<Coach[]>("/admin/coaches");
+export const getCoaches = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${qs ? `?${qs}` : ""}`);
+};
 
-export const getSubjects = () =>
-  apiFetch<Subject[]>("/admin/subjects");
+export const getSubjects = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Subject>>(`/admin/subjects${qs ? `?${qs}` : ""}`);
+};

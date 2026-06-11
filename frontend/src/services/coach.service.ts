@@ -5,6 +5,8 @@ import type {
   CreateQuestionPayload,
   CreateAssignmentPayload,
   CreateSubjectPayload,
+  PaginatedResponse,
+  PaginationParams,
   Test,
   Student,
   Subject,
@@ -44,11 +46,26 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
 
 // ─── List endpoints ────────────────────────────────────────────────────────────
 
-export const getTests = () =>
-  apiFetch<Test[]>("/coach/tests");
+export const getTests = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Test>>(`/coach/tests${qs ? `?${qs}` : ""}`);
+};
 
-export const getStudents = () =>
-  apiFetch<Student[]>("/coach/students");
+export const getStudents = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Student>>(`/coach/students${qs ? `?${qs}` : ""}`);
+};
 
-export const getSubjects = () =>
-  apiFetch<Subject[]>("/coach/subjects");
+export const getSubjects = (params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Subject>>(`/coach/subjects${qs ? `?${qs}` : ""}`);
+};
