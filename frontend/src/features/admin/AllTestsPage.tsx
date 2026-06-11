@@ -30,7 +30,7 @@ export function AllTestsPage() {
   const fetchTests = useCallback(async (off: number, searchTerm: string) => {
     try {
       const res = await getTests({ limit: PAGE_SIZE, offset: off, search: searchTerm || undefined });
-      setTests(res.data);
+      setTests(res.data ?? []);
       setTotal(res.total);
     } catch {
       // silently ignore

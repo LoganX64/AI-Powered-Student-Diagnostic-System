@@ -81,7 +81,7 @@ export function StudentsPage() {
   const fetchStudents = useCallback(async (off: number) => {
     try {
       const res = await getStudents({ limit: PAGE_SIZE, offset: off });
-      setStudents(res.data);
+      setStudents(res.data ?? []);
       setTotal(res.total);
     } catch {
       // silently ignore

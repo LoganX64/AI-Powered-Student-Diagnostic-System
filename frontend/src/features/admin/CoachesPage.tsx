@@ -43,7 +43,7 @@ export function CoachesPage() {
   const fetchCoaches = useCallback(async (off: number) => {
     try {
       const res = await getCoaches({ limit: PAGE_SIZE, offset: off });
-      setCoaches(res.data);
+      setCoaches(res.data ?? []);
       setTotal(res.total);
     } catch {
       // silently ignore

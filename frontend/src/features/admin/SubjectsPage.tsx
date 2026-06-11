@@ -43,7 +43,7 @@ export function SubjectsPage() {
   const fetchSubjects = useCallback(async (off: number) => {
     try {
       const res = await getSubjects({ limit: PAGE_SIZE, offset: off });
-      setSubjects(res.data);
+      setSubjects(res.data ?? []);
       setTotal(res.total);
     } catch {
       // silently ignore
