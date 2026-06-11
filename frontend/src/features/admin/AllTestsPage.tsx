@@ -16,7 +16,6 @@ import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -35,6 +34,11 @@ import {
   type CreateQuestionPayload,
   type PaginatedResponse,
 } from "@/services/admin.service";
+import {
+  QuestionFormFields,
+  emptyQuestion,
+  type QuestionDraft,
+} from "@/components/admin/forms/QuestionFormFields";
 
 const PAGE_SIZE = 50;
 
@@ -54,93 +58,6 @@ type Question = {
   expected_time: number;
   concept_tag: string;
 };
-
-type QuestionDraft = CreateQuestionPayload;
-
-const emptyQuestion = (): QuestionDraft => ({
-  question_text: "",
-  option_a: "",
-  option_b: "",
-  option_c: "",
-  option_d: "",
-  correct_answer: "A",
-  marks: 1,
-  neg_marks: 0.25,
-  importance: "A",
-  difficulty: "E",
-  type: "Theory",
-  expected_time: 1,
-  concept_tag: "",
-});
-
-function QuestionFormFields({
-  q,
-  onChange,
-}: {
-  q: QuestionDraft;
-  onChange: (field: keyof QuestionDraft, value: string | number) => void;
-}) {
-  return (
-    <>
-      <Input
-        value={q.question_text}
-        onChange={(e) => onChange("question_text", e.target.value)}
-        placeholder="Question text"
-        required
-      />
-      <div className="grid grid-cols-2 gap-2">
-        <Input value={q.option_a} onChange={(e) => onChange("option_a", e.target.value)} placeholder="Option A" required />
-        <Input value={q.option_b} onChange={(e) => onChange("option_b", e.target.value)} placeholder="Option B" required />
-        <Input value={q.option_c} onChange={(e) => onChange("option_c", e.target.value)} placeholder="Option C" required />
-        <Input value={q.option_d} onChange={(e) => onChange("option_d", e.target.value)} placeholder="Option D" required />
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Correct Answer</Label>
-          <select className="border rounded px-2 py-1 text-sm bg-background" value={q.correct_answer} onChange={(e) => onChange("correct_answer", e.target.value)}>
-            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Marks</Label>
-          <Input type="number" min={0} step={0.25} value={q.marks} onChange={(e) => onChange("marks", parseFloat(e.target.value) || 0)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Neg. Marks</Label>
-          <Input type="number" min={0} step={0.25} value={q.neg_marks} onChange={(e) => onChange("neg_marks", parseFloat(e.target.value) || 0)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Exp. Time (min)</Label>
-          <Input type="number" min={0} step={0.1} value={q.expected_time} onChange={(e) => onChange("expected_time", parseFloat(e.target.value) || 0)} />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Importance</Label>
-          <select className="border rounded px-2 py-1 text-sm bg-background" value={q.importance} onChange={(e) => onChange("importance", e.target.value)}>
-            <option value="A">A (High)</option><option value="B">B (Medium)</option><option value="C">C (Low)</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Difficulty</Label>
-          <select className="border rounded px-2 py-1 text-sm bg-background" value={q.difficulty} onChange={(e) => onChange("difficulty", e.target.value)}>
-            <option value="E">Easy</option><option value="M">Medium</option><option value="H">Hard</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Type</Label>
-          <select className="border rounded px-2 py-1 text-sm bg-background" value={q.type} onChange={(e) => onChange("type", e.target.value)}>
-            <option value="Theory">Theory</option><option value="Practical">Practical</option>
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs">Concept Tag</Label>
-          <Input value={q.concept_tag} onChange={(e) => onChange("concept_tag", e.target.value)} placeholder="basic_arithmetic" />
-        </div>
-      </div>
-    </>
-  );
-}
 
 export function AllTestsPage() {
   const [tests, setTests] = useState<Test[]>([]);
@@ -326,7 +243,6 @@ export function AllTestsPage() {
                             <div className="flex flex-col gap-4 rounded-lg border p-4">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold">Add Questions to: {test.title}</h4>
-                                <Button variant="ghost" size="sm" onClick={() => setShowAddForm(false)}><XIcon className="size-4" /></Button>
                               </div>
                               {newQuestions.map((q, idx) => (
                                 <div key={idx} className="flex flex-col gap-3 rounded-md border p-3">
@@ -356,19 +272,19 @@ export function AllTestsPage() {
                             <div className="flex flex-col gap-3 rounded-lg border p-4">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold">Edit Question</h4>
-                                <div className="flex gap-1">
-                                  <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
-                                    <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
-                                  </Button>
-                                  <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
-                                    <XIcon className="size-3 mr-1" /> Cancel
-                                  </Button>
-                                </div>
                               </div>
                               <QuestionFormFields
                                 q={questionForm as QuestionDraft}
                                 onChange={(field, value) => setQuestionForm((prev) => ({ ...prev, [field]: value }))}
                               />
+                              <div className="flex justify-end gap-2">
+                                <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
+                                  <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
+                                  Cancel
+                                </Button>
+                              </div>
                             </div>
                           )}
 
