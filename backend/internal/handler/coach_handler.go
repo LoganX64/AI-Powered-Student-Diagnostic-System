@@ -443,28 +443,30 @@ func (h *CoachHandler) GetStudent(c *gin.Context) {
 	}
 
 	type StudentDetailRow struct {
-		StudentID     int     `json:"student_id"`
-		Name          string  `json:"name"`
-		StudentCode   string  `json:"student_code"`
-		CoachID       int     `json:"coach_id"`
-		CoachName     string  `json:"coach_name"`
-		CreatedAt     string  `json:"created_at"`
-		DeletedAt     *string `json:"deleted_at"`
-		DeletedByName *string `json:"deleted_by_name"`
-		DeletedByRole *string `json:"deleted_by_role"`
+		StudentID      int     `json:"student_id"`
+		Name           string  `json:"name"`
+		StudentCode    string  `json:"student_code"`
+		CoachID        int     `json:"coach_id"`
+		CoachName      string  `json:"coach_name"`
+		CreatedAt      string  `json:"created_at"`
+		DeletedAt      *string `json:"deleted_at"`
+		DeletedByName  *string `json:"deleted_by_name"`
+		DeletedByEmail *string `json:"deleted_by_email"`
+		DeletedByRole  *string `json:"deleted_by_role"`
 	}
 
 	var s StudentDetailRow
 	err = h.DB.QueryRow(`
 		SELECT st.id, st.name, st.student_code, st.coach_id, COALESCE(c.name, ''),
-		       st.created_at, st.deleted_at, u.name, u.role
+		       st.created_at, st.deleted_at, u.email, dco.name, u.role
 		FROM students st
 		LEFT JOIN coaches c ON st.coach_id = c.id
 		LEFT JOIN users u ON st.deleted_by = u.id
+		LEFT JOIN coaches dco ON dco.user_id = u.id
 		WHERE st.id = $1 AND st.tenant_id = $2 AND st.coach_id = $3
 	`, studentID, tenantID, coachID).Scan(
 		&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName,
-		&s.CreatedAt, &s.DeletedAt, &s.DeletedByName, &s.DeletedByRole,
+		&s.CreatedAt, &s.DeletedAt, &s.DeletedByEmail, &s.DeletedByName, &s.DeletedByRole,
 	)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})

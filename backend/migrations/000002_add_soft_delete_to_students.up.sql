@@ -1,2 +1,0 @@
-ALTER TABLE students ADD COLUMN deleted_at TIMESTAMP NULL;
-ALTER TABLE students ADD COLUMN deleted_by INT NULL REFERENCES users(id);
