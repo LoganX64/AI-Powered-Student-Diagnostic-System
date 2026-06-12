@@ -4,7 +4,6 @@ import {
   ArrowLeftIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  PlusIcon,
   SaveIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -35,6 +34,7 @@ import {
   QuestionFormFields,
   type QuestionDraft,
 } from "@/components/admin/forms/QuestionFormFields";
+import { CreateQuestionsForm } from "@/components/admin/forms/CreateQuestionsForm";
 import {
   deleteQuestion,
   updateQuestion,
@@ -42,6 +42,7 @@ import {
   type PaginatedResponse,
 } from "@/services/admin.service";
 import { apiFetch } from "@/lib/api";
+import { formatDateDDMMYYYY } from "@/lib/utils";
 
 type TestDetail = {
   test_id: number;
@@ -191,9 +192,9 @@ export function QuestionsPage() {
             <div className="flex items-center gap-4 flex-wrap">
               <h2 className="text-lg font-semibold">{test.title}</h2>
               <Badge variant="outline">ID: {test.test_id}</Badge>
-              <Badge variant="secondary">Duration: {test.duration}m</Badge>
+              <Badge variant="secondary">Duration: {test.duration} min</Badge>
               {test.exam_date && (
-                <Badge variant="secondary">Exam: {test.exam_date}</Badge>
+                <Badge variant="secondary">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
               )}
               <Badge variant="secondary">Subject: {test.subject_name || `#${test.subject_id}`}</Badge>
             </div>
@@ -201,15 +202,14 @@ export function QuestionsPage() {
 
           {/* Questions */}
           {questions.length === 0 ? (
-            <div className="flex flex-col h-32 items-center justify-center rounded-lg border border-dashed gap-3">
-              <p className="text-sm text-muted-foreground">No questions in this test.</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate("/admin/tests")}
-              >
-                <PlusIcon className="size-4 mr-1" /> Add Questions
-              </Button>
+            <div className="flex flex-col gap-4">
+              <div className="flex h-24 items-center justify-center rounded-lg border border-dashed">
+                <p className="text-sm text-muted-foreground">No questions in this test. Add questions below.</p>
+              </div>
+              <CreateQuestionsForm
+                testId={testId}
+                onCreated={() => fetchQuestions(0)}
+              />
             </div>
           ) : (
             <>

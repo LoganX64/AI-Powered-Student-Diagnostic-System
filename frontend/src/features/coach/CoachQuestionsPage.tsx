@@ -19,7 +19,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
+import { CreateQuestionsForm } from "@/components/coach/forms/CreateQuestionsForm";
 import { type PaginatedResponse } from "@/services/coach.service";
+import { formatDateDDMMYYYY } from "@/lib/utils";
 
 type TestDetail = {
   test_id: number;
@@ -115,19 +117,23 @@ export function CoachQuestionsPage() {
             <div className="flex items-center gap-4 flex-wrap">
               <h2 className="text-lg font-semibold">{test.title}</h2>
               <Badge variant="outline">ID: {test.test_id}</Badge>
-              <Badge variant="secondary">Duration: {test.duration}m</Badge>
+              <Badge variant="secondary">Duration: {test.duration} min</Badge>
               {test.exam_date && (
-                <Badge variant="secondary">Exam: {test.exam_date}</Badge>
+                <Badge variant="secondary">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
               )}
             </div>
           </div>
 
           {/* Questions */}
           {questions.length === 0 ? (
-            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
-              <p className="text-sm text-muted-foreground">
-                No questions in this test.
-              </p>
+            <div className="flex flex-col gap-4">
+              <div className="flex h-24 items-center justify-center rounded-lg border border-dashed">
+                <p className="text-sm text-muted-foreground">No questions in this test. Add questions below.</p>
+              </div>
+              <CreateQuestionsForm
+                testId={Number(id)}
+                onCreated={() => fetchQuestions(0)}
+              />
             </div>
           ) : (
             <>

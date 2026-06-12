@@ -38,7 +38,7 @@ export function CreateAssignmentForm() {
     const data = {
       student_id: studentId,
       test_id: testId,
-      coach_id: 0,
+      coach_id: tests.find((t) => t.test_id === testId)?.coach_id ?? 0,
     };
 
     try {

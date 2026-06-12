@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -50,7 +51,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
     if (test && open) {
       setTitle(test.title);
       setDuration(test.duration);
-      setExamDate(test.exam_date || "");
+      setExamDate(test.exam_date ? test.exam_date.substring(0, 10) : "");
       setSubjectSearch(test.subject_name || "");
       setSelectedSubject({ subject_id: test.subject_id, name: test.subject_name || "" });
       setCoachSearch(test.coach_name || "");
@@ -181,6 +182,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
             Edit Test
             <Badge variant="outline">ID: {test.test_id}</Badge>
           </DialogTitle>
+          <DialogDescription>Update test details below.</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">

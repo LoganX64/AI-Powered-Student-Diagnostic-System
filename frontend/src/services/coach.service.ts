@@ -64,6 +64,11 @@ export const deleteQuestion = (testId: number, questionId: number) =>
     method: "DELETE",
   });
 
+export const deleteTest = (testId: number) =>
+  apiFetch<{ message: string }>(`/coach/tests/${testId}`, {
+    method: "DELETE",
+  });
+
 // ─── List endpoints ────────────────────────────────────────────────────────────
 
 export const getTests = (params?: PaginationParams) => {

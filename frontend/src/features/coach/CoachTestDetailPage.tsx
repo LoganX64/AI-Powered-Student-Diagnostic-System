@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import { getAssignments, type Assignment, type PaginatedResponse } from "@/services/coach.service";
+import { formatDateDDMMYYYY } from "@/lib/utils";
 
 type TestDetail = {
   test_id: number;
@@ -128,10 +129,10 @@ export function CoachTestDetailPage() {
             <div className="flex items-center gap-4 flex-wrap">
               <h2 className="text-lg font-semibold">{test.title}</h2>
               <Badge variant="outline">ID: {test.test_id}</Badge>
-              <Badge variant="secondary">Duration: {test.duration}s</Badge>
+              <Badge variant="secondary">Duration: {test.duration} min</Badge>
               <Badge variant="secondary">Subject: {test.subject_id}</Badge>
               {test.exam_date && (
-                <Badge variant="secondary">Exam: {test.exam_date}</Badge>
+                <Badge variant="secondary">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
               )}
               <Button
                 variant="outline"

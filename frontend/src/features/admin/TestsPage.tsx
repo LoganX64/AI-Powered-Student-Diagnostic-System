@@ -1,13 +1,25 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CreateTestForm } from "@/components/admin/forms/CreateTestForm";
 import { CreateQuestionsForm } from "@/components/admin/forms/CreateQuestionsForm";
 import { CreateAssignmentForm } from "@/components/admin/forms/CreateAssignmentForm";
+import { deleteTest } from "@/services/admin.service";
 import { ClipboardListIcon, LinkIcon } from "lucide-react";
 
 const TABS = [
@@ -16,7 +28,22 @@ const TABS = [
 ];
 
 export function TestsPage() {
+  const navigate = useNavigate();
   const [createdTestId, setCreatedTestId] = useState<number | null>(null);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+
+  const handleDeleteTest = async () => {
+    if (createdTestId === null) return;
+    try {
+      await deleteTest(createdTestId);
+      toast.success("Empty test deleted");
+    } catch {
+      // silently ignore — test may already be gone
+    } finally {
+      setCreatedTestId(null);
+      setShowExitDialog(false);
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -54,10 +81,7 @@ export function TestsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setCreatedTestId(null);
-                        toast.info("Ready to create a new test");
-                      }}
+                      onClick={() => setShowExitDialog(true)}
                     >
                       Create Another Test
                     </Button>
@@ -66,6 +90,8 @@ export function TestsPage() {
                     testId={createdTestId}
                     onCreated={(id, count) => {
                       toast.success(`${count} question(s) added to test ${id}`);
+                      setCreatedTestId(null);
+                      navigate("/admin/all-tests");
                     }}
                   />
                 </>
@@ -79,6 +105,29 @@ export function TestsPage() {
 
         </div>
       </SidebarInset>
+
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Test has no questions</AlertDialogTitle>
+            <AlertDialogDescription>
+              This test has no questions yet. Do you want to add questions or delete this empty test?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTest}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Test
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => setShowExitDialog(false)}>
+              Add Questions
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

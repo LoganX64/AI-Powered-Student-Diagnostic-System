@@ -31,6 +31,7 @@ import {
   type Test,
 } from "@/services/admin.service";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
+import { formatDateDDMMYYYY } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
@@ -112,7 +113,7 @@ export function AllTestsPage() {
                     >
                       <span className="font-medium flex-1">{test.title}</span>
                       {test.exam_date && (
-                        <Badge variant="outline" className="hidden sm:inline-flex">Exam: {test.exam_date}</Badge>
+                        <Badge variant="outline" className="hidden sm:inline-flex">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
                       )}
                       <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
                       <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>

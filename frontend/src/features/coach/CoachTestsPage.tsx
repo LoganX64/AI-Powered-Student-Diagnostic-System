@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Trash2Icon } from "lucide-react";
 import { CoachSidebar } from "@/components/coach/sidebar";
@@ -30,6 +31,7 @@ import { ClipboardListIcon, LinkIcon } from "lucide-react";
 import { CreateTestForm, type CoachTest } from "@/components/coach/forms/CreateTestForm";
 import { CreateQuestionsForm } from "@/components/coach/forms/CreateQuestionsForm";
 import { CreateAssignmentForm, type CoachAssignment } from "@/components/coach/forms/CreateAssignmentForm";
+import { deleteTest } from "@/services/coach.service";
 
 const TABS = [
   { value: "test", label: "Create Test & Questions", icon: ClipboardListIcon },
@@ -37,9 +39,24 @@ const TABS = [
 ];
 
 export function CoachTestsPage() {
+  const navigate = useNavigate();
   const [tests, setTests] = useState<CoachTest[]>([]);
   const [createdTestId, setCreatedTestId] = useState<number | null>(null);
   const [assignments, setAssignments] = useState<CoachAssignment[]>([]);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+
+  const handleDeleteTest = async () => {
+    if (createdTestId === null) return;
+    try {
+      await deleteTest(createdTestId);
+      toast.success("Empty test deleted");
+    } catch {
+      // silently ignore
+    } finally {
+      setCreatedTestId(null);
+      setShowExitDialog(false);
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -82,10 +99,7 @@ export function CoachTestsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setCreatedTestId(null);
-                        toast.info("Ready to create a new test");
-                      }}
+                      onClick={() => setShowExitDialog(true)}
                     >
                       Create Another Test
                     </Button>
@@ -94,6 +108,8 @@ export function CoachTestsPage() {
                     testId={createdTestId}
                     onCreated={(id, count) => {
                       toast.success(`${count} question(s) added to test ${id}`);
+                      setCreatedTestId(null);
+                      navigate("/coach/all-tests");
                     }}
                   />
                 </>
@@ -246,6 +262,29 @@ export function CoachTestsPage() {
 
         </div>
       </SidebarInset>
+
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Test has no questions</AlertDialogTitle>
+            <AlertDialogDescription>
+              This test has no questions yet. Do you want to add questions or delete this empty test?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTest}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Test
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => setShowExitDialog(false)}>
+              Add Questions
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

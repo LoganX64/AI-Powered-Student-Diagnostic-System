@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getTests, type Test } from "@/services/coach.service";
+import { formatDateDDMMYYYY } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
@@ -92,15 +93,16 @@ export function CoachAllTestsPage() {
             ) : (
               <div className="rounded-lg border overflow-hidden">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">ID</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead className="w-24">Subject ID</TableHead>
-                      <TableHead className="w-24">Duration</TableHead>
-                      <TableHead className="w-20 text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                    <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">ID</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead className="w-24">Subject ID</TableHead>
+                          <TableHead className="w-32">Exam Date</TableHead>
+                          <TableHead className="w-24">Duration</TableHead>
+                          <TableHead className="w-20 text-right">Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
                   <TableBody>
                     {tests.map((test) => (
                       <TableRow key={test.test_id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/coach/tests/${test.test_id}/questions`)}>
@@ -112,7 +114,10 @@ export function CoachAllTestsPage() {
                           {test.subject_id}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {test.duration}s
+                          {test.exam_date ? formatDateDDMMYYYY(test.exam_date) : "-"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {test.duration} min
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
