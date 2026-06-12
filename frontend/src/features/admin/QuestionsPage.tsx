@@ -26,6 +26,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -298,6 +299,7 @@ export function QuestionsPage() {
             <DialogTitle>
               Edit Question {editingQuestion ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}` : ""}
             </DialogTitle>
+            <DialogDescription>Update the question fields below.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">
             <QuestionFormFields
