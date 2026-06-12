@@ -1,13 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   SearchIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronDownIcon,
-  ChevronRightIcon as ChevronRightSmallIcon,
-  PlusIcon,
-  SaveIcon,
-  XIcon,
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,60 +24,21 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { apiFetch } from "@/lib/api";
 import {
   getTests,
-  createQuestions,
-  updateQuestion,
   deleteTest,
   type Test,
-  type CreateQuestionPayload,
-  type PaginatedResponse,
 } from "@/services/admin.service";
-import {
-  QuestionFormFields,
-  emptyQuestion,
-  type QuestionDraft,
-} from "@/components/admin/forms/QuestionFormFields";
-import { QuestionCard } from "@/components/admin/QuestionCard";
 
 const PAGE_SIZE = 50;
 
-type Question = {
-  id: number;
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: string;
-  marks: number;
-  neg_marks: number;
-  importance: string;
-  difficulty: string;
-  type: string;
-  expected_time: number;
-  concept_tag: string;
-};
-
 export function AllTestsPage() {
+  const navigate = useNavigate();
   const [tests, setTests] = useState<Test[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-
-  const [expandedTestId, setExpandedTestId] = useState<number | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
-
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newQuestions, setNewQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
-  const [addingQuestions, setAddingQuestions] = useState(false);
-
-  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
-  const [questionForm, setQuestionForm] = useState<Partial<CreateQuestionPayload>>({});
-  const [savingQuestion, setSavingQuestion] = useState(false);
 
   const fetchTests = useCallback(async (off: number, searchTerm: string) => {
     try {
@@ -95,86 +52,6 @@ export function AllTestsPage() {
     fetchTests(offset, search);
   }, [offset, search, fetchTests]);
 
-  const fetchQuestions = useCallback(async (testId: number) => {
-    setLoadingQuestions(true);
-    try {
-      const res = await apiFetch<PaginatedResponse<Question>>(`/admin/tests/${testId}/questions?limit=100&offset=0`);
-      setQuestions(res.data ?? []);
-    } catch {
-      setQuestions([]);
-    } finally {
-      setLoadingQuestions(false);
-    }
-  }, []);
-
-  const handleExpand = (testId: number) => {
-    if (expandedTestId === testId) {
-      setExpandedTestId(null);
-      setQuestions([]);
-      setShowAddForm(false);
-      setEditingQuestionId(null);
-    } else {
-      setExpandedTestId(testId);
-      setShowAddForm(false);
-      setEditingQuestionId(null);
-      fetchQuestions(testId);
-    }
-  };
-
-  const updateNewQuestion = (index: number, field: keyof QuestionDraft, value: string | number) => {
-    setNewQuestions((prev) => prev.map((q, i) => (i === index ? { ...q, [field]: value } : q)));
-  };
-
-  const handleSubmitNewQuestions = async () => {
-    if (!expandedTestId) return;
-    try {
-      setAddingQuestions(true);
-      const res = await createQuestions(expandedTestId, newQuestions);
-      toast.success(`${res.count} question(s) added`);
-      setNewQuestions([emptyQuestion()]);
-      setShowAddForm(false);
-      fetchQuestions(expandedTestId);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setAddingQuestions(false);
-    }
-  };
-
-  const startEditQuestion = (q: Question) => {
-    setEditingQuestionId(q.id);
-    setQuestionForm({
-      question_text: q.question_text,
-      option_a: q.option_a,
-      option_b: q.option_b,
-      option_c: q.option_c,
-      option_d: q.option_d,
-      correct_answer: q.correct_answer as "A" | "B" | "C" | "D",
-      marks: q.marks,
-      neg_marks: q.neg_marks,
-      importance: q.importance,
-      difficulty: q.difficulty,
-      type: q.type,
-      expected_time: q.expected_time,
-      concept_tag: q.concept_tag,
-    });
-  };
-
-  const handleSaveQuestion = async (questionId: number) => {
-    if (!expandedTestId) return;
-    try {
-      setSavingQuestion(true);
-      await updateQuestion(expandedTestId, questionId, questionForm as CreateQuestionPayload);
-      toast.success("Question updated");
-      setEditingQuestionId(null);
-      fetchQuestions(expandedTestId);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSavingQuestion(false);
-    }
-  };
-
   const handleSearch = () => {
     setOffset(0);
     setSearch(searchInput);
@@ -186,10 +63,6 @@ export function AllTestsPage() {
       toast.success(`Test "${testTitle}" deleted`);
       setTests((prev) => prev.filter((t) => t.test_id !== testId));
       setTotal((prev) => prev - 1);
-      if (expandedTestId === testId) {
-        setExpandedTestId(null);
-        setQuestions([]);
-      }
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -227,145 +100,55 @@ export function AllTestsPage() {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {tests.map((test) => {
-                  const isExpanded = expandedTestId === test.test_id;
-                  return (
-                    <div key={test.test_id} className="rounded-lg border overflow-hidden">
-                      <div
-                        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleExpand(test.test_id)}
-                      >
-                        {isExpanded ? (
-                          <ChevronDownIcon className="size-4 text-muted-foreground shrink-0" />
-                        ) : (
-                          <ChevronRightSmallIcon className="size-4 text-muted-foreground shrink-0" />
-                        )}
-                        <span className="font-medium flex-1">{test.title}</span>
-                        <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
-                        <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>
-                        <span className="text-sm text-muted-foreground">{test.duration}m</span>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-muted-foreground hover:text-destructive"
-                              aria-label={`Delete ${test.title}`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Trash2Icon className="size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Test</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete{" "}
-                                <span className="font-semibold">{test.title}</span>?
-                                This will also delete all related questions.
-                                This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteTest(test.test_id, test.title)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="border-t bg-muted/20 p-4 flex flex-col gap-4">
-                          {loadingQuestions ? (
-                            <p className="text-sm text-muted-foreground">Loading questions...</p>
-                          ) : questions.length === 0 && !showAddForm ? (
-                            <div className="flex flex-col items-center gap-3 py-4">
-                              <p className="text-sm text-muted-foreground">No questions yet.</p>
-                              <Button size="sm" onClick={() => { setShowAddForm(true); setNewQuestions([emptyQuestion()]); }}>
-                                <PlusIcon className="size-4 mr-1" /> Add Questions
-                              </Button>
-                            </div>
-                          ) : null}
-
-                          {showAddForm && (
-                            <div className="flex flex-col gap-4 rounded-lg border p-4">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold">Add Questions to: {test.title}</h4>
-                              </div>
-                              {newQuestions.map((q, idx) => (
-                                <div key={idx} className="flex flex-col gap-3 rounded-md border p-3">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-muted-foreground">Question {idx + 1}</span>
-                                    {newQuestions.length > 1 && (
-                                      <Button type="button" variant="ghost" size="icon" className="size-6 text-destructive" onClick={() => setNewQuestions((prev) => prev.filter((_, i) => i !== idx))}>
-                                        <XIcon className="size-3" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                  <QuestionFormFields q={q} onChange={(field, value) => updateNewQuestion(idx, field, value)} />
-                                </div>
-                              ))}
-                              <div className="flex gap-2">
-                                <Button size="sm" onClick={handleSubmitNewQuestions} disabled={addingQuestions}>
-                                  {addingQuestions ? "Adding\u2026" : `Add ${newQuestions.length} Question(s)`}
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => setNewQuestions((prev) => [...prev, emptyQuestion()])}>
-                                  <PlusIcon className="size-3 mr-1" /> More
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {questions.length > 0 && (
-                            <>
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-semibold">Questions ({questions.length})</h4>
-                                <Button size="sm" variant="outline" onClick={() => { setShowAddForm(true); setNewQuestions([emptyQuestion()]); }}>
-                                  <PlusIcon className="size-3 mr-1" /> Add
-                                </Button>
-                              </div>
-                              <div className="flex flex-col gap-3">
-                                {questions.map((q, idx) => (
-                                  <div key={q.id}>
-                                    <QuestionCard
-                                      index={idx + 1}
-                                      question={q}
-                                      onEdit={() => startEditQuestion(q)}
-                                    />
-                                    {editingQuestionId === q.id && (
-                                      <div className="mt-3 flex flex-col gap-3 rounded-lg border p-4">
-                                        <div className="flex items-center justify-between">
-                                          <h4 className="text-sm font-semibold">Edit Question {idx + 1}</h4>
-                                        </div>
-                                        <QuestionFormFields
-                                          q={questionForm as QuestionDraft}
-                                          onChange={(field, value) => setQuestionForm((prev) => ({ ...prev, [field]: value }))}
-                                        />
-                                        <div className="flex justify-end gap-2">
-                                          <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
-                                            <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
-                                          </Button>
-                                          <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
-                                            Cancel
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </>
-                          )}
-                        </div>
+                {tests.map((test) => (
+                  <div key={test.test_id} className="rounded-lg border overflow-hidden">
+                    <div
+                      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/admin/tests/${test.test_id}/questions`)}
+                    >
+                      <span className="font-medium flex-1">{test.title}</span>
+                      {test.exam_date && (
+                        <Badge variant="outline" className="hidden sm:inline-flex">Exam: {test.exam_date}</Badge>
                       )}
+                      <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
+                      <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>
+                      <span className="text-sm text-muted-foreground">{test.duration}m</span>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-destructive"
+                            aria-label={`Delete ${test.title}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Test</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete{" "}
+                              <span className="font-semibold">{test.title}</span>?
+                              This will also delete all related questions.
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteTest(test.test_id, test.title)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
 

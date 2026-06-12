@@ -55,6 +55,7 @@ type TestDetail = {
   created_at: string;
   subject_name: string;
   coach_name: string;
+  exam_date?: string;
 };
 
 type Question = {

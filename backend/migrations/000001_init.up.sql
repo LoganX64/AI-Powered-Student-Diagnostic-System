@@ -8,9 +8,9 @@ CREATE TABLE tenants (
 -- USERS (super_admin, admin, coach)
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    tenant_id INT, 
+    tenant_id INT,
     email VARCHAR(100) UNIQUE NOT NULL,
-    password TEXT, 
+    password TEXT,
     role VARCHAR(20) CHECK (role IN ('super_admin', 'admin', 'coach')) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
@@ -58,8 +58,9 @@ CREATE TABLE tests (
     tenant_id INT NOT NULL,
     title TEXT,
     subject_id INT,
-    coach_id INT NOT NULL, 
+    coach_id INT NOT NULL,
     duration INT,
+    exam_date DATE,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
@@ -109,7 +110,7 @@ CREATE TABLE assignments (
     FOREIGN KEY (test_id) REFERENCES tests(id) ON DELETE CASCADE,
     FOREIGN KEY (coach_id) REFERENCES coaches(id) ON DELETE CASCADE,
 
-    UNIQUE (student_id, test_id) 
+    UNIQUE (student_id, test_id)
 );
 
 -- ATTEMPTS
@@ -153,7 +154,7 @@ CREATE TABLE attempt_results (
     sqi_score FLOAT,
     raw_score FLOAT,
 
-    analysis_json JSONB,         -- full SQIAnalysis
+    analysis_json JSONB,
     version VARCHAR(10) DEFAULT 'v1',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -25,6 +25,7 @@ type TestDetail = {
   coach_id: number;
   duration: number;
   created_at: string;
+  exam_date?: string;
 };
 
 type Question = {
@@ -129,6 +130,16 @@ export function CoachTestDetailPage() {
               <Badge variant="outline">ID: {test.test_id}</Badge>
               <Badge variant="secondary">Duration: {test.duration}s</Badge>
               <Badge variant="secondary">Subject: {test.subject_id}</Badge>
+              {test.exam_date && (
+                <Badge variant="secondary">Exam: {test.exam_date}</Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/coach/tests/${test.test_id}/questions`)}
+              >
+                View Questions
+              </Button>
             </div>
           </div>
 

@@ -15,6 +15,7 @@ import { SubjectsPage } from "../src/features/admin/SubjectsPage.tsx";
 import { TestsPage } from "../src/features/admin/TestsPage.tsx";
 import { AllTestsPage } from "../src/features/admin/AllTestsPage.tsx";
 import { TestDetailPage } from "../src/features/admin/TestDetailPage.tsx";
+import { QuestionsPage } from "../src/features/admin/QuestionsPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
 import { CoachDashboardPage } from "../src/features/coach/CoachDashboardPage.tsx";
 import { CoachStudentsPage } from "../src/features/coach/CoachStudentsPage.tsx";
@@ -22,6 +23,7 @@ import { CoachSubjectsPage } from "../src/features/coach/CoachSubjectsPage.tsx";
 import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
 import { CoachAllTestsPage } from "../src/features/coach/CoachAllTestsPage.tsx";
 import { CoachTestDetailPage } from "../src/features/coach/CoachTestDetailPage.tsx";
+import { CoachQuestionsPage } from "../src/features/coach/CoachQuestionsPage.tsx";
 
 const router = createBrowserRouter([
   // Public pages
@@ -46,6 +48,7 @@ const router = createBrowserRouter([
       { path: "admin/tests", Component: TestsPage },
       { path: "admin/all-tests", Component: AllTestsPage },
       { path: "admin/tests/:id", Component: TestDetailPage },
+      { path: "admin/tests/:id/questions", Component: QuestionsPage },
 
       // Coach dashboard
       { path: "coach/dashboard", Component: CoachDashboardPage },
@@ -54,6 +57,7 @@ const router = createBrowserRouter([
       { path: "coach/tests", Component: CoachTestsPage },
       { path: "coach/all-tests", Component: CoachAllTestsPage },
       { path: "coach/tests/:id", Component: CoachTestDetailPage },
+      { path: "coach/tests/:id/questions", Component: CoachQuestionsPage },
 
       // Student flow
       { path: "instructions", Component: StudentInstructionsPage },

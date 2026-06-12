@@ -103,7 +103,7 @@ export function CoachAllTestsPage() {
                   </TableHeader>
                   <TableBody>
                     {tests.map((test) => (
-                      <TableRow key={test.test_id}>
+                      <TableRow key={test.test_id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/coach/tests/${test.test_id}/questions`)}>
                         <TableCell className="font-mono text-sm text-muted-foreground">
                           {test.test_id}
                         </TableCell>
@@ -119,7 +119,7 @@ export function CoachAllTestsPage() {
                             variant="ghost"
                             size="icon"
                             className="size-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => navigate(`/coach/tests/${test.test_id}`)}
+                            onClick={(e) => { e.stopPropagation(); navigate(`/coach/tests/${test.test_id}/questions`); }}
                           >
                             <EyeIcon className="size-4" />
                           </Button>

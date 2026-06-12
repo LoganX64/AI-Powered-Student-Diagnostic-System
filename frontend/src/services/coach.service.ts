@@ -59,6 +59,11 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
     body: JSON.stringify(data),
   });
 
+export const deleteQuestion = (testId: number, questionId: number) =>
+  apiFetch<{ message: string }>(`/coach/tests/${testId}/questions/${questionId}`, {
+    method: "DELETE",
+  });
+
 // ─── List endpoints ────────────────────────────────────────────────────────────
 
 export const getTests = (params?: PaginationParams) => {

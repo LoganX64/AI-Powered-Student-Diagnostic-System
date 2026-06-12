@@ -23,6 +23,7 @@ export type CreateTestPayload = {
   subject_id: number;
   coach_id: number;
   duration: number;
+  exam_date?: string;
 };
 
 export type CreateQuestionPayload = {
@@ -57,6 +58,7 @@ export type Test = {
   duration: number;
   subject_name: string;
   coach_name: string;
+  exam_date?: string;
 };
 
 export type Coach = {
@@ -152,6 +154,11 @@ export const updateQuestion = (testId: number, questionId: number, data: CreateQ
   apiFetch<{ message: string }>(`/admin/tests/${testId}/questions/${questionId}`, {
     method: "PUT",
     body: JSON.stringify(data),
+  });
+
+export const deleteQuestion = (testId: number, questionId: number) =>
+  apiFetch<{ message: string }>(`/admin/tests/${testId}/questions/${questionId}`, {
+    method: "DELETE",
   });
 
 export const createAssignment = (data: CreateAssignmentPayload) =>

@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react";
+import { PencilIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -23,9 +23,10 @@ type QuestionCardProps = {
   index: number;
   question: Question;
   onEdit: () => void;
+  onDelete?: () => void;
 };
 
-export function QuestionCard({ index, question: q, onEdit }: QuestionCardProps) {
+export function QuestionCard({ index, question: q, onEdit, onDelete }: QuestionCardProps) {
   const options = [
     { label: "A", value: q.option_a },
     { label: "B", value: q.option_b },
@@ -35,19 +36,31 @@ export function QuestionCard({ index, question: q, onEdit }: QuestionCardProps) 
 
   return (
     <div className="rounded-lg border p-4 flex flex-col gap-3">
-      {/* Header: Question number + Edit button */}
+      {/* Header: Question number + Edit/Delete buttons */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-muted-foreground">
           Q{index}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={onEdit}
-        >
-          <PencilIcon className="size-3" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={onEdit}
+          >
+            <PencilIcon className="size-3" />
+          </Button>
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-destructive hover:text-destructive"
+              onClick={onDelete}
+            >
+              <Trash2Icon className="size-3" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Question text - wraps naturally */}

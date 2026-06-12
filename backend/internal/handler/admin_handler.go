@@ -518,10 +518,11 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 
 // create test
 type CreateTestRequest struct {
-	Title     string `json:"title" binding:"required"`
-	SubjectID int    `json:"subject_id" binding:"required"`
-	CoachID   int    `json:"coach_id" binding:"required"`
-	Duration  int    `json:"duration" binding:"required"`
+	Title     string  `json:"title" binding:"required"`
+	SubjectID int     `json:"subject_id" binding:"required"`
+	CoachID   int     `json:"coach_id" binding:"required"`
+	Duration  int     `json:"duration" binding:"required"`
+	ExamDate  *string `json:"exam_date"`
 }
 
 func (h *AdminHandler) CreateTest(c *gin.Context) {
@@ -566,10 +567,10 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 	var id int
 	err = h.DB.QueryRow(`
-		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration)
-		VALUES ($1,$2,$3,$4,$5)
+		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration, exam_date)
+		VALUES ($1,$2,$3,$4,$5,$6)
 		RETURNING id
-	`, tenantID, req.Title, req.SubjectID, coachID, req.Duration).Scan(&id)
+	`, tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate).Scan(&id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -901,14 +902,14 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 
 	baseQuery := "FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE t.tenant_id=$1"
 	countQuery := "SELECT COUNT(*) " + baseQuery
-	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, '') " + baseQuery
+	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date " + baseQuery
 
 	args := []interface{}{tenantID}
 
 	if search != "" {
 		baseQuery += " AND t.title ILIKE $" + strconv.Itoa(len(args)+1)
 		countQuery = "SELECT COUNT(*) " + baseQuery
-		dataQuery = "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, '') " + baseQuery
+		dataQuery = "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date " + baseQuery
 		args = append(args, "%"+search+"%")
 	}
 
@@ -930,19 +931,20 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 	defer rows.Close()
 
 	type TestRow struct {
-		TestID      int    `json:"test_id"`
-		Title       string `json:"title"`
-		SubjectID   int    `json:"subject_id"`
-		CoachID     int    `json:"coach_id"`
-		Duration    int    `json:"duration"`
-		SubjectName string `json:"subject_name"`
-		CoachName   string `json:"coach_name"`
+		TestID      int     `json:"test_id"`
+		Title       string  `json:"title"`
+		SubjectID   int     `json:"subject_id"`
+		CoachID     int     `json:"coach_id"`
+		Duration    int     `json:"duration"`
+		SubjectName string  `json:"subject_name"`
+		CoachName   string  `json:"coach_name"`
+		ExamDate    *string `json:"exam_date"`
 	}
 
 	var tests []TestRow
 	for rows.Next() {
 		var t TestRow
-		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName); err != nil {
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName, &t.ExamDate); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
 			return
 		}
@@ -967,25 +969,26 @@ func (h *AdminHandler) GetTest(c *gin.Context) {
 	testID := c.Param("id")
 
 	var test struct {
-		TestID      int    `json:"test_id"`
-		Title       string `json:"title"`
-		SubjectID   int    `json:"subject_id"`
-		CoachID     int    `json:"coach_id"`
-		Duration    int    `json:"duration"`
-		CreatedAt   string `json:"created_at"`
-		SubjectName string `json:"subject_name"`
-		CoachName   string `json:"coach_name"`
+		TestID      int     `json:"test_id"`
+		Title       string  `json:"title"`
+		SubjectID   int     `json:"subject_id"`
+		CoachID     int     `json:"coach_id"`
+		Duration    int     `json:"duration"`
+		CreatedAt   string  `json:"created_at"`
+		SubjectName string  `json:"subject_name"`
+		CoachName   string  `json:"coach_name"`
+		ExamDate    *string `json:"exam_date"`
 	}
 
 	err = h.DB.QueryRow(
 		`SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, t.created_at,
-		        COALESCE(s.name, ''), COALESCE(c.name, '')
+		        COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date
 		 FROM tests t
 		 LEFT JOIN subjects s ON t.subject_id = s.id
 		 LEFT JOIN coaches c ON t.coach_id = c.id
 		 WHERE t.id=$1 AND t.tenant_id=$2`,
 		testID, tenantID,
-	).Scan(&test.TestID, &test.Title, &test.SubjectID, &test.CoachID, &test.Duration, &test.CreatedAt, &test.SubjectName, &test.CoachName)
+	).Scan(&test.TestID, &test.Title, &test.SubjectID, &test.CoachID, &test.Duration, &test.CreatedAt, &test.SubjectName, &test.CoachName, &test.ExamDate)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
 		return
@@ -1366,8 +1369,8 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 	}
 
 	result, err := h.DB.Exec(
-		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4 WHERE id=$5 AND tenant_id=$6`,
-		req.Title, req.SubjectID, req.CoachID, req.Duration, testID, tenantID,
+		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4, exam_date=$5 WHERE id=$6 AND tenant_id=$7`,
+		req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate, testID, tenantID,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1520,4 +1523,69 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "question updated successfully"})
+}
+
+func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	questionID, err := strconv.Atoi(c.Param("qid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	role := c.GetString("role")
+
+	var tenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", userID).Scan(&tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if role == "coach" {
+		coachID, err := h.getCoachIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
+			return
+		}
+	} else if role == "admin" {
+		var exists bool
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+		if err != nil || !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
+			return
+		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`DELETE FROM questions WHERE id=$1 AND test_id=$2`,
+		questionID, testID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "question deleted successfully"})
 }

@@ -164,10 +164,10 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 
 	var id int
 	err = h.DB.QueryRow(`
-		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration)
-		VALUES ($1,$2,$3,$4,$5)
+		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration, exam_date)
+		VALUES ($1,$2,$3,$4,$5,$6)
 		RETURNING id
-	`, tenantID, req.Title, req.SubjectID, coachID, req.Duration).Scan(&id)
+	`, tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate).Scan(&id)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -314,14 +314,14 @@ func (h *CoachHandler) ListTests(c *gin.Context) {
 
 	baseQuery := "FROM tests WHERE tenant_id=$1 AND coach_id=$2"
 	countQuery := "SELECT COUNT(*) " + baseQuery
-	dataQuery := "SELECT id, title, subject_id, coach_id, duration " + baseQuery
+	dataQuery := "SELECT id, title, subject_id, coach_id, duration, exam_date " + baseQuery
 
 	args := []interface{}{tenantID, coachID}
 
 	if search != "" {
 		baseQuery += " AND title ILIKE $" + strconv.Itoa(len(args)+1)
 		countQuery = "SELECT COUNT(*) " + baseQuery
-		dataQuery = "SELECT id, title, subject_id, coach_id, duration " + baseQuery
+		dataQuery = "SELECT id, title, subject_id, coach_id, duration, exam_date " + baseQuery
 		args = append(args, "%"+search+"%")
 	}
 
@@ -343,17 +343,18 @@ func (h *CoachHandler) ListTests(c *gin.Context) {
 	defer rows.Close()
 
 	type TestRow struct {
-		TestID    int    `json:"test_id"`
-		Title     string `json:"title"`
-		SubjectID int    `json:"subject_id"`
-		CoachID   int    `json:"coach_id"`
-		Duration  int    `json:"duration"`
+		TestID    int     `json:"test_id"`
+		Title     string  `json:"title"`
+		SubjectID int     `json:"subject_id"`
+		CoachID   int     `json:"coach_id"`
+		Duration  int     `json:"duration"`
+		ExamDate  *string `json:"exam_date"`
 	}
 
 	var tests []TestRow
 	for rows.Next() {
 		var t TestRow
-		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration); err != nil {
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.ExamDate); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
 			return
 		}

@@ -132,6 +132,7 @@ export function CreateTestForm({ onCreated }: Props) {
       subject_id: selectedSubject.subject_id,
       coach_id: selectedCoach.coach_id,
       duration,
+      exam_date: (fd.get("exam_date") as string) || undefined,
     };
 
     try {
@@ -273,6 +274,14 @@ export function CreateTestForm({ onCreated }: Props) {
               min={1}
               placeholder="120"
               required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="test-exam-date">Exam Date</Label>
+            <Input
+              id="test-exam-date"
+              name="exam_date"
+              type="date"
             />
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
