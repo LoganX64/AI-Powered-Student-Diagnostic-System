@@ -60,10 +60,13 @@ export function CoachQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [questionTotal, setQuestionTotal] = useState(0);
   const [questionOffset, setQuestionOffset] = useState(0);
+  const [testNotFound, setTestNotFound] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    apiFetch<TestDetail>(`/coach/tests/${id}`).then(setTest).catch(() => {});
+    apiFetch<TestDetail>(`/coach/tests/${id}`)
+      .then(setTest)
+      .catch(() => setTestNotFound(true));
   }, [id]);
 
   const fetchQuestions = useCallback(async (off: number) => {
@@ -82,6 +85,23 @@ export function CoachQuestionsPage() {
   useEffect(() => {
     fetchQuestions(questionOffset);
   }, [questionOffset, fetchQuestions]);
+
+  if (testNotFound) {
+    return (
+      <SidebarProvider>
+        <CoachSidebar />
+        <SidebarInset>
+          <SiteHeader title="Test Not Found" />
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+            <p className="text-muted-foreground">This test does not exist or has been deleted.</p>
+            <Button variant="outline" onClick={() => navigate("/coach/all-tests")}>
+              <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
+            </Button>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
 
   if (!test) {
     return (

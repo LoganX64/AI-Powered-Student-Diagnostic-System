@@ -90,10 +90,13 @@ export function QuestionsPage() {
   const [savingQuestion, setSavingQuestion] = useState(false);
 
   const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
+  const [testNotFound, setTestNotFound] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    apiFetch<TestDetail>(`/admin/tests/${id}`).then(setTest).catch(() => {});
+    apiFetch<TestDetail>(`/admin/tests/${id}`)
+      .then(setTest)
+      .catch(() => setTestNotFound(true));
   }, [id]);
 
   const fetchQuestions = useCallback(async (off: number) => {
@@ -157,6 +160,23 @@ export function QuestionsPage() {
       toast.error((err as Error).message);
     }
   };
+
+  if (testNotFound) {
+    return (
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <SiteHeader title="Test Not Found" />
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+            <p className="text-muted-foreground">This test does not exist or has been deleted.</p>
+            <Button variant="outline" onClick={() => navigate("/admin/all-tests")}>
+              <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
+            </Button>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    );
+  }
 
   if (!test) {
     return (

@@ -152,7 +152,7 @@ export function AllTestsPage() {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handleDeleteTest(test.test_id, test.title)}
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTest(test.test_id, test.title); }}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               Delete
