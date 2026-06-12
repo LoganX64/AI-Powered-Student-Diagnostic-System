@@ -22,6 +22,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -94,7 +100,7 @@ export function TestDetailPage() {
   const [testForm, setTestForm] = useState({ title: "", subject_id: 0, coach_id: 0, duration: 0 });
   const [savingTest, setSavingTest] = useState(false);
 
-  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [questionForm, setQuestionForm] = useState<Partial<CreateQuestionPayload>>({});
   const [savingQuestion, setSavingQuestion] = useState(false);
 
@@ -163,8 +169,8 @@ export function TestDetailPage() {
     }
   };
 
-  const startEditQuestion = (q: Question) => {
-    setEditingQuestionId(q.id);
+  const openEditDialog = (q: Question) => {
+    setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,
       option_a: q.option_a,
@@ -182,12 +188,13 @@ export function TestDetailPage() {
     });
   };
 
-  const handleSaveQuestion = async (questionId: number) => {
+  const handleSaveQuestion = async () => {
+    if (!editingQuestion) return;
     try {
       setSavingQuestion(true);
-      await updateQuestion(testId, questionId, questionForm as CreateQuestionPayload);
+      await updateQuestion(testId, editingQuestion.id, questionForm as CreateQuestionPayload);
       toast.success("Question updated");
-      setEditingQuestionId(null);
+      setEditingQuestion(null);
       fetchQuestions(questionOffset);
     } catch (err) {
       toast.error((err as Error).message);
@@ -261,7 +268,7 @@ export function TestDetailPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleSaveTest} disabled={savingTest}>
-                    <SaveIcon className="size-4 mr-1" /> {savingTest ? "Saving…" : "Save"}
+                    <SaveIcon className="size-4 mr-1" /> {savingTest ? "Saving\u2026" : "Save"}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setEditingTest(false)}>
                     <XIcon className="size-4 mr-1" /> Cancel
@@ -275,6 +282,9 @@ export function TestDetailPage() {
                 <Badge variant="secondary">Duration: {test.duration}s</Badge>
                 <Badge variant="secondary">Subject: {test.subject_name || `#${test.subject_id}`}</Badge>
                 <Badge variant="secondary">Coach: {test.coach_name || `#${test.coach_id}`}</Badge>
+                {test.exam_date && (
+                  <Badge variant="secondary">Exam: {test.exam_date}</Badge>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -401,32 +411,12 @@ export function TestDetailPage() {
                 <>
                   <div className="flex flex-col gap-3">
                     {questions.map((q, idx) => (
-                      <div key={q.id}>
-                        <QuestionCard
-                          index={questionOffset + idx + 1}
-                          question={q}
-                          onEdit={() => startEditQuestion(q)}
-                        />
-                        {editingQuestionId === q.id && (
-                          <div className="mt-3 flex flex-col gap-3 rounded-lg border p-4">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-sm font-semibold">Edit Question {questionOffset + idx + 1}</h4>
-                            </div>
-                            <QuestionFormFields
-                              q={questionForm as QuestionDraft}
-                              onChange={(field, value) => setQuestionForm((prev) => ({ ...prev, [field]: value }))}
-                            />
-                            <div className="flex justify-end gap-2">
-                              <Button size="sm" onClick={() => handleSaveQuestion(editingQuestionId)} disabled={savingQuestion}>
-                                <SaveIcon className="size-3 mr-1" /> {savingQuestion ? "Saving\u2026" : "Save"}
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={() => setEditingQuestionId(null)}>
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <QuestionCard
+                        key={q.id}
+                        index={questionOffset + idx + 1}
+                        question={q}
+                        onEdit={() => openEditDialog(q)}
+                      />
                     ))}
                   </div>
 
@@ -452,6 +442,34 @@ export function TestDetailPage() {
 
         </div>
       </SidebarInset>
+
+      {/* Edit Question Dialog */}
+      <Dialog open={editingQuestion !== null} onOpenChange={(open) => { if (!open) setEditingQuestion(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Edit Question {editingQuestion ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <QuestionFormFields
+              q={questionForm as QuestionDraft}
+              onChange={(field, value) =>
+                setQuestionForm((prev) => ({ ...prev, [field]: value }))
+              }
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingQuestion(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveQuestion} disabled={savingQuestion}>
+                <SaveIcon className="size-3 mr-1" />
+                {savingQuestion ? "Saving\u2026" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }

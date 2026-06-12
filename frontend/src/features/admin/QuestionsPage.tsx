@@ -22,8 +22,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { QuestionCard } from "@/components/admin/QuestionCard";
 import {
   QuestionFormFields,
@@ -78,7 +83,7 @@ export function QuestionsPage() {
   const [questionTotal, setQuestionTotal] = useState(0);
   const [questionOffset, setQuestionOffset] = useState(0);
 
-  const [editingQuestionId, setEditingQuestionId] = useState<number | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [questionForm, setQuestionForm] = useState<Partial<CreateQuestionPayload>>({});
   const [savingQuestion, setSavingQuestion] = useState(false);
 
@@ -106,8 +111,8 @@ export function QuestionsPage() {
     fetchQuestions(questionOffset);
   }, [questionOffset, fetchQuestions]);
 
-  const startEditQuestion = (q: Question) => {
-    setEditingQuestionId(q.id);
+  const openEditDialog = (q: Question) => {
+    setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,
       option_a: q.option_a,
@@ -125,12 +130,13 @@ export function QuestionsPage() {
     });
   };
 
-  const handleSaveQuestion = async (questionId: number) => {
+  const handleSaveQuestion = async () => {
+    if (!editingQuestion) return;
     try {
       setSavingQuestion(true);
-      await updateQuestion(testId, questionId, questionForm as CreateQuestionPayload);
+      await updateQuestion(testId, editingQuestion.id, questionForm as CreateQuestionPayload);
       toast.success("Question updated");
-      setEditingQuestionId(null);
+      setEditingQuestion(null);
       fetchQuestions(questionOffset);
     } catch (err) {
       toast.error((err as Error).message);
@@ -212,43 +218,9 @@ export function QuestionsPage() {
                     <QuestionCard
                       index={questionOffset + idx + 1}
                       question={q}
-                      onEdit={() => startEditQuestion(q)}
+                      onEdit={() => openEditDialog(q)}
                       onDelete={() => setDeletingQuestionId(q.id)}
                     />
-
-                    {/* Edit form */}
-                    {editingQuestionId === q.id && (
-                      <div className="mt-3 flex flex-col gap-3 rounded-lg border p-4">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-semibold">
-                            Edit Question {questionOffset + idx + 1}
-                          </h4>
-                        </div>
-                        <QuestionFormFields
-                          q={questionForm as QuestionDraft}
-                          onChange={(field, value) =>
-                            setQuestionForm((prev) => ({ ...prev, [field]: value }))
-                          }
-                        />
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => handleSaveQuestion(editingQuestionId)}
-                            disabled={savingQuestion}
-                          >
-                            <SaveIcon className="size-3 mr-1" />{" "}
-                            {savingQuestion ? "Saving\u2026" : "Save"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setEditingQuestionId(null)}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Delete confirmation dialog */}
                     <AlertDialog
@@ -318,6 +290,34 @@ export function QuestionsPage() {
           )}
         </div>
       </SidebarInset>
+
+      {/* Edit Question Dialog */}
+      <Dialog open={editingQuestion !== null} onOpenChange={(open) => { if (!open) setEditingQuestion(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Edit Question {editingQuestion ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <QuestionFormFields
+              q={questionForm as QuestionDraft}
+              onChange={(field, value) =>
+                setQuestionForm((prev) => ({ ...prev, [field]: value }))
+              }
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingQuestion(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveQuestion} disabled={savingQuestion}>
+                <SaveIcon className="size-3 mr-1" />
+                {savingQuestion ? "Saving\u2026" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }
