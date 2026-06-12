@@ -5,6 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   Trash2Icon,
+  PencilIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -29,6 +30,7 @@ import {
   deleteTest,
   type Test,
 } from "@/services/admin.service";
+import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
 
 const PAGE_SIZE = 50;
 
@@ -39,6 +41,8 @@ export function AllTestsPage() {
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+
+  const [editingTest, setEditingTest] = useState<Test | null>(null);
 
   const fetchTests = useCallback(async (off: number, searchTerm: string) => {
     try {
@@ -113,6 +117,15 @@ export function AllTestsPage() {
                       <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
                       <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>
                       <span className="text-sm text-muted-foreground">{test.duration}m</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-foreground"
+                        aria-label={`Edit ${test.title}`}
+                        onClick={(e) => { e.stopPropagation(); setEditingTest(test); }}
+                      >
+                        <PencilIcon className="size-4" />
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
@@ -170,6 +183,13 @@ export function AllTestsPage() {
           </div>
         </div>
       </SidebarInset>
+
+      <EditTestDialog
+        test={editingTest}
+        open={editingTest !== null}
+        onOpenChange={(open) => { if (!open) setEditingTest(null); }}
+        onUpdated={() => fetchTests(offset, search)}
+      />
     </SidebarProvider>
   );
 }

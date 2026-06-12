@@ -1,13 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, XIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/admin/app-sidebar";
 import { SiteHeader } from "@/components/admin/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -38,11 +36,9 @@ import {
 import { apiFetch } from "@/lib/api";
 import {
   getAssignments,
-  updateTest,
   updateQuestion,
   deleteTest,
   type Assignment,
-  type CreateTestPayload,
   type CreateQuestionPayload,
   type PaginatedResponse,
 } from "@/services/admin.service";
@@ -51,6 +47,7 @@ import {
   type QuestionDraft,
 } from "@/components/admin/forms/QuestionFormFields";
 import { QuestionCard } from "@/components/admin/QuestionCard";
+import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
 
 type TestDetail = {
   test_id: number;
@@ -97,8 +94,6 @@ export function TestDetailPage() {
   const [questionOffset, setQuestionOffset] = useState(0);
 
   const [editingTest, setEditingTest] = useState(false);
-  const [testForm, setTestForm] = useState({ title: "", subject_id: 0, coach_id: 0, duration: 0 });
-  const [savingTest, setSavingTest] = useState(false);
 
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [questionForm, setQuestionForm] = useState<Partial<CreateQuestionPayload>>({});
@@ -106,10 +101,7 @@ export function TestDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    apiFetch<TestDetail>(`/admin/tests/${id}`).then((data) => {
-      setTest(data);
-      setTestForm({ title: data.title, subject_id: data.subject_id, coach_id: data.coach_id, duration: data.duration });
-    }).catch(() => {});
+    apiFetch<TestDetail>(`/admin/tests/${id}`).then(setTest).catch(() => {});
     if (window.location.search.includes("edit=true")) {
       setEditingTest(true);
     }
@@ -145,31 +137,7 @@ export function TestDetailPage() {
     fetchQuestions(questionOffset);
   }, [questionOffset, fetchQuestions]);
 
-  const handleSaveTest = async () => {
-    if (!testForm.title || !testForm.duration) {
-      toast.error("Title and duration are required");
-      return;
-    }
-    try {
-      setSavingTest(true);
-      await updateTest(testId, {
-        title: testForm.title,
-        subject_id: test.subject_id,
-        coach_id: test.coach_id,
-        duration: testForm.duration,
-      });
-      toast.success("Test updated");
-      setEditingTest(false);
-      const data = await apiFetch<TestDetail>(`/admin/tests/${id}`);
-      setTest(data);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSavingTest(false);
-    }
-  };
-
-  const openEditDialog = (q: Question) => {
+  const handleDeleteTest = async () => {
     setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,
@@ -245,37 +213,7 @@ export function TestDetailPage() {
               <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
             </Button>
 
-            {editingTest ? (
-              <div className="flex flex-col gap-3 rounded-lg border p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-title">Title</Label>
-                    <Input
-                      id="edit-title"
-                      value={testForm.title}
-                      onChange={(e) => setTestForm({ ...testForm, title: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <Label htmlFor="edit-duration">Duration (minutes)</Label>
-                    <Input
-                      id="edit-duration"
-                      type="number"
-                      value={testForm.duration}
-                      onChange={(e) => setTestForm({ ...testForm, duration: Number(e.target.value) })}
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleSaveTest} disabled={savingTest}>
-                    <SaveIcon className="size-4 mr-1" /> {savingTest ? "Saving\u2026" : "Save"}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingTest(false)}>
-                    <XIcon className="size-4 mr-1" /> Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
+            {editingTest ? null : (
               <div className="flex items-center gap-4 flex-wrap">
                 <h2 className="text-lg font-semibold">{test.title}</h2>
                 <Badge variant="outline">ID: {test.test_id}</Badge>
@@ -470,6 +408,18 @@ export function TestDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Test Dialog */}
+      <EditTestDialog
+        test={editingTest ? test : null}
+        open={editingTest}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingTest(false);
+            apiFetch<TestDetail>(`/admin/tests/${id}`).then(setTest).catch(() => {});
+          }
+        }}
+      />
     </SidebarProvider>
   );
 }
