@@ -18,7 +18,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
 
 export function NavUser({
@@ -32,11 +32,13 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const prefix = pathname.startsWith("/admin") ? "/admin" : "/coach"
 
   const handleLogout = () => {
     localStorage.removeItem("admin_token")
     localStorage.removeItem("admin_role")
-    navigate("/admin-signin")
+    navigate(prefix === "/admin" ? "/admin-signin" : "/coach-signin")
   }
 
   return (
@@ -83,17 +85,19 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate(`${prefix}/accounts`)}>
                 <CircleUserRoundIcon
                 />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon
-                />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
+              {prefix === "/admin" && (
+                <DropdownMenuItem onClick={() => navigate(`${prefix}/billing`)}>
+                  <CreditCardIcon
+                  />
+                  Billing
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => navigate(`${prefix}/notifications`)}>
                 <BellIcon
                 />
                 Notifications
