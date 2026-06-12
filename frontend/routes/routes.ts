@@ -8,27 +8,25 @@ import { StudentQuizPage } from "../src/features/student/StudentQuizPage.tsx";
 import { StudentSubmittedPage } from "../src/features/student/StudentSubmittedPage.tsx";
 import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
 import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
-import { AdminDashboardPage } from "../src/features/admin/AdminDashboardPage.tsx";
-import { CoachesPage } from "../src/features/admin/CoachesPage.tsx";
-import { CoachDetailPage } from "../src/features/admin/CoachDetailPage.tsx";
-import { StudentsPage } from "../src/features/admin/StudentsPage.tsx";
-import { SubjectsPage } from "../src/features/admin/SubjectsPage.tsx";
-import { TestsPage } from "../src/features/admin/TestsPage.tsx";
-import { AllTestsPage } from "../src/features/admin/AllTestsPage.tsx";
-import { TestDetailPage } from "../src/features/admin/TestDetailPage.tsx";
-import { QuestionsPage } from "../src/features/admin/QuestionsPage.tsx";
-import { StudentDetailPage } from "../src/features/admin/StudentDetailPage.tsx";
-import { StudentSQIPage } from "../src/features/admin/StudentSQIPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
-import { CoachDashboardPage } from "../src/features/coach/CoachDashboardPage.tsx";
-import { CoachStudentsPage } from "../src/features/coach/CoachStudentsPage.tsx";
-import { CoachSubjectsPage } from "../src/features/coach/CoachSubjectsPage.tsx";
-import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
-import { CoachAllTestsPage } from "../src/features/coach/CoachAllTestsPage.tsx";
-import { CoachTestDetailPage } from "../src/features/coach/CoachTestDetailPage.tsx";
-import { CoachQuestionsPage } from "../src/features/coach/CoachQuestionsPage.tsx";
-import { CoachStudentDetailPage } from "../src/features/coach/CoachStudentDetailPage.tsx";
-import { CoachStudentSQIPage } from "../src/features/coach/CoachStudentSQIPage.tsx";
+
+// Unified pages
+import { DashboardPage } from "../src/features/shared/DashboardPage.tsx";
+import { CoachesPage } from "../src/features/shared/CoachesPage.tsx";
+import { CoachDetailPage } from "../src/features/shared/CoachDetailPage.tsx";
+import { StudentsPage } from "../src/features/shared/StudentsPage.tsx";
+import { StudentDetailPage } from "../src/features/shared/StudentDetailPage.tsx";
+import { StudentSQIPage } from "../src/features/shared/StudentSQIPage.tsx";
+import { SubjectsPage } from "../src/features/shared/SubjectsPage.tsx";
+import { TestsPage } from "../src/features/shared/TestsPage.tsx";
+import { AllTestsPage } from "../src/features/shared/AllTestsPage.tsx";
+import { TestDetailPage } from "../src/features/shared/TestDetailPage.tsx";
+import { QuestionsPage } from "../src/features/shared/QuestionsPage.tsx";
+import { SettingsPage } from "../src/features/shared/SettingsPage.tsx";
+import { GetHelpPage } from "../src/features/shared/GetHelpPage.tsx";
+import { AccountsPage } from "../src/features/shared/AccountsPage.tsx";
+import { BillingPage } from "../src/features/shared/BillingPage.tsx";
+import { NotificationsPage } from "../src/features/shared/NotificationsPage.tsx";
 
 const router = createBrowserRouter([
   // Public pages
@@ -45,8 +43,8 @@ const router = createBrowserRouter([
   {
     Component: ProtectedRoute,
     children: [
-      // Admin dashboard
-      { path: "admin/dashboard", Component: AdminDashboardPage },
+      // Admin dashboard routes
+      { path: "admin/dashboard", Component: DashboardPage },
       { path: "admin/coaches", Component: CoachesPage },
       { path: "admin/coaches/:id", Component: CoachDetailPage },
       { path: "admin/students", Component: StudentsPage },
@@ -57,17 +55,26 @@ const router = createBrowserRouter([
       { path: "admin/all-tests", Component: AllTestsPage },
       { path: "admin/tests/:id", Component: TestDetailPage },
       { path: "admin/tests/:id/questions", Component: QuestionsPage },
+      { path: "admin/settings", Component: SettingsPage },
+      { path: "admin/help", Component: GetHelpPage },
+      { path: "admin/accounts", Component: AccountsPage },
+      { path: "admin/billing", Component: BillingPage },
+      { path: "admin/notifications", Component: NotificationsPage },
 
-      // Coach dashboard
-      { path: "coach/dashboard", Component: CoachDashboardPage },
-      { path: "coach/students", Component: CoachStudentsPage },
-      { path: "coach/students/:id", Component: CoachStudentDetailPage },
-      { path: "coach/students/:id/sqi", Component: CoachStudentSQIPage },
-      { path: "coach/subjects", Component: CoachSubjectsPage },
-      { path: "coach/tests", Component: CoachTestsPage },
-      { path: "coach/all-tests", Component: CoachAllTestsPage },
-      { path: "coach/tests/:id", Component: CoachTestDetailPage },
-      { path: "coach/tests/:id/questions", Component: CoachQuestionsPage },
+      // Coach dashboard routes
+      { path: "coach/dashboard", Component: DashboardPage },
+      { path: "coach/students", Component: StudentsPage },
+      { path: "coach/students/:id", Component: StudentDetailPage },
+      { path: "coach/students/:id/sqi", Component: StudentSQIPage },
+      { path: "coach/subjects", Component: SubjectsPage },
+      { path: "coach/tests", Component: TestsPage },
+      { path: "coach/all-tests", Component: AllTestsPage },
+      { path: "coach/tests/:id", Component: TestDetailPage },
+      { path: "coach/tests/:id/questions", Component: QuestionsPage },
+      { path: "coach/settings", Component: SettingsPage },
+      { path: "coach/help", Component: GetHelpPage },
+      { path: "coach/accounts", Component: AccountsPage },
+      { path: "coach/notifications", Component: NotificationsPage },
 
       // Student flow
       { path: "instructions", Component: StudentInstructionsPage },
