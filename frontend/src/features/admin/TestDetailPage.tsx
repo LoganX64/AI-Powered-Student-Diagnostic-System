@@ -137,7 +137,7 @@ export function TestDetailPage() {
     fetchQuestions(questionOffset);
   }, [questionOffset, fetchQuestions]);
 
-  const handleDeleteTest = async () => {
+  const openEditDialog = (q: Question) => {
     setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,
