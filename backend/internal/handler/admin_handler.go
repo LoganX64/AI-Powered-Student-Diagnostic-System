@@ -1147,28 +1147,30 @@ func (h *AdminHandler) GetStudent(c *gin.Context) {
 	}
 
 	type StudentDetailRow struct {
-		StudentID     int     `json:"student_id"`
-		Name          string  `json:"name"`
-		StudentCode   string  `json:"student_code"`
-		CoachID       int     `json:"coach_id"`
-		CoachName     string  `json:"coach_name"`
-		CreatedAt     string  `json:"created_at"`
-		DeletedAt     *string `json:"deleted_at"`
-		DeletedByName *string `json:"deleted_by_name"`
-		DeletedByRole *string `json:"deleted_by_role"`
+		StudentID      int     `json:"student_id"`
+		Name           string  `json:"name"`
+		StudentCode    string  `json:"student_code"`
+		CoachID        int     `json:"coach_id"`
+		CoachName      string  `json:"coach_name"`
+		CreatedAt      string  `json:"created_at"`
+		DeletedAt      *string `json:"deleted_at"`
+		DeletedByName  *string `json:"deleted_by_name"`
+		DeletedByEmail *string `json:"deleted_by_email"`
+		DeletedByRole  *string `json:"deleted_by_role"`
 	}
 
 	var s StudentDetailRow
 	err = h.DB.QueryRow(`
 		SELECT st.id, st.name, st.student_code, st.coach_id, COALESCE(c.name, ''),
-		       st.created_at, st.deleted_at, u.name, u.role
+		       st.created_at, st.deleted_at, u.email, dco.name, u.role
 		FROM students st
 		LEFT JOIN coaches c ON st.coach_id = c.id
 		LEFT JOIN users u ON st.deleted_by = u.id
+		LEFT JOIN coaches dco ON dco.user_id = u.id
 		WHERE st.id = $1 AND st.tenant_id = $2
 	`, studentID, tenantID).Scan(
 		&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName,
-		&s.CreatedAt, &s.DeletedAt, &s.DeletedByName, &s.DeletedByRole,
+		&s.CreatedAt, &s.DeletedAt, &s.DeletedByEmail, &s.DeletedByName, &s.DeletedByRole,
 	)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
@@ -1353,6 +1355,181 @@ func (h *AdminHandler) ListCoaches(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": coaches})
+}
+
+func (h *AdminHandler) GetCoach(c *gin.Context) {
+	coachID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	type CoachDetailRow struct {
+		CoachID   int    `json:"coach_id"`
+		UserID    int    `json:"user_id"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	var coach CoachDetailRow
+	err = h.DB.QueryRow(`
+		SELECT c.id, c.user_id, c.name, u.email, c.created_at
+		FROM coaches c
+		JOIN users u ON c.user_id = u.id
+		WHERE c.id = $1 AND c.tenant_id = $2
+	`, coachID, tenantID).Scan(&coach.CoachID, &coach.UserID, &coach.Name, &coach.Email, &coach.CreatedAt)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, coach)
+}
+
+func (h *AdminHandler) ListCoachTests(c *gin.Context) {
+	coachID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	var exists bool
+	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", coachID, tenantID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+		return
+	}
+
+	limit, offset := parsePagination(c)
+
+	var total int
+	err = h.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE coach_id=$1 AND tenant_id=$2", coachID, tenantID).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rows, err := h.DB.Query(`
+		SELECT t.id, t.title, t.subject_id, t.duration, COALESCE(s.name, ''), t.exam_date, t.created_at
+		FROM tests t
+		LEFT JOIN subjects s ON t.subject_id = s.id
+		WHERE t.coach_id = $1 AND t.tenant_id = $2
+		ORDER BY t.id DESC
+		LIMIT $3 OFFSET $4
+	`, coachID, tenantID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type TestRow struct {
+		TestID      int     `json:"test_id"`
+		Title       string  `json:"title"`
+		SubjectID   int     `json:"subject_id"`
+		Duration    int     `json:"duration"`
+		SubjectName string  `json:"subject_name"`
+		ExamDate    *string `json:"exam_date"`
+		CreatedAt   string  `json:"created_at"`
+	}
+
+	var tests []TestRow
+	for rows.Next() {
+		var t TestRow
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.Duration, &t.SubjectName, &t.ExamDate, &t.CreatedAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		tests = append(tests, t)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": tests})
+}
+
+func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
+	coachID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	var exists bool
+	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", coachID, tenantID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+		return
+	}
+
+	limit, offset := parsePagination(c)
+
+	var total int
+	err = h.DB.QueryRow("SELECT COUNT(*) FROM students WHERE coach_id=$1 AND tenant_id=$2 AND deleted_at IS NULL", coachID, tenantID).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rows, err := h.DB.Query(`
+		SELECT id, name, student_code, created_at
+		FROM students
+		WHERE coach_id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+		ORDER BY id DESC
+		LIMIT $3 OFFSET $4
+	`, coachID, tenantID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type StudentRow struct {
+		StudentID   int    `json:"student_id"`
+		Name        string `json:"name"`
+		StudentCode string `json:"student_code"`
+		CreatedAt   string `json:"created_at"`
+	}
+
+	var students []StudentRow
+	for rows.Next() {
+		var s StudentRow
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CreatedAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		students = append(students, s)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": students})
 }
 
 func (h *AdminHandler) ListSubjects(c *gin.Context) {
