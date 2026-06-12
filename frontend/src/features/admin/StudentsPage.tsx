@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -34,11 +35,13 @@ import { createStudent, deleteStudent, getStudents, getCoaches, type CreateStude
 const PAGE_SIZE = 50;
 
 export function StudentsPage() {
+  const navigate = useNavigate();
   const [students, setStudents] = useState<Student[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+  const [includeDeactivated, setIncludeDeactivated] = useState(false);
 
   const [coachSearch, setCoachSearch] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
@@ -78,9 +81,9 @@ export function StudentsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchStudents = useCallback(async (off: number) => {
+  const fetchStudents = useCallback(async (off: number, deactivated: boolean) => {
     try {
-      const res = await getStudents({ limit: PAGE_SIZE, offset: off });
+      const res = await getStudents({ limit: PAGE_SIZE, offset: off, include_deactivated: deactivated });
       setStudents(res.data ?? []);
       setTotal(res.total);
     } catch {
@@ -89,8 +92,8 @@ export function StudentsPage() {
   }, []);
 
   useEffect(() => {
-    fetchStudents(offset);
-  }, [offset, fetchStudents]);
+    fetchStudents(offset, includeDeactivated);
+  }, [offset, includeDeactivated, fetchStudents]);
 
   const handleCoachSelect = (coach: Coach) => {
     setSelectedCoach(coach);
@@ -130,7 +133,7 @@ export function StudentsPage() {
       (e.target as HTMLFormElement).reset();
       setCoachSearch("");
       setSelectedCoach(null);
-      fetchStudents(offset);
+      fetchStudents(offset, includeDeactivated);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -142,8 +145,8 @@ export function StudentsPage() {
     try {
       setDeletingId(student.student_id);
       await deleteStudent(student.student_id);
-      toast.success(`Student "${student.name}" deleted`);
-      fetchStudents(offset);
+      toast.success(`Student "${student.name}" deactivated`);
+      fetchStudents(offset, includeDeactivated);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -251,7 +254,19 @@ export function StudentsPage() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">All Students</h2>
-              <Badge variant="secondary">{total}</Badge>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant={includeDeactivated ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setIncludeDeactivated(!includeDeactivated);
+                    setOffset(0);
+                  }}
+                >
+                  {includeDeactivated ? "Showing All" : "Show Deactivated"}
+                </Button>
+                <Badge variant="secondary">{total}</Badge>
+              </div>
             </div>
 
             {students.length === 0 ? (
@@ -274,7 +289,11 @@ export function StudentsPage() {
                   </TableHeader>
                   <TableBody>
                     {students.map((student) => (
-                      <TableRow key={student.student_id}>
+                      <TableRow
+                        key={student.student_id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/admin/students/${student.student_id}`)}
+                      >
                         <TableCell className="font-mono text-sm text-muted-foreground">
                           {student.student_id}
                         </TableCell>
@@ -296,6 +315,7 @@ export function StudentsPage() {
                                 className="size-8 text-muted-foreground hover:text-destructive"
                                 disabled={deletingId === student.student_id}
                                 aria-label={`Delete ${student.name}`}
+                                onClick={(e) => e.stopPropagation()}
                               >
                                 <Trash2Icon className="size-4" />
                               </Button>
@@ -313,7 +333,7 @@ export function StudentsPage() {
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => handleDelete(student)}
+                                  onClick={(e) => { e.stopPropagation(); handleDelete(student); }}
                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 >
                                   Delete

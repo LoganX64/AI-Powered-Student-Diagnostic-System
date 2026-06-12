@@ -11,6 +11,8 @@ import type {
   Student,
   Subject,
   Assignment,
+  StudentDetail,
+  StudentAssignment,
 } from "./admin.service";
 
 export type {
@@ -23,6 +25,8 @@ export type {
   Student,
   Subject,
   Assignment,
+  StudentDetail,
+  StudentAssignment,
   PaginatedResponse,
   PaginationParams,
 };
@@ -80,13 +84,27 @@ export const getTests = (params?: PaginationParams) => {
   return apiFetch<PaginatedResponse<Test>>(`/coach/tests${qs ? `?${qs}` : ""}`);
 };
 
-export const getStudents = (params?: PaginationParams) => {
+export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) => {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.include_deactivated) query.set("include_deactivated", "true");
   const qs = query.toString();
   return apiFetch<PaginatedResponse<Student>>(`/coach/students${qs ? `?${qs}` : ""}`);
 };
+
+export const getStudent = (studentId: number) =>
+  apiFetch<StudentDetail>(`/coach/students/${studentId}`);
+
+export const getStudentAssignments = (studentId: number) =>
+  apiFetch<{ total: number; limit: number; offset: number; data: StudentAssignment[] }>(
+    `/coach/students/${studentId}/assignments`
+  );
+
+export const deleteStudent = (studentId: number) =>
+  apiFetch<{ message: string }>(`/coach/students/${studentId}`, {
+    method: "DELETE",
+  });
 
 export const getSubjects = (params?: PaginationParams) => {
   const query = new URLSearchParams();

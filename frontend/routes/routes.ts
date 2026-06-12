@@ -16,6 +16,8 @@ import { TestsPage } from "../src/features/admin/TestsPage.tsx";
 import { AllTestsPage } from "../src/features/admin/AllTestsPage.tsx";
 import { TestDetailPage } from "../src/features/admin/TestDetailPage.tsx";
 import { QuestionsPage } from "../src/features/admin/QuestionsPage.tsx";
+import { StudentDetailPage } from "../src/features/admin/StudentDetailPage.tsx";
+import { StudentSQIPage } from "../src/features/admin/StudentSQIPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
 import { CoachDashboardPage } from "../src/features/coach/CoachDashboardPage.tsx";
 import { CoachStudentsPage } from "../src/features/coach/CoachStudentsPage.tsx";
@@ -24,6 +26,8 @@ import { CoachTestsPage } from "../src/features/coach/CoachTestsPage.tsx";
 import { CoachAllTestsPage } from "../src/features/coach/CoachAllTestsPage.tsx";
 import { CoachTestDetailPage } from "../src/features/coach/CoachTestDetailPage.tsx";
 import { CoachQuestionsPage } from "../src/features/coach/CoachQuestionsPage.tsx";
+import { CoachStudentDetailPage } from "../src/features/coach/CoachStudentDetailPage.tsx";
+import { CoachStudentSQIPage } from "../src/features/coach/CoachStudentSQIPage.tsx";
 
 const router = createBrowserRouter([
   // Public pages
@@ -44,6 +48,8 @@ const router = createBrowserRouter([
       { path: "admin/dashboard", Component: AdminDashboardPage },
       { path: "admin/coaches", Component: CoachesPage },
       { path: "admin/students", Component: StudentsPage },
+      { path: "admin/students/:id", Component: StudentDetailPage },
+      { path: "admin/students/:id/sqi", Component: StudentSQIPage },
       { path: "admin/subjects", Component: SubjectsPage },
       { path: "admin/tests", Component: TestsPage },
       { path: "admin/all-tests", Component: AllTestsPage },
@@ -53,6 +59,8 @@ const router = createBrowserRouter([
       // Coach dashboard
       { path: "coach/dashboard", Component: CoachDashboardPage },
       { path: "coach/students", Component: CoachStudentsPage },
+      { path: "coach/students/:id", Component: CoachStudentDetailPage },
+      { path: "coach/students/:id/sqi", Component: CoachStudentSQIPage },
       { path: "coach/subjects", Component: CoachSubjectsPage },
       { path: "coach/tests", Component: CoachTestsPage },
       { path: "coach/all-tests", Component: CoachAllTestsPage },

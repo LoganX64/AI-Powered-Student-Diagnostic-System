@@ -92,6 +92,27 @@ export type Assignment = {
   assigned_at: string;
 };
 
+export type StudentDetail = {
+  student_id: number;
+  name: string;
+  student_code: string;
+  coach_id: number;
+  coach_name: string;
+  created_at: string;
+  deleted_at: string | null;
+  deleted_by_name: string | null;
+  deleted_by_role: string | null;
+};
+
+export type StudentAssignment = {
+  id: number;
+  test_id: number;
+  test_title: string;
+  status: string;
+  assigned_at: string;
+  submitted: boolean;
+};
+
 // ─── API Calls ────────────────────────────────────────────────────────────────
 
 export const createCoach = (data: CreateCoachPayload) =>
@@ -115,6 +136,14 @@ export const deleteStudent = (studentId: number) =>
   apiFetch<{ message: string }>(`/admin/students/${studentId}`, {
     method: "DELETE",
   });
+
+export const getStudent = (studentId: number) =>
+  apiFetch<StudentDetail>(`/admin/students/${studentId}`);
+
+export const getStudentAssignments = (studentId: number) =>
+  apiFetch<{ total: number; limit: number; offset: number; data: StudentAssignment[] }>(
+    `/admin/students/${studentId}/assignments`
+  );
 
 export const createSubject = (data: CreateSubjectPayload) =>
   apiFetch<{ subject_id: number }>("/admin/subjects", {
@@ -193,10 +222,11 @@ export const getTests = (params?: PaginationParams) => {
   return apiFetch<PaginatedResponse<Test>>(`/admin/tests${qs ? `?${qs}` : ""}`);
 };
 
-export const getStudents = (params?: PaginationParams) => {
+export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) => {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.include_deactivated) query.set("include_deactivated", "true");
   const qs = query.toString();
   return apiFetch<PaginatedResponse<Student>>(`/admin/students${qs ? `?${qs}` : ""}`);
 };
