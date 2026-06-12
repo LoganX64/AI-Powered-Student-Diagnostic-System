@@ -1,3 +1,4 @@
+import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
 
 export function BillingPage() {
   return (
+    <DashboardLayout title="Billing">
     <div className="flex flex-col gap-6">
       {/* Current Plan */}
       <Card>
@@ -187,5 +189,6 @@ export function BillingPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
+import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +62,7 @@ export function AccountsPage() {
   };
 
   return (
+    <DashboardLayout title="Accounts">
     <div className="flex flex-col gap-6">
       {/* Account Info */}
       <Card>
@@ -276,5 +278,6 @@ export function AccountsPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

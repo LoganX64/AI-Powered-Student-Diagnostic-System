@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,6 +37,7 @@ export function GetHelpPage() {
   };
 
   return (
+    <DashboardLayout title="Get Help">
     <Tabs defaultValue="faq" className="w-full">
       <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="faq" className="flex items-center gap-2">
@@ -203,5 +205,6 @@ export function GetHelpPage() {
         </Card>
       </TabsContent>
     </Tabs>
+    </DashboardLayout>
   );
 }

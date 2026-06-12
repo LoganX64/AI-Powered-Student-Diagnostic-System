@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
+import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +44,7 @@ export function SettingsPage() {
   };
 
   return (
+    <DashboardLayout title="Settings">
     <Tabs defaultValue="profile" className="w-full">
       <TabsList className="grid w-full grid-cols-4">
         <TabsTrigger value="profile" className="flex items-center gap-2">
@@ -256,5 +258,6 @@ export function SettingsPage() {
         </Card>
       </TabsContent>
     </Tabs>
+    </DashboardLayout>
   );
 }

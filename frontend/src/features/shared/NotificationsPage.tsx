@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +68,7 @@ export function NotificationsPage() {
   };
 
   return (
+    <DashboardLayout title="Notifications">
     <div className="flex flex-col gap-6">
       <Card>
         <CardHeader>
@@ -167,5 +169,6 @@ export function NotificationsPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

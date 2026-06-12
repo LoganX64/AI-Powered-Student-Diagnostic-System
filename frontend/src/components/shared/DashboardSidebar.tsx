@@ -19,9 +19,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { NavMain } from "@/components/admin/nav-main";
-import { NavSecondary } from "@/components/admin/nav-secondary";
-import { NavUser } from "@/components/admin/nav-user";
+import { NavMain } from "@/components/shared/nav-main";
+import { NavSecondary } from "@/components/shared/nav-secondary";
+import { NavUser } from "@/components/shared/nav-user";
 import { useRole } from "@/hooks/useRole";
 
 const adminNavItems = [
