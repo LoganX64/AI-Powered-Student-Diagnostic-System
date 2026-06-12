@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -50,12 +51,13 @@ export function QuestionFormFields({
     <>
       <div className="flex flex-col gap-2">
         <Label>Question Text</Label>
-        <Input
+        <Textarea
           value={q.question_text}
           onChange={(e) => onChange("question_text", e.target.value)}
           placeholder="What is 2 + 2?"
           required
           disabled={disabled}
+          rows={3}
         />
       </div>
 
@@ -64,12 +66,13 @@ export function QuestionFormFields({
           (opt, oi) => (
             <div key={opt} className="flex flex-col gap-1.5">
               <Label>{["A", "B", "C", "D"][oi]}</Label>
-              <Input
+              <Textarea
                 value={q[opt]}
                 onChange={(e) => onChange(opt, e.target.value)}
                 placeholder={`Option ${["A", "B", "C", "D"][oi]}`}
                 required
                 disabled={disabled}
+                rows={2}
               />
             </div>
           )
