@@ -10,6 +10,7 @@ import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
 import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
 import { AdminDashboardPage } from "../src/features/admin/AdminDashboardPage.tsx";
 import { CoachesPage } from "../src/features/admin/CoachesPage.tsx";
+import { CoachDetailPage } from "../src/features/admin/CoachDetailPage.tsx";
 import { StudentsPage } from "../src/features/admin/StudentsPage.tsx";
 import { SubjectsPage } from "../src/features/admin/SubjectsPage.tsx";
 import { TestsPage } from "../src/features/admin/TestsPage.tsx";
@@ -47,6 +48,7 @@ const router = createBrowserRouter([
       // Admin dashboard
       { path: "admin/dashboard", Component: AdminDashboardPage },
       { path: "admin/coaches", Component: CoachesPage },
+      { path: "admin/coaches/:id", Component: CoachDetailPage },
       { path: "admin/students", Component: StudentsPage },
       { path: "admin/students/:id", Component: StudentDetailPage },
       { path: "admin/students/:id/sqi", Component: StudentSQIPage },

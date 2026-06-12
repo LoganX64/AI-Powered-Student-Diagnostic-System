@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { AppSidebar } from "@/components/admin/app-sidebar";
@@ -34,6 +35,7 @@ import { createCoach, deleteCoach, getCoaches, type CreateCoachPayload, type Coa
 const PAGE_SIZE = 50;
 
 export function CoachesPage() {
+  const navigate = useNavigate();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -178,7 +180,11 @@ export function CoachesPage() {
                   </TableHeader>
                   <TableBody>
                     {coaches.map((coach) => (
-                      <TableRow key={coach.coach_id}>
+                      <TableRow
+                        key={coach.coach_id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/admin/coaches/${coach.coach_id}`)}
+                      >
                         <TableCell className="font-mono text-sm text-muted-foreground">
                           {coach.coach_id}
                         </TableCell>

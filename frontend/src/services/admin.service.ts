@@ -101,6 +101,7 @@ export type StudentDetail = {
   created_at: string;
   deleted_at: string | null;
   deleted_by_name: string | null;
+  deleted_by_email: string | null;
   deleted_by_role: string | null;
 };
 
@@ -120,6 +121,50 @@ export const createCoach = (data: CreateCoachPayload) =>
     method: "POST",
     body: JSON.stringify(data),
   });
+
+export type CoachDetail = {
+  coach_id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  created_at: string;
+};
+
+export type CoachTest = {
+  test_id: number;
+  title: string;
+  subject_id: number;
+  duration: number;
+  subject_name: string;
+  exam_date?: string;
+  created_at: string;
+};
+
+export type CoachStudent = {
+  student_id: number;
+  name: string;
+  student_code: string;
+  created_at: string;
+};
+
+export const getCoach = (coachId: number) =>
+  apiFetch<CoachDetail>(`/admin/coaches/${coachId}`);
+
+export const getCoachTests = (coachId: number, params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<CoachTest>>(`/admin/coaches/${coachId}/tests${qs ? `?${qs}` : ""}`);
+};
+
+export const getCoachStudents = (coachId: number, params?: PaginationParams) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<CoachStudent>>(`/admin/coaches/${coachId}/students${qs ? `?${qs}` : ""}`);
+};
 
 export const deleteCoach = (coachId: number) =>
   apiFetch<{ message: string }>(`/admin/coaches/${coachId}`, {
