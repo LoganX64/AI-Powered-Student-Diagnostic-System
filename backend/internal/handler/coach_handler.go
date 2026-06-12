@@ -260,15 +260,15 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 		return
 	}
 
-	// validate student belongs to coach and tenant
+	// validate student belongs to coach and tenant and is not deactivated
 	var studentCoachID int
 	err = h.DB.QueryRow(
-		"SELECT coach_id FROM students WHERE id=$1 AND tenant_id=$2",
+		"SELECT coach_id FROM students WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL",
 		req.StudentID, tenantID,
 	).Scan(&studentCoachID)
 
 	if err != nil || studentCoachID != coachID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "student not owned by coach"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "student not owned by coach, or deactivated"})
 		return
 	}
 
@@ -378,17 +378,26 @@ func (h *CoachHandler) ListStudents(c *gin.Context) {
 
 	limit, offset := parseCoachPagination(c)
 
+	includeDeactivated := c.Query("include_deactivated") == "true"
+
 	var total int
-	err = h.DB.QueryRow("SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND coach_id=$2", tenantID, coachID).Scan(&total)
+	if includeDeactivated {
+		err = h.DB.QueryRow("SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND coach_id=$2", tenantID, coachID).Scan(&total)
+	} else {
+		err = h.DB.QueryRow("SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND coach_id=$2 AND deleted_at IS NULL", tenantID, coachID).Scan(&total)
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	rows, err := h.DB.Query(
-		"SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1 AND coach_id=$2 ORDER BY id DESC LIMIT $3 OFFSET $4",
-		tenantID, coachID, limit, offset,
-	)
+	query := "SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1 AND coach_id=$2"
+	if !includeDeactivated {
+		query += " AND deleted_at IS NULL"
+	}
+	query += " ORDER BY id DESC LIMIT $3 OFFSET $4"
+
+	rows, err := h.DB.Query(query, tenantID, coachID, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -417,6 +426,165 @@ func (h *CoachHandler) ListStudents(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": students})
+}
+
+func (h *CoachHandler) GetStudent(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	coachID, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	type StudentDetailRow struct {
+		StudentID     int     `json:"student_id"`
+		Name          string  `json:"name"`
+		StudentCode   string  `json:"student_code"`
+		CoachID       int     `json:"coach_id"`
+		CoachName     string  `json:"coach_name"`
+		CreatedAt     string  `json:"created_at"`
+		DeletedAt     *string `json:"deleted_at"`
+		DeletedByName *string `json:"deleted_by_name"`
+		DeletedByRole *string `json:"deleted_by_role"`
+	}
+
+	var s StudentDetailRow
+	err = h.DB.QueryRow(`
+		SELECT st.id, st.name, st.student_code, st.coach_id, COALESCE(c.name, ''),
+		       st.created_at, st.deleted_at, u.name, u.role
+		FROM students st
+		LEFT JOIN coaches c ON st.coach_id = c.id
+		LEFT JOIN users u ON st.deleted_by = u.id
+		WHERE st.id = $1 AND st.tenant_id = $2 AND st.coach_id = $3
+	`, studentID, tenantID, coachID).Scan(
+		&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName,
+		&s.CreatedAt, &s.DeletedAt, &s.DeletedByName, &s.DeletedByRole,
+	)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, s)
+}
+
+func (h *CoachHandler) ListStudentAssignments(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	coachID, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	var exists bool
+	err = h.DB.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM students WHERE id=$1 AND tenant_id=$2 AND coach_id=$3)",
+		studentID, tenantID, coachID,
+	).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	limit, offset := parseCoachPagination(c)
+
+	var total int
+	err = h.DB.QueryRow(
+		"SELECT COUNT(*) FROM assignments WHERE student_id=$1 AND coach_id=$2",
+		studentID, coachID,
+	).Scan(&total)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rows, err := h.DB.Query(`
+		SELECT a.id, a.test_id, t.title, a.status, a.assigned_at,
+		       EXISTS(
+		         SELECT 1 FROM attempts att
+		         WHERE att.assignment_id = a.id AND att.submitted_at IS NOT NULL
+		       ) AS submitted
+		FROM assignments a
+		JOIN tests t ON a.test_id = t.id
+		WHERE a.student_id = $1 AND a.coach_id = $2
+		ORDER BY a.id DESC
+		LIMIT $3 OFFSET $4
+	`, studentID, coachID, limit, offset)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type AssignmentRow struct {
+		ID         int    `json:"id"`
+		TestID     int    `json:"test_id"`
+		TestTitle  string `json:"test_title"`
+		Status     string `json:"status"`
+		AssignedAt string `json:"assigned_at"`
+		Submitted  bool   `json:"submitted"`
+	}
+
+	var assignments []AssignmentRow
+	for rows.Next() {
+		var a AssignmentRow
+		if err := rows.Scan(&a.ID, &a.TestID, &a.TestTitle, &a.Status, &a.AssignedAt, &a.Submitted); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		assignments = append(assignments, a)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": assignments})
+}
+
+func (h *CoachHandler) DeleteStudent(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	coachID, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`UPDATE students SET deleted_at = NOW(), deleted_by = $1
+		 WHERE id = $2 AND tenant_id = $3 AND coach_id = $4 AND deleted_at IS NULL`,
+		userID, studentID, tenantID, coachID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found or already deactivated"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "student deactivated"})
 }
 
 func (h *CoachHandler) ListSubjects(c *gin.Context) {
@@ -479,7 +647,7 @@ func (h *CoachHandler) ListAssignments(c *gin.Context) {
 	limit, offset := parseCoachPagination(c)
 	testID := c.Query("test_id")
 
-	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE s.tenant_id=$1 AND a.coach_id=$2"
+	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE s.tenant_id=$1 AND a.coach_id=$2 AND s.deleted_at IS NULL"
 	countQuery := "SELECT COUNT(*) " + baseQuery
 	dataQuery := `SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at ` + baseQuery
 
