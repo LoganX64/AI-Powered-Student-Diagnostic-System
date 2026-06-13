@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, BarChart3Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { login } from "@/services/auth.service";
 
-export function CoachLoginForm({
+export interface FooterLink {
+  label: string;
+  linkText: string;
+  href: string;
+}
+
+export interface LoginPageProps extends React.ComponentProps<"div"> {
+  title: string;
+  description: string;
+  emailPlaceholder?: string;
+  dashboardPath: string;
+  footerLinks?: FooterLink[];
+}
+
+export function LoginPage({
+  title,
+  description,
+  emailPlaceholder = "m@example.com",
+  dashboardPath,
+  footerLinks = [],
   className,
   ...props
-}: React.ComponentProps<"div">) {
+}: LoginPageProps) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,7 +69,7 @@ export function CoachLoginForm({
       const res = await login({ email, password });
       localStorage.setItem("admin_token", res.token);
       localStorage.setItem("admin_role", res.role);
-      navigate("/coach/dashboard");
+      navigate(dashboardPath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
 
@@ -75,8 +94,8 @@ export function CoachLoginForm({
       </Link>
       <Card className="w-full">
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Welcome back, Coach!</CardTitle>
-          <CardDescription>Sign in to your coach account</CardDescription>
+          <CardTitle className="text-xl">{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
@@ -103,7 +122,7 @@ export function CoachLoginForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="coach@example.com"
+                  placeholder={emailPlaceholder}
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -153,9 +172,17 @@ export function CoachLoginForm({
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
                 </Button>
-                <FieldDescription className="text-center">
-                  Contact your admin to get access
-                </FieldDescription>
+                {footerLinks.map((link, index) => (
+                  <FieldDescription key={index} className="text-center">
+                    {link.label}{" "}
+                    <Link
+                      to={link.href}
+                      className="underline hover:no-underline"
+                    >
+                      {link.linkText}
+                    </Link>
+                  </FieldDescription>
+                ))}
               </Field>
             </FieldGroup>
           </form>
