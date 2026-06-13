@@ -147,8 +147,15 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"student_id": id})
 }
 
+type CreateCoachTestRequest struct {
+	Title     string  `json:"title" binding:"required"`
+	SubjectID int     `json:"subject_id" binding:"required"`
+	Duration  int     `json:"duration" binding:"required"`
+	ExamDate  *string `json:"exam_date"`
+}
+
 func (h *CoachHandler) CreateTest(c *gin.Context) {
-	var req CreateTestRequest
+	var req CreateCoachTestRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

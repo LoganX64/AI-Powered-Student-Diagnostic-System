@@ -110,8 +110,11 @@ export function AllTestsPage() {
           </div>
 
           {tests.length === 0 ? (
-            <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
-              <p className="text-sm text-muted-foreground">No tests found.</p>
+            <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed">
+              <p className="text-sm text-muted-foreground">No tests created yet.</p>
+              <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
+                Create Your First Test
+              </Button>
             </div>
           ) : (
             <div className="rounded-lg border overflow-hidden">
@@ -204,8 +207,11 @@ export function AllTestsPage() {
         </div>
 
         {tests.length === 0 ? (
-          <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
-            <p className="text-sm text-muted-foreground">No tests found.</p>
+          <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed">
+            <p className="text-sm text-muted-foreground">No tests created yet.</p>
+            <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
+              Create Your First Test
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-2">

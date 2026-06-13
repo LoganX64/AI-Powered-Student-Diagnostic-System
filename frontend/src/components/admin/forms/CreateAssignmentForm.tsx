@@ -29,8 +29,8 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
   useEffect(() => {
     const getStudentsFn = fetchStudents ?? adminGetStudents;
     const getTestsFn = fetchTests ?? adminGetTests;
-    getStudentsFn({ limit: 10000 }).then((res) => setStudents(res.data)).catch(() => {});
-    getTestsFn({ limit: 10000 }).then((res) => setTests(res.data)).catch(() => {});
+    getStudentsFn({ limit: 10000 }).then((res) => setStudents(res.data ?? [])).catch(() => {});
+    getTestsFn({ limit: 10000 }).then((res) => setTests(res.data ?? [])).catch(() => {});
   }, [fetchStudents, fetchTests]);
 
   const handleSubmit = async (e: React.FormEvent) => {
