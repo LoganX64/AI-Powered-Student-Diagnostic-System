@@ -26,6 +26,7 @@ import {
   deleteTest as coachDeleteTest,
   getStudents as coachGetStudents,
   getTests as coachGetTests,
+  getSubjects as coachGetSubjects,
 } from "@/services/coach.service";
 import { ClipboardListIcon, LinkIcon } from "lucide-react";
 
@@ -81,6 +82,7 @@ export function TestsPage() {
               onCreated={(id) => setCreatedTestId(id)}
               onSubmit={isCoach ? coachCreateTest : undefined}
               showCoachField={!isCoach}
+              fetchSubjects={isCoach ? coachGetSubjects : undefined}
             />
           ) : (
             <>

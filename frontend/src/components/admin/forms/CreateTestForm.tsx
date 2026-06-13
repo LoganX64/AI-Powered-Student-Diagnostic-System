@@ -4,15 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createTest as adminCreateTest, getCoaches, getSubjects, type CreateTestPayload, type Coach, type Subject } from "@/services/admin.service";
+import { createTest as adminCreateTest, getCoaches as adminGetCoaches, getSubjects as adminGetSubjects, type CreateTestPayload, type Coach, type Subject, type PaginationParams, type PaginatedResponse } from "@/services/admin.service";
 
 type Props = {
   onCreated?: (testId: number) => void;
   onSubmit?: (data: CreateTestPayload) => Promise<{ test_id: number }>;
   showCoachField?: boolean;
+  fetchSubjects?: (params?: PaginationParams) => Promise<PaginatedResponse<Subject>>;
+  fetchCoaches?: (params?: PaginationParams) => Promise<PaginatedResponse<Coach>>;
 };
 
-export function CreateTestForm({ onCreated, onSubmit, showCoachField = true }: Props) {
+export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fetchSubjects: fetchSubjectsProp, fetchCoaches: fetchCoachesProp }: Props) {
   const [loading, setLoading] = useState(false);
 
   const [subjectSearch, setSubjectSearch] = useState("");
@@ -36,21 +38,23 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true }: P
 
   const fetchSubjects = useCallback(async (search: string) => {
     try {
-      const res = await getSubjects({ search, limit: 10 });
+      const fn = fetchSubjectsProp ?? adminGetSubjects;
+      const res = await fn({ search, limit: 10 });
       setSubjects(res.data ?? []);
     } catch {
       setSubjects([]);
     }
-  }, []);
+  }, [fetchSubjectsProp]);
 
   const fetchCoaches = useCallback(async (search: string) => {
     try {
-      const res = await getCoaches({ search, limit: 10 });
+      const fn = fetchCoachesProp ?? adminGetCoaches;
+      const res = await fn({ search, limit: 10 });
       setCoaches(res.data ?? []);
     } catch {
       setCoaches([]);
     }
-  }, []);
+  }, [fetchCoachesProp]);
 
   useEffect(() => {
     if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current);
@@ -59,10 +63,11 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true }: P
   }, [subjectSearch, fetchSubjects]);
 
   useEffect(() => {
+    if (!showCoachField) return;
     if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current);
     coachDebounceRef.current = setTimeout(() => fetchCoaches(coachSearch), 300);
     return () => { if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current); };
-  }, [coachSearch, fetchCoaches]);
+  }, [coachSearch, fetchCoaches, showCoachField]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
