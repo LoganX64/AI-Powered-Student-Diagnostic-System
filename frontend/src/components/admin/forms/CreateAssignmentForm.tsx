@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ClipboardListIcon, UsersIcon } from "lucide-react";
+import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +23,9 @@ type Props = {
 };
 
 export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Props) {
+  const navigate = useNavigate();
+  const role = useRole();
+  const prefix = role === "admin" ? "/admin" : "/coach";
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
@@ -63,6 +69,34 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
     }
   };
 
+  if (tests.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center gap-3 py-12">
+          <ClipboardListIcon className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">No tests created yet.</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
+            Create a Test
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (students.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center gap-3 py-12">
+          <UsersIcon className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">No students added yet.</p>
+          <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/students`)}>
+            Add a Student
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -82,15 +116,11 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {students.length === 0 ? (
-                      <SelectItem value="none" disabled>No students found</SelectItem>
-                    ) : (
-                      students.map((s) => (
-                        <SelectItem key={s.student_id} value={s.student_id.toString()}>
-                          {s.name} ({s.student_code})
-                        </SelectItem>
-                      ))
-                    )}
+                    {students.map((s) => (
+                      <SelectItem key={s.student_id} value={s.student_id.toString()}>
+                        {s.name} ({s.student_code})
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -103,15 +133,11 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {tests.length === 0 ? (
-                      <SelectItem value="none" disabled>No tests found</SelectItem>
-                    ) : (
-                      tests.map((t) => (
-                        <SelectItem key={t.test_id} value={t.test_id.toString()}>
-                          {t.title} (ID: {t.test_id})
-                        </SelectItem>
-                      ))
-                    )}
+                    {tests.map((t) => (
+                      <SelectItem key={t.test_id} value={t.test_id.toString()}>
+                        {t.title} (ID: {t.test_id})
+                      </SelectItem>
+                    ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
