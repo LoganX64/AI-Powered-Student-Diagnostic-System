@@ -74,6 +74,11 @@ const coachNavItems = [
     icon: <BookOpenIcon />,
   },
   {
+    title: "Create Test",
+    url: "/coach/tests",
+    icon: <FilePlusIcon />,
+  },
+  {
     title: "All Tests",
     url: "/coach/all-tests",
     icon: <ClipboardListIcon />,

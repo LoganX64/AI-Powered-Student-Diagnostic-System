@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { createQuestions, type CreateQuestionPayload } from "@/services/admin.service";
+import { createQuestions as adminCreateQuestions, type CreateQuestionPayload } from "@/services/admin.service";
 
 type QuestionDraft = CreateQuestionPayload;
 
@@ -37,9 +37,10 @@ const emptyQuestion = (): QuestionDraft => ({
 type Props = {
   testId?: number;
   onCreated?: (testId: number, count: number) => void;
+  onSubmit?: (testId: number, data: CreateQuestionPayload[]) => Promise<{ question_ids: number[]; count: number }>;
 };
 
-export function CreateQuestionsForm({ testId: testIdProp, onCreated }: Props) {
+export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }: Props) {
   const [testId, setTestId] = useState(testIdProp?.toString() ?? "");
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
   const [loading, setLoading] = useState(false);
@@ -67,7 +68,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated }: Props) {
 
     try {
       setLoading(true);
-      const res = await createQuestions(id, questions);
+      const createFn = onSubmit ?? adminCreateQuestions;
+      const res = await createFn(id, questions);
       toast.success(`${res.count} question(s) added to test ${id}`);
       onCreated?.(id, res.count);
       setQuestions([emptyQuestion()]);

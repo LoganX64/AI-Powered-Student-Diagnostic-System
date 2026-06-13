@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createTest, getCoaches, getSubjects, type CreateTestPayload, type Coach, type Subject } from "@/services/admin.service";
+import { createTest as adminCreateTest, getCoaches, getSubjects, type CreateTestPayload, type Coach, type Subject } from "@/services/admin.service";
 
 type Props = {
   onCreated?: (testId: number) => void;
+  onSubmit?: (data: CreateTestPayload) => Promise<{ test_id: number }>;
+  showCoachField?: boolean;
 };
 
-export function CreateTestForm({ onCreated }: Props) {
+export function CreateTestForm({ onCreated, onSubmit, showCoachField = true }: Props) {
   const [loading, setLoading] = useState(false);
 
   const [subjectSearch, setSubjectSearch] = useState("");
@@ -114,7 +116,7 @@ export function CreateTestForm({ onCreated }: Props) {
       toast.error("Please select a subject from the list");
       return;
     }
-    if (!selectedCoach) {
+    if (showCoachField && !selectedCoach) {
       toast.error("Please select a coach from the list");
       return;
     }
@@ -130,14 +132,15 @@ export function CreateTestForm({ onCreated }: Props) {
     const data: CreateTestPayload = {
       title: fd.get("title") as string,
       subject_id: selectedSubject.subject_id,
-      coach_id: selectedCoach.coach_id,
+      coach_id: selectedCoach?.coach_id ?? 0,
       duration,
       exam_date: (fd.get("exam_date") as string) || undefined,
     };
 
     try {
       setLoading(true);
-      const res = await createTest(data);
+      const createFn = onSubmit ?? adminCreateTest;
+      const res = await createFn(data);
       toast.success(`Test created — ID: ${res.test_id}`);
       onCreated?.(res.test_id);
       (e.target as HTMLFormElement).reset();
@@ -217,6 +220,7 @@ export function CreateTestForm({ onCreated }: Props) {
                 </div>
               )}
             </div>
+            {showCoachField && (
             <div className="flex flex-col gap-2">
               <Label htmlFor="test-coach">Coach</Label>
               <Input
@@ -264,6 +268,7 @@ export function CreateTestForm({ onCreated }: Props) {
                 </div>
               )}
             </div>
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="test-duration">Duration (minutes)</Label>

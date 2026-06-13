@@ -18,7 +18,15 @@ import {
 import { CreateTestForm } from "@/components/admin/forms/CreateTestForm";
 import { CreateQuestionsForm } from "@/components/admin/forms/CreateQuestionsForm";
 import { CreateAssignmentForm } from "@/components/admin/forms/CreateAssignmentForm";
-import { deleteTest } from "@/services/dashboard.service";
+import { deleteTest as adminDeleteTest } from "@/services/dashboard.service";
+import {
+  createTest as coachCreateTest,
+  createQuestions as coachCreateQuestions,
+  createAssignment as coachCreateAssignment,
+  deleteTest as coachDeleteTest,
+  getStudents as coachGetStudents,
+  getTests as coachGetTests,
+} from "@/services/coach.service";
 import { ClipboardListIcon, LinkIcon } from "lucide-react";
 
 const TABS = [
@@ -29,14 +37,16 @@ const TABS = [
 export function TestsPage() {
   const navigate = useNavigate();
   const role = useRole();
-  const prefix = role === "admin" ? "/admin" : "/coach";
+  const isCoach = role === "coach";
+  const prefix = isCoach ? "/coach" : "/admin";
   const [createdTestId, setCreatedTestId] = useState<number | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
 
   const handleDeleteTest = async () => {
     if (createdTestId === null) return;
     try {
-      await deleteTest(createdTestId);
+      const deleteFn = isCoach ? coachDeleteTest : adminDeleteTest;
+      await deleteFn(createdTestId);
       toast.success("Empty test deleted");
     } catch {
       // silently ignore — test may already be gone
@@ -67,7 +77,11 @@ export function TestsPage() {
 
         <TabsContent value="test" className="flex flex-col gap-6">
           {createdTestId === null ? (
-            <CreateTestForm onCreated={(id) => setCreatedTestId(id)} />
+            <CreateTestForm
+              onCreated={(id) => setCreatedTestId(id)}
+              onSubmit={isCoach ? coachCreateTest : undefined}
+              showCoachField={!isCoach}
+            />
           ) : (
             <>
               <div className="flex items-center gap-3 rounded-lg border border-dashed p-4">
@@ -89,13 +103,18 @@ export function TestsPage() {
                   setCreatedTestId(null);
                   navigate(`${prefix}/all-tests`);
                 }}
+                onSubmit={isCoach ? coachCreateQuestions : undefined}
               />
             </>
           )}
         </TabsContent>
 
         <TabsContent value="assign">
-          <CreateAssignmentForm />
+          <CreateAssignmentForm
+            onSubmit={isCoach ? coachCreateAssignment : undefined}
+            fetchStudents={isCoach ? coachGetStudents : undefined}
+            fetchTests={isCoach ? coachGetTests : undefined}
+          />
         </TabsContent>
       </Tabs>
 

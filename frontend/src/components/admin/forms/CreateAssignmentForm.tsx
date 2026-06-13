@@ -11,9 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createAssignment, getStudents, getTests, type Student, type Test } from "@/services/admin.service";
+import { createAssignment as adminCreateAssignment, getStudents as adminGetStudents, getTests as adminGetTests, type Student, type Test } from "@/services/admin.service";
 
-export function CreateAssignmentForm() {
+type Props = {
+  onSubmit?: (data: { student_id: number; test_id: number; coach_id: number }) => Promise<{ assignment_id: number }>;
+  fetchStudents?: (params?: { limit?: number }) => Promise<{ data: Student[] }>;
+  fetchTests?: (params?: { limit?: number }) => Promise<{ data: Test[] }>;
+};
+
+export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Props) {
   const [loading, setLoading] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
@@ -21,9 +27,11 @@ export function CreateAssignmentForm() {
   const [selectedTestId, setSelectedTestId] = useState("");
 
   useEffect(() => {
-    getStudents({ limit: 10000 }).then((res) => setStudents(res.data)).catch(() => {});
-    getTests({ limit: 10000 }).then((res) => setTests(res.data)).catch(() => {});
-  }, []);
+    const getStudentsFn = fetchStudents ?? adminGetStudents;
+    const getTestsFn = fetchTests ?? adminGetTests;
+    getStudentsFn({ limit: 10000 }).then((res) => setStudents(res.data)).catch(() => {});
+    getTestsFn({ limit: 10000 }).then((res) => setTests(res.data)).catch(() => {});
+  }, [fetchStudents, fetchTests]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +51,8 @@ export function CreateAssignmentForm() {
 
     try {
       setLoading(true);
-      const res = await createAssignment(data);
+      const createFn = onSubmit ?? adminCreateAssignment;
+      const res = await createFn(data);
       toast.success(`Test assigned — Assignment ID: ${res.assignment_id}`);
       setSelectedStudentId("");
       setSelectedTestId("");
