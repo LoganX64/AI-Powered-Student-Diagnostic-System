@@ -9,13 +9,18 @@ backend/
 ├── cmd/
 │   ├── api/                # Application entry point (main.go)
 │   ├── createsuperadmin/   # Local command to create a super admin
+│   ├── createadmin/        # Local command to create an admin
+│   ├── check_migrations/   # Migration checker utility
 │   └── resetdb/            # Utility to wipe and re-migrate the database
 ├── internal/
 │   ├── auth/               # Authentication logic (JWT, Password, Google Login)
+│   ├── config/             # Configuration management
 │   ├── handler/            # HTTP Controllers (Admin, Coach, Student specialized)
+│   ├── helper/             # SQI weight functions (v1 and v2)
 │   ├── middleware/         # Gin Middleware (Auth, Role-Based Access, Tenant Checks)
+│   ├── repository/         # Database operations and validators
 │   ├── routes/             # Route definitions and group permissions
-│   └── service/            # Core Business logic (SQI Calculation Engine)
+│   └── services/           # Core Business logic (SQI Calculation Engine v1 & v2)
 ├── migrations/             # SQL Schema versions (Tenants, Users, Tests, etc.)
 ├── utils/                  # Shared utilities (JWT generator, Password hasher)
 ├── .env                    # Local environment variables
@@ -92,35 +97,72 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
 
 ### Authentication Routes (`/auth`)
 
-- `POST /auth/login` - User login (Admin/Coach)
-- `POST /auth/register-admin` - Public organization/admin registration
-- `POST /auth/google` - Google OAuth login
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/login` | User login (Admin/Coach) |
+| POST | `/auth/register-admin` | Public organization/admin registration |
+| POST | `/auth/google` | Google OAuth login |
 
 ### Student Routes (`/student`)
 
-- `POST /student/login` - Student login (no auth required)
-- `POST /student/submit/:id` - Submit test answers (requires JWT)
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/student/login` | None | Student login (with student_code) |
+| POST | `/student/submit/:id` | JWT | Submit test answers for assignment `:id` |
 
 ### Admin Routes (`/admin`) - _Requires Admin role_
 
-- `POST /admin/register-coach` - Register a new coach
-- `POST /admin/subjects` - Create subject
-- `POST /admin/students` - Create student
-- `POST /admin/tests` - Create test
-- `POST /admin/tests/:id/questions` - Create questions in batch
-- `POST /admin/assignments` - Assign test to student
-- `GET /admin/students/:id/sqi` - Get student SQI scores
-- `GET /admin/students/:id/subjects/:subject_id/results` - Get student results for a subject
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/admin/register-coach` | Register a new coach |
+| POST | `/admin/subjects` | Create a subject |
+| POST | `/admin/students` | Create a student |
+| POST | `/admin/tests` | Create a test |
+| POST | `/admin/tests/:id/questions` | Create questions (batch or single) |
+| POST | `/admin/assignments` | Assign test to student |
+| PUT | `/admin/tests/:id` | Update test details |
+| PUT | `/admin/tests/:id/questions/:qid` | Update a single question |
+| DELETE | `/admin/tests/:id` | Delete a test (cascade) |
+| DELETE | `/admin/tests/:id/questions/:qid` | Delete a single question |
+| GET | `/admin/tests` | List tests (paginated, searchable) |
+| GET | `/admin/tests/:id` | Get single test details |
+| GET | `/admin/tests/:id/questions` | Get questions for a test (paginated) |
+| GET | `/admin/students` | List students (paginated, soft-delete aware) |
+| GET | `/admin/students/:id` | Get student details |
+| GET | `/admin/students/:id/assignments` | List student's assignments (paginated) |
+| DELETE | `/admin/students/:id` | Soft-delete a student |
+| GET | `/admin/coaches` | List coaches (paginated, searchable) |
+| GET | `/admin/coaches/:id` | Get coach details |
+| GET | `/admin/coaches/:id/tests` | List tests by a specific coach |
+| GET | `/admin/coaches/:id/students` | List students by a specific coach |
+| GET | `/admin/subjects` | List subjects (paginated, searchable) |
+| GET | `/admin/assignments` | List assignments (paginated, filterable by `test_id`) |
+| GET | `/admin/students/:id/sqi` | Get student SQI scores (with optional analysis) |
+| GET | `/admin/students/:id/subjects/:subject_id/results` | Get student results for a subject (with SQI analysis) |
 
 ### Coach Routes (`/coach`) - _Requires Coach role_
 
-- `POST /coach/students` - Create student
-- `POST /coach/tests` - Create test
-- `POST /coach/tests/:id/questions` - Create questions in batch
-- `POST /coach/assignments` - Assign test to student
-- `POST /coach/subjects` - Create subject
-- `GET /coach/students/:id/sqi` - Get student SQI scores
-- `PUT /coach/password` - Update own password (requires JWT)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/coach/students` | Create a student |
+| POST | `/coach/tests` | Create a test |
+| POST | `/coach/tests/:id/questions` | Create questions (batch or single) |
+| POST | `/coach/assignments` | Assign test to student |
+| POST | `/coach/subjects` | Create a subject |
+| PUT | `/coach/tests/:id` | Update test details |
+| PUT | `/coach/tests/:id/questions/:qid` | Update a single question |
+| DELETE | `/coach/tests/:id` | Delete a test (cascade) |
+| DELETE | `/coach/tests/:id/questions/:qid` | Delete a single question |
+| PUT | `/coach/password` | Update own password |
+| GET | `/coach/tests` | List own tests (paginated, searchable) |
+| GET | `/coach/tests/:id/questions` | Get questions for a test (paginated) |
+| GET | `/coach/students` | List own students (paginated) |
+| GET | `/coach/students/:id` | Get student details |
+| GET | `/coach/students/:id/assignments` | List student's assignments (paginated) |
+| DELETE | `/coach/students/:id` | Soft-delete a student |
+| GET | `/coach/students/:id/sqi` | Get student SQI scores |
+| GET | `/coach/subjects` | List tenant subjects (paginated) |
+| GET | `/coach/assignments` | List assignments (paginated, filterable by `test_id`) |
 
 ## 🧠 SQI Engine (Student Quotient Index)
 

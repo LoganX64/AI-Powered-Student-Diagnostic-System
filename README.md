@@ -134,8 +134,12 @@ The backend is built with **Go 1.25.1**, **Gin framework**, and **PostgreSQL**.
 backend/
 ├── go.mod                     # Go module definition
 ├── cmd/
-│   └── api/
-│       └── main.go            # Application entry point
+│   ├── api/
+│   │   └── main.go            # Application entry point
+│   ├── createsuperadmin/       # CLI to create super admin
+│   ├── createadmin/            # CLI to create admin
+│   ├── check_migrations/       # Migration checker
+│   └── resetdb/                # DB reset utility
 ├── internal/                  # Private application code
 │   ├── auth/                  # Authentication logic
 │   ├── config/                # Configuration management
@@ -143,8 +147,11 @@ backend/
 │   ├── handler/               # HTTP request handlers
 │   │   ├── admin_handler.go   # Admin endpoints
 │   │   ├── auth_handler.go    # Authentication endpoints
+│   │   ├── coach_handler.go   # Coach endpoints
 │   │   └── student_handler.go # Student endpoints
 │   ├── helpers/               # Helper functions
+│   │   ├── weights.go         # SQI weight functions v1
+│   │   └── weights_v2.go      # SQI weight functions v2
 │   ├── middleware/            # HTTP middleware
 │   │   ├── auth.go            # Authentication middleware
 │   │   └── roleMiddleware.go  # Role-based access control
@@ -154,15 +161,14 @@ backend/
 │   ├── routes/                # Route definitions
 │   │   └── routes.go          # API route setup
 │   └── services/              # Business logic
-│       └── sqi_engine.go      # Student Quality Index calculations
+│       ├── sqi_engine.go      # Student Quality Index calculations v1
+│       └── sqi_engine_v2.go   # Student Quality Index calculations v2
 ├── utils/                     # Shared utilities
 │   ├── jwt.go                 # JWT token handling
 │   └── password.go            # Password hashing and verification
 ├── migrations/                # Database migrations
-│   ├── 000001_init.up.sql     # Initial schema
-│   ├── 000001_init.down.sql   # Rollback initial schema
-│   ├── 000002_seed_data.up.sql     # Seed data
-│   └── 000002_seed_data.down.sql   # Remove seed data
+│   ├── 000001_init.up.sql     # Initial schema (10 tables)
+│   └── 000001_init.down.sql   # Rollback initial schema
 ├── Ai-student-diagnosis.postman_collection.json  # API documentation
 └── README.md                  # Backend-specific documentation
 ```
@@ -182,15 +188,17 @@ backend/
 
 Handles HTTP requests and responses:
 
-- `auth_handler.go`: Login, signup, token refresh
-- `student_handler.go`: Student-specific endpoints
-- `admin_handler.go`: Admin-specific endpoints
+- `auth_handler.go`: Login, signup, Google OAuth, password management
+- `student_handler.go`: Student login and test submission
+- `admin_handler.go`: Admin CRUD for tests, questions, students, coaches, subjects, assignments
+- `coach_handler.go`: Coach-specific CRUD endpoints
 
 #### 2. **Service Layer** (`internal/services/`)
 
 Contains business logic:
 
-- `sqi_engine.go`: Calculates Student Quality Index metrics
+- `sqi_engine.go`: Calculates Student Quality Index metrics (v1)
+- `sqi_engine_v2.go`: Enhanced SQI calculations (v2)
 
 #### 3. **Repository Layer** (`internal/repository/`)
 
@@ -221,18 +229,22 @@ Shared functionality:
 
 The system uses SQL migrations for schema management:
 
-- **000001_init.up.sql**: Creates base tables for users, students, tests, attempts, and results
+- **000001_init.up.sql**: Creates base tables for tenants, users, coaches, students, subjects, tests, questions, assignments, attempts, answer_logs, and attempt_results
 - **000001_init.down.sql**: Drops all tables
-- **000002_seed_data.up.sql**: Populates initial data
-- **000002_seed_data.down.sql**: Cleans up seed data
 
-### Key Tables (inferred from structure)
+### Key Tables
 
-- **users**: Authentication and user management
-- **students**: Student profile information
-- **tests**: Test definitions and metadata
-- **attempts**: Student test attempts/submissions
-- **results**: Test results and scoring data
+- **tenants**: Organizations/institutes (multi-tenant isolation)
+- **users**: Authentication accounts (super_admin, admin, coach roles)
+- **coaches**: Coach profiles linked to user accounts
+- **students**: Student records (with soft-delete support)
+- **subjects**: Subjects per tenant
+- **tests**: Test definitions (title, subject, coach, duration, exam_date)
+- **questions**: MCQ questions with metadata (marks, difficulty, importance, concept_tag)
+- **assignments**: Links students to tests via coaches
+- **attempts**: Student test attempts
+- **answer_logs**: Per-question answer records with behavioral signals
+- **attempt_results**: SQI scores and full analysis JSON per attempt
 
 ---
 
@@ -248,7 +260,7 @@ The system uses SQL migrations for schema management:
 ### Authorization
 
 - Role-based access control (RBAC) via `roleMiddleware`
-- Supports multiple roles: Student, Admin
+- Supports multiple roles: Super Admin, Admin, Coach, Student
 - Endpoints protected by role requirements
 
 ---
@@ -285,9 +297,8 @@ go run cmd/api/main.go  # Run server (http://localhost:8080)
 # Run migrations
 migrate -path migrations -database "postgresql://..." up
 
-# Or manually run SQL files in order
+# Or manually run SQL files
 psql -U <user> -d <database> -f migrations/000001_init.up.sql
-psql -U <user> -d <database> -f migrations/000002_seed_data.up.sql
 ```
 
 ---
@@ -301,9 +312,10 @@ The backend API is documented in the Postman collection:
 
 ### Main API Routes
 
-- **Authentication**: `/api/auth/*` (login, signup, refresh token)
-- **Student**: `/api/student/*` (student dashboard, results, recommendations)
-- **Admin**: `/api/admin/*` (user management, analytics, system settings)
+- **Authentication**: `/auth/*` (login, register-admin, Google OAuth)
+- **Student**: `/student/*` (login, submit test answers)
+- **Admin**: `/admin/*` (CRUD for tests, questions, students, coaches, subjects, assignments, SQI)
+- **Coach**: `/coach/*` (CRUD for tests, questions, students, subjects, assignments, SQI)
 
 ---
 
@@ -320,19 +332,24 @@ The backend API is documented in the Postman collection:
 
 ### Implemented
 
-- ✅ User authentication (signup/login)
-- ✅ Role-based access control
+- ✅ User authentication (signup/login, Google OAuth)
+- ✅ Role-based access control (Super Admin, Admin, Coach, Student)
 - ✅ JWT token management
 - ✅ Password security
-- ✅ SQI calculation engine
-- ✅ Database migrations
+- ✅ Multi-tenant architecture with data isolation
+- ✅ Database migrations with auto-migration on startup
+- ✅ Full CRUD for tests, questions, students, coaches, subjects
+- ✅ Student test submission with SQI scoring
+- ✅ Pagination and search on list endpoints
+- ✅ Student soft-delete with audit trail
+- ✅ Coach-specific endpoints and data isolation
 
 ### In Development
 
-- 🔄 Student dashboard
-- 🔄 Admin analytics
-- 🔄 Test submission and evaluation
-- 🔄 AI-powered insights
+- 🔄 SQI calculation engine (v1 and v2)
+- 🔄 AI-powered insights and recommendations
+- 🔄 Advanced analytics dashboards
+- 🔄 Super admin system monitoring
 
 ---
 
@@ -366,4 +383,4 @@ When contributing to this project:
 
 ---
 
-**Last Updated**: April 2026
+**Last Updated**: June 2026
