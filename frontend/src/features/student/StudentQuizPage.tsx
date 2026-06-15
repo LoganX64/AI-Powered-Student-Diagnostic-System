@@ -60,6 +60,44 @@ const SAMPLE_QUESTIONS: Question[] = [
 const EXAM_DURATION_SECONDS = 60 * 60;
 
 // ---------------------------------------------------------------------------
+// Helpers — localStorage persistence
+// ---------------------------------------------------------------------------
+
+function loadAnswers(): Record<number, Option> {
+  try {
+    const raw = localStorage.getItem("quiz_answers");
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAnswers(answers: Record<number, Option>) {
+  localStorage.setItem("quiz_answers", JSON.stringify(answers));
+}
+
+function loadCurrentIndex(): number {
+  const raw = localStorage.getItem("current_question_index");
+  if (raw !== null) {
+    const parsed = parseInt(raw, 10);
+    if (!isNaN(parsed) && parsed >= 0) return parsed;
+  }
+  return 0;
+}
+
+function saveCurrentIndex(index: number) {
+  localStorage.setItem("current_question_index", String(index));
+}
+
+function clearExamStorage() {
+  localStorage.removeItem("quiz_answers");
+  localStorage.removeItem("current_question_index");
+  localStorage.removeItem("exam_started");
+  localStorage.removeItem("exam_started_at");
+  localStorage.removeItem("exam_timer");
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -72,22 +110,22 @@ export function StudentQuizPage() {
   );
 
   const [questions] = useState<Question[]>(SAMPLE_QUESTIONS);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, Option | null>>({});
+  const [currentIndex, setCurrentIndex] = useState<number>(loadCurrentIndex);
+  const [answers, setAnswers] = useState<Record<number, Option>>(loadAnswers);
 
   const currentQuestion = questions[currentIndex];
 
   const handleSubmit = () => {
-    // Store answers so the submitted page (or future API call) can access them
-    sessionStorage.setItem("quiz_answers", JSON.stringify(answers));
-    // Clear exam timer and started flag
-    sessionStorage.removeItem("exam_timer");
-    sessionStorage.removeItem("exam_started");
+    saveAnswers(answers);
+    clearExamStorage();
     navigate("/submitted", { replace: true });
   };
 
-  // Timer — starts running once the student accepted on the instructions page
-  const examStarted = sessionStorage.getItem("exam_started") === "true";
+  // Timer — reads exam_started_at from localStorage for accurate resume
+  const examStarted = localStorage.getItem("exam_started") === "true";
+  const examStartedAtRaw = localStorage.getItem("exam_started_at");
+  const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
+
   const timeLeft = useExamTimer(
     EXAM_DURATION_SECONDS,
     "exam_timer",
@@ -95,20 +133,28 @@ export function StudentQuizPage() {
       handleSubmit();
     },
     examStarted,
+    examStartedAt,
   );
 
   const handleSelect = (option: Option) => {
-    setAnswers((prev) => ({ ...prev, [currentQuestion.id]: option }));
+    setAnswers((prev) => {
+      const next = { ...prev, [currentQuestion.id]: option };
+      saveAnswers(next);
+      return next;
+    });
   };
 
   const handleNext = () => {
     if (currentIndex < questions.length - 1) {
-      setCurrentIndex((i) => i + 1);
+      const next = currentIndex + 1;
+      setCurrentIndex(next);
+      saveCurrentIndex(next);
     }
   };
 
   const handleNavigate = (index: number) => {
     setCurrentIndex(index);
+    saveCurrentIndex(index);
   };
 
   const isLast = currentIndex === questions.length - 1;
