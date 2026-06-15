@@ -120,6 +120,19 @@ func SubmitAnswers(c *gin.Context) {
 		return
 	}
 
+	//  Check if attempt already exists for this assignment (prevent re-attempt)
+	var existingAttemptID int
+	err = database.QueryRow(
+		"SELECT id FROM attempts WHERE assignment_id = $1",
+		assignmentID,
+	).Scan(&existingAttemptID)
+	if err == nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "assignment already submitted",
+		})
+		return
+	}
+
 	//  Start transaction
 	tx, err := database.Begin()
 	if err != nil {
@@ -307,6 +320,12 @@ func SubmitAnswers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 		return
 	}
+
+	//  Mark assignment as submitted
+	database.Exec(
+		"UPDATE assignments SET status = 'submitted' WHERE id = $1",
+		assignmentID,
+	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       attemptID,
