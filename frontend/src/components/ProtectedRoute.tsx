@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { isTokenExpired } from "@/lib/token";
 
 type Role = "admin" | "coach" | "student";
 
@@ -16,20 +17,46 @@ function detectRole(pathname: string): Role | null {
   return null;
 }
 
+function clearExpiredToken(role: Role) {
+  if (role === "student") {
+    localStorage.removeItem("student_token");
+    localStorage.removeItem("student_code");
+  } else {
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_role");
+  }
+}
+
 function isAuthenticated(role: Role): boolean {
   switch (role) {
     case "admin": {
       const token = localStorage.getItem("admin_token");
       const roleValue = localStorage.getItem("admin_role");
-      return !!token && roleValue === "admin";
+      if (!token || roleValue !== "admin") return false;
+      if (isTokenExpired(token)) {
+        clearExpiredToken(role);
+        return false;
+      }
+      return true;
     }
     case "coach": {
       const token = localStorage.getItem("admin_token");
       const roleValue = localStorage.getItem("admin_role");
-      return !!token && roleValue === "coach";
+      if (!token || roleValue !== "coach") return false;
+      if (isTokenExpired(token)) {
+        clearExpiredToken(role);
+        return false;
+      }
+      return true;
     }
     case "student": {
-      return !!localStorage.getItem("student_token");
+      const token = localStorage.getItem("student_token");
+      if (!token) return false;
+      if (isTokenExpired(token)) {
+        clearExpiredToken(role);
+        return false;
+      }
+      return true;
     }
     default:
       return false;
