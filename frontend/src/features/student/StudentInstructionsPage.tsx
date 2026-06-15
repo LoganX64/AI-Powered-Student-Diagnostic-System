@@ -69,7 +69,8 @@ export function StudentInstructionsPage() {
 
   const handleAccept = () => {
     // Mark exam as started so the quiz page picks up a running timer
-    sessionStorage.setItem("exam_started", "true");
+    localStorage.setItem("exam_started", "true");
+    localStorage.setItem("exam_started_at", String(Date.now()));
     navigate("/quiz");
   };
 
