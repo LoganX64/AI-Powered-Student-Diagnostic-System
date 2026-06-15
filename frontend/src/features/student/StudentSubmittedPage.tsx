@@ -8,9 +8,11 @@ const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 function clearStudentSession() {
   localStorage.removeItem("student_token");
   localStorage.removeItem("student_code");
-  sessionStorage.removeItem("exam_timer");
-  sessionStorage.removeItem("exam_started");
-  sessionStorage.removeItem("quiz_answers");
+  localStorage.removeItem("exam_started");
+  localStorage.removeItem("exam_started_at");
+  localStorage.removeItem("exam_timer");
+  localStorage.removeItem("quiz_answers");
+  localStorage.removeItem("current_question_index");
 }
 
 export function StudentSubmittedPage() {
