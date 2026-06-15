@@ -6,6 +6,9 @@ backend/TEST_PAYLOADS.md
 # environment variables
 .env
 
+# Go compiled binaries
+*.exe
+
 # Logs
 logs
 *.log
