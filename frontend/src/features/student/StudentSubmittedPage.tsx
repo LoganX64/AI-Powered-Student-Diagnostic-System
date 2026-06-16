@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, RefreshCw } from "lucide-react";
 import { Button } from "../../components/ui/button";
+import { submitAnswers } from "../../services/student.service";
+import type { AnswerPayload } from "../../services/student.service";
 
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
@@ -12,12 +14,34 @@ function clearStudentSession() {
   localStorage.removeItem("exam_started_at");
   localStorage.removeItem("exam_timer");
   localStorage.removeItem("quiz_answers");
+  localStorage.removeItem("quiz_answer_details");
   localStorage.removeItem("current_question_index");
+  localStorage.removeItem("pending_submission");
+}
+
+type PendingSubmission = {
+  assignment_id: number;
+  answers: AnswerPayload[];
+  queued_at: number;
+};
+
+function loadPendingSubmission(): PendingSubmission | null {
+  try {
+    const raw = localStorage.getItem("pending_submission");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function StudentSubmittedPage() {
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(REDIRECT_AFTER_SECONDS);
+  const [retrying, setRetrying] = useState(false);
+  const [retrySuccess, setRetrySuccess] = useState(false);
+  const [pending, setPending] = useState<PendingSubmission | null>(
+    loadPendingSubmission,
+  );
 
   useEffect(() => {
     if (countdown <= 0) {
@@ -46,6 +70,22 @@ export function StudentSubmittedPage() {
     navigate("/", { replace: true });
   };
 
+  const handleRetry = async () => {
+    if (!pending || retrying) return;
+    setRetrying(true);
+
+    try {
+      await submitAnswers(pending.assignment_id, pending.answers);
+      localStorage.removeItem("pending_submission");
+      setPending(null);
+      setRetrySuccess(true);
+    } catch {
+      // Still failed — user can try again
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   const minutes = Math.floor(countdown / 60);
   const seconds = countdown % 60;
 
@@ -68,6 +108,34 @@ export function StudentSubmittedPage() {
           Thank you for completing the assessment. Your answers have been
           recorded successfully.
         </p>
+
+        {/* Pending submission retry */}
+        {pending && !retrySuccess && (
+          <div className="mt-6 rounded-xl border border-yellow-300 bg-yellow-50 px-6 py-4 dark:bg-yellow-900/20 dark:border-yellow-700">
+            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+              Your submission is pending (saved offline). Click below to retry.
+            </p>
+            <Button
+              onClick={handleRetry}
+              disabled={retrying}
+              className="mt-3 gap-2"
+              variant="outline"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${retrying ? "animate-spin" : ""}`}
+              />
+              {retrying ? "Retrying..." : "Retry Submission"}
+            </Button>
+          </div>
+        )}
+
+        {retrySuccess && (
+          <div className="mt-6 rounded-xl border border-green-300 bg-green-50 px-6 py-4 dark:bg-green-900/20 dark:border-green-700">
+            <p className="text-sm text-green-800 dark:text-green-300">
+              Submission successful!
+            </p>
+          </div>
+        )}
 
         {/* Countdown */}
         <div className="mt-8 rounded-xl border border-border bg-muted/40 px-6 py-4">

@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../lib/utils";
 import { useExamTimer } from "../../hooks/useExamTimer";
+import { useAnswerTracker } from "../../hooks/useAnswerTracker";
+import { submitAnswers } from "../../services/student.service";
+import { Flag } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,7 +17,6 @@ type Option = "A" | "B" | "C" | "D";
 type Question = {
   id: number;
   text: string;
-  /** Optional URL to a diagram/image for the question */
   imageUrl?: string;
   options: Record<Option, string>;
 };
@@ -56,25 +58,14 @@ const SAMPLE_QUESTIONS: Question[] = [
   },
 ];
 
-// Exam duration - reuse same key so the timer is continuous from instructions
 const EXAM_DURATION_SECONDS = 60 * 60;
 
-// ---------------------------------------------------------------------------
-// Helpers — localStorage persistence
-// ---------------------------------------------------------------------------
+// Hardcoded assignment ID (replace with real assignment flow later)
+const MOCK_ASSIGNMENT_ID = 1;
 
-function loadAnswers(): Record<number, Option> {
-  try {
-    const raw = localStorage.getItem("quiz_answers");
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveAnswers(answers: Record<number, Option>) {
-  localStorage.setItem("quiz_answers", JSON.stringify(answers));
-}
+// ---------------------------------------------------------------------------
+// Helpers — localStorage persistence (for current index only)
+// ---------------------------------------------------------------------------
 
 function loadCurrentIndex(): number {
   const raw = localStorage.getItem("current_question_index");
@@ -91,10 +82,12 @@ function saveCurrentIndex(index: number) {
 
 function clearExamStorage() {
   localStorage.removeItem("quiz_answers");
+  localStorage.removeItem("quiz_answer_details");
   localStorage.removeItem("current_question_index");
   localStorage.removeItem("exam_started");
   localStorage.removeItem("exam_started_at");
   localStorage.removeItem("exam_timer");
+  localStorage.removeItem("pending_submission");
 }
 
 // ---------------------------------------------------------------------------
@@ -111,22 +104,83 @@ export function StudentQuizPage() {
 
   const [questions] = useState<Question[]>(SAMPLE_QUESTIONS);
   const [currentIndex, setCurrentIndex] = useState<number>(loadCurrentIndex);
-  const [answers, setAnswers] = useState<Record<number, Option>>(loadAnswers);
+  const [submitting, setSubmitting] = useState(false);
+
+  const questionIds = useMemo(() => questions.map((q) => q.id), [questions]);
+
+  const {
+    records,
+    markSeen,
+    selectAnswer,
+    toggleMarkForReview,
+    startTracking,
+    stopTracking,
+    getPayload,
+    answeredCount,
+    markedForReviewIds,
+  } = useAnswerTracker(questionIds);
 
   const currentQuestion = questions[currentIndex];
+  const currentRecord = records[currentQuestion.id];
 
-  const handleSubmit = () => {
-    saveAnswers(answers);
-    clearExamStorage();
-    navigate("/submitted", { replace: true });
+  // Track question changes — mark seen + start/stop timer
+  useEffect(() => {
+    const qId = currentQuestion.id;
+    markSeen(qId);
+    startTracking(qId);
+
+    return () => {
+      stopTracking();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopTracking();
+    };
+  }, [stopTracking]);
+
+  // ---------------------------------------------------------------------------
+  // Submit handler
+  // ---------------------------------------------------------------------------
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    stopTracking();
+
+    const payload = getPayload(questionIds);
+
+    try {
+      await submitAnswers(MOCK_ASSIGNMENT_ID, payload);
+      clearExamStorage();
+      navigate("/submitted", { replace: true });
+    } catch {
+      // Queue for retry — store in localStorage
+      localStorage.setItem(
+        "pending_submission",
+        JSON.stringify({
+          assignment_id: MOCK_ASSIGNMENT_ID,
+          answers: payload,
+          queued_at: Date.now(),
+        }),
+      );
+      clearExamStorage();
+      navigate("/submitted", { replace: true });
+    }
   };
 
-  // Timer — reads exam_started_at from localStorage for accurate resume
+  // ---------------------------------------------------------------------------
+  // Timer
+  // ---------------------------------------------------------------------------
+
   const examStarted = localStorage.getItem("exam_started") === "true";
   const examStartedAtRaw = localStorage.getItem("exam_started_at");
   const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
 
-  const timeLeft = useExamTimer(
+  useExamTimer(
     EXAM_DURATION_SECONDS,
     "exam_timer",
     () => {
@@ -136,12 +190,12 @@ export function StudentQuizPage() {
     examStartedAt,
   );
 
+  // ---------------------------------------------------------------------------
+  // Navigation handlers
+  // ---------------------------------------------------------------------------
+
   const handleSelect = (option: Option) => {
-    setAnswers((prev) => {
-      const next = { ...prev, [currentQuestion.id]: option };
-      saveAnswers(next);
-      return next;
-    });
+    selectAnswer(currentQuestion.id, option);
   };
 
   const handleNext = () => {
@@ -157,13 +211,25 @@ export function StudentQuizPage() {
     saveCurrentIndex(index);
   };
 
+  const handleMarkForReview = () => {
+    toggleMarkForReview(currentQuestion.id);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
+
   const isLast = currentIndex === questions.length - 1;
-  const answeredCount = Object.values(answers).filter(Boolean).length;
+  const isMarked = currentRecord?.marked_for_review ?? false;
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
       {/* Header */}
-      <ExamHeader candidateName={studentCode} timeLeft={timeLeft} />
+      <ExamHeader candidateName={studentCode} timeLeft={0} />
 
       {/* Body */}
       <div className="mt-6 flex flex-1 gap-4">
@@ -179,7 +245,7 @@ export function StudentQuizPage() {
             </p>
           </div>
 
-          {/* Diagram area (shown only when imageUrl exists) */}
+          {/* Diagram area */}
           {currentQuestion.imageUrl && (
             <div className="border-b border-border px-7 py-4">
               <div className="flex min-h-45 items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
@@ -196,7 +262,7 @@ export function StudentQuizPage() {
           <div className="flex-1 px-7 py-5">
             <div className="space-y-3">
               {(["A", "B", "C", "D"] as Option[]).map((opt) => {
-                const isSelected = answers[currentQuestion.id] === opt;
+                const isSelected = currentRecord?.selected_answer === opt;
                 return (
                   <label
                     key={opt}
@@ -225,6 +291,36 @@ export function StudentQuizPage() {
               })}
             </div>
           </div>
+
+          {/* Mark for Review + Navigation */}
+          <div className="border-t border-border px-7 py-4 flex items-center justify-between">
+            <Button
+              onClick={handleMarkForReview}
+              variant={isMarked ? "default" : "outline"}
+              className={cn(
+                "gap-2",
+                isMarked &&
+                  "bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500",
+              )}
+            >
+              <Flag className="h-4 w-4" />
+              {isMarked ? "Unmark Review" : "Mark for Review"}
+            </Button>
+
+            {isLast ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={submitting}
+                variant="default"
+              >
+                {submitting ? "Submitting..." : "Submit"}
+              </Button>
+            ) : (
+              <Button onClick={handleNext} variant="default">
+                Next
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* ---- Right sidebar ---- */}
@@ -236,8 +332,11 @@ export function StudentQuizPage() {
             </p>
             <div className="grid grid-cols-3 gap-2">
               {questions.map((q, index) => {
-                const answered = !!answers[q.id];
+                const record = records[q.id];
+                const answered = (record?.selected_answer ?? "") !== "";
+                const marked = record?.marked_for_review ?? false;
                 const isCurrent = index === currentIndex;
+
                 return (
                   <button
                     key={q.id}
@@ -247,9 +346,11 @@ export function StudentQuizPage() {
                       "flex h-9 w-9 items-center justify-center rounded-lg text-xs font-semibold transition-colors",
                       isCurrent
                         ? "bg-primary text-primary-foreground"
-                        : answered
-                          ? "bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border",
+                        : marked
+                          ? "bg-yellow-100 text-yellow-700 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                          : answered
+                            ? "bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border",
                     )}
                   >
                     {index + 1}
@@ -265,6 +366,10 @@ export function StudentQuizPage() {
                 Current
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="h-3 w-3 rounded bg-yellow-200 border border-yellow-300" />
+                Marked for Review
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="h-3 w-3 rounded bg-green-200 border border-green-300" />
                 Answered
               </div>
@@ -278,22 +383,10 @@ export function StudentQuizPage() {
             <p className="mt-4 text-xs text-muted-foreground">
               {answeredCount}/{questions.length} answered
             </p>
-          </div>
-
-          {/* Next / Submit button */}
-          <div className="border-t border-border p-4">
-            {isLast ? (
-              <Button
-                onClick={handleSubmit}
-                className="w-full"
-                variant="default"
-              >
-                Submit
-              </Button>
-            ) : (
-              <Button onClick={handleNext} className="w-full" variant="default">
-                Next
-              </Button>
+            {markedForReviewIds.length > 0 && (
+              <p className="mt-1 text-xs text-yellow-600">
+                {markedForReviewIds.length} marked for review
+              </p>
             )}
           </div>
         </div>
