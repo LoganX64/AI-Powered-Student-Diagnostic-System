@@ -1,3 +1,4 @@
+import { BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ExamHeaderProps = {
@@ -27,6 +28,11 @@ export function ExamHeader({ candidateName, timeLeft, className }: ExamHeaderPro
         className,
       )}
     >
+      <div className="flex items-center gap-3">
+        <BarChart3 className="h-5 w-5 text-primary" />
+        <span className="text-sm font-bold text-foreground">EduQuant</span>
+      </div>
+
       <span className="text-sm text-muted-foreground">
         Candidate name:{" "}
         <span className="font-semibold text-foreground">{candidateName}</span>
