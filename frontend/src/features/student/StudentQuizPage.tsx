@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import { cn } from "../../lib/utils";
 import { useExamTimer } from "../../hooks/useExamTimer";
 import { useAnswerTracker } from "../../hooks/useAnswerTracker";
@@ -105,6 +115,8 @@ export function StudentQuizPage() {
   const [questions] = useState<Question[]>(SAMPLE_QUESTIONS);
   const [currentIndex, setCurrentIndex] = useState<number>(loadCurrentIndex);
   const [submitting, setSubmitting] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const isAutoSubmitRef = useRef(false);
 
   const questionIds = useMemo(() => questions.map((q) => q.id), [questions]);
 
@@ -146,7 +158,7 @@ export function StudentQuizPage() {
   // Submit handler
   // ---------------------------------------------------------------------------
 
-  const handleSubmit = async () => {
+  const performSubmit = useCallback(async () => {
     if (submitting) return;
     setSubmitting(true);
     stopTracking();
@@ -170,6 +182,18 @@ export function StudentQuizPage() {
       clearExamStorage();
       navigate("/submitted", { replace: true });
     }
+  }, [submitting, stopTracking, getPayload, questionIds, navigate]);
+
+  /** Called when user manually clicks Submit button — shows confirm dialog if time remains */
+  const handleManualSubmit = () => {
+    isAutoSubmitRef.current = false;
+    setShowConfirmDialog(true);
+  };
+
+  /** Called by timer on expiry — submits directly without dialog */
+  const handleAutoSubmit = () => {
+    isAutoSubmitRef.current = true;
+    performSubmit();
   };
 
   // ---------------------------------------------------------------------------
@@ -180,15 +204,17 @@ export function StudentQuizPage() {
   const examStartedAtRaw = localStorage.getItem("exam_started_at");
   const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
 
-  useExamTimer(
+  const timerTimeLeft = useExamTimer(
     EXAM_DURATION_SECONDS,
     "exam_timer",
     () => {
-      handleSubmit();
+      handleAutoSubmit();
     },
     examStarted,
     examStartedAt,
   );
+
+  const timeLeft = timerTimeLeft;
 
   // ---------------------------------------------------------------------------
   // Navigation handlers
@@ -229,7 +255,7 @@ export function StudentQuizPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
       {/* Header */}
-      <ExamHeader candidateName={studentCode} timeLeft={0} />
+      <ExamHeader candidateName={studentCode} timeLeft={timeLeft} />
 
       {/* Body */}
       <div className="mt-6 flex flex-1 gap-4">
@@ -309,7 +335,7 @@ export function StudentQuizPage() {
 
             {isLast ? (
               <Button
-                onClick={handleSubmit}
+                onClick={handleManualSubmit}
                 disabled={submitting}
                 variant="default"
               >
@@ -391,6 +417,47 @@ export function StudentQuizPage() {
           </div>
         </div>
       </div>
+
+      {/* Submit confirmation dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit Exam?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                You have{" "}
+                <span className="font-semibold text-foreground">
+                  {Math.floor(timeLeft / 60)}m {timeLeft % 60}s
+                </span>{" "}
+                remaining. Are you sure you want to submit your exam?
+              </p>
+              <p>Once submitted, you will not be able to:</p>
+              <ul className="list-disc pl-5 text-muted-foreground">
+                <li>Change any answers</li>
+                <li>Review marked questions</li>
+                <li>Return to the exam</li>
+              </ul>
+              <p className="font-medium text-foreground">
+                {answeredCount} of {questions.length} questions answered.
+              </p>
+              {markedForReviewIds.length > 0 && (
+                <p className="text-yellow-600">
+                  {markedForReviewIds.length} question(s) marked for review.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue Exam</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={performSubmit}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Submit Exam
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
