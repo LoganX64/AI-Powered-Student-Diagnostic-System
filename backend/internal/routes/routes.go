@@ -46,6 +46,8 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		protected.Use(middleware.AuthMiddleware(db))
 		{
 			protected.POST("/submit/:id", handlers.SubmitAnswers)
+			protected.GET("/assignments", handlers.ListStudentAssignments)
+			protected.GET("/assignments/:id/questions", handlers.GetAssignmentQuestions)
 		}
 	}
 

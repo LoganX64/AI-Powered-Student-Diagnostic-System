@@ -4,6 +4,7 @@ import (
 	db "ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -333,6 +334,183 @@ func SubmitAnswers(c *gin.Context) {
 		"total_time_spent": helperRoundForResponse(totalTimeSpent),
 		"test_duration":    duration,
 		"analysis":         analysis,
+	})
+}
+
+// list student assignments
+func ListStudentAssignments(c *gin.Context) {
+	studentIDRaw, exists := c.Get("student_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	studentID, ok := studentIDRaw.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+		return
+	}
+
+	database := db.GetDB()
+
+	rows, err := database.Query(`
+		SELECT a.id, a.test_id, t.title, a.status, a.assigned_at
+		FROM assignments a
+		JOIN tests t ON a.test_id = t.id
+		WHERE a.student_id = $1
+		ORDER BY a.assigned_at DESC
+	`, studentID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch assignments"})
+		return
+	}
+	defer rows.Close()
+
+	type AssignmentItem struct {
+		ID          int    `json:"id"`
+		TestID      int    `json:"test_id"`
+		TestTitle   string `json:"test_title"`
+		Status      string `json:"status"`
+		AssignedAt  string `json:"assigned_at"`
+	}
+
+	var assignments []AssignmentItem
+	for rows.Next() {
+		var a AssignmentItem
+		if err := rows.Scan(&a.ID, &a.TestID, &a.TestTitle, &a.Status, &a.AssignedAt); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan assignment"})
+			return
+		}
+		assignments = append(assignments, a)
+	}
+
+	if assignments == nil {
+		assignments = []AssignmentItem{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"total": len(assignments),
+		"data":  assignments,
+	})
+}
+
+// get assignment questions (student-facing, excludes correct_answer)
+func GetAssignmentQuestions(c *gin.Context) {
+	assignmentIDParam := c.Param("id")
+	assignmentID, err := strconv.Atoi(assignmentIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment_id"})
+		return
+	}
+
+	studentIDRaw, exists := c.Get("student_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	studentID, ok := studentIDRaw.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+		return
+	}
+
+	database := db.GetDB()
+
+	// Verify assignment belongs to student and get test info
+	var ownerID int
+	var testID int
+	var testTitle string
+	var duration int
+	var examDate sql.NullTime
+
+	err = database.QueryRow(`
+		SELECT ass.student_id, ass.test_id, t.title, COALESCE(t.duration, 0), t.exam_date
+		FROM assignments ass
+		JOIN tests t ON ass.test_id = t.id
+		WHERE ass.id = $1
+	`, assignmentID).Scan(&ownerID, &testID, &testTitle, &duration, &examDate)
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+
+	if ownerID != studentID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "assignment does not belong to student"})
+		return
+	}
+
+	// Check if already submitted
+	var existingAttemptID int
+	err = database.QueryRow(
+		"SELECT id FROM attempts WHERE assignment_id = $1",
+		assignmentID,
+	).Scan(&existingAttemptID)
+	if err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
+		return
+	}
+
+	// Fetch questions (exclude correct_answer)
+	rows, err := database.Query(`
+		SELECT id, question_text, option_a, option_b, option_c, option_d,
+		       marks, neg_marks, difficulty, type, expected_time, concept_tag
+		FROM questions
+		WHERE test_id = $1
+		ORDER BY id ASC
+	`, testID)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
+		return
+	}
+	defer rows.Close()
+
+	type QuestionResponse struct {
+		ID            int     `json:"id"`
+		QuestionText  string  `json:"question_text"`
+		OptionA       string  `json:"option_a"`
+		OptionB       string  `json:"option_b"`
+		OptionC       string  `json:"option_c"`
+		OptionD       string  `json:"option_d"`
+		Marks         float64 `json:"marks"`
+		NegMarks      float64 `json:"neg_marks"`
+		Difficulty    string  `json:"difficulty"`
+		Type          string  `json:"type"`
+		ExpectedTime  float64 `json:"expected_time"`
+		ConceptTag    string  `json:"concept_tag"`
+	}
+
+	var questions []QuestionResponse
+	for rows.Next() {
+		var q QuestionResponse
+		if err := rows.Scan(
+			&q.ID, &q.QuestionText, &q.OptionA, &q.OptionB, &q.OptionC, &q.OptionD,
+			&q.Marks, &q.NegMarks, &q.Difficulty, &q.Type, &q.ExpectedTime, &q.ConceptTag,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan question"})
+			return
+		}
+		questions = append(questions, q)
+	}
+
+	if questions == nil {
+		questions = []QuestionResponse{}
+	}
+
+	examDateStr := ""
+	if examDate.Valid {
+		examDateStr = examDate.Time.Format("2006-01-02")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"assignment_id": assignmentID,
+		"test_title":    testTitle,
+		"duration":      duration,
+		"exam_date":     examDateStr,
+		"questions":     questions,
 	})
 }
 
