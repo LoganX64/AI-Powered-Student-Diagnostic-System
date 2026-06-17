@@ -12,6 +12,37 @@ export type StudentLoginResponse = {
   access_token: string;
 };
 
+export type Assignment = {
+  id: number;
+  test_id: number;
+  test_title: string;
+  status: string;
+  assigned_at: string;
+};
+
+export type QuestionFromAPI = {
+  id: number;
+  question_text: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  marks: number;
+  neg_marks: number;
+  difficulty: string;
+  type: string;
+  expected_time: number;
+  concept_tag: string;
+};
+
+export type AssignmentQuestionsResponse = {
+  assignment_id: number;
+  test_title: string;
+  duration: number;
+  exam_date: string;
+  questions: QuestionFromAPI[];
+};
+
 export type AnswerPayload = {
   question_id: number;
   seen: boolean;
@@ -32,6 +63,15 @@ export type SubmitResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem("student_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// ---------------------------------------------------------------------------
 // API calls
 // ---------------------------------------------------------------------------
 
@@ -40,9 +80,7 @@ export async function loginStudent(
 ): Promise<StudentLoginResponse> {
   const response = await fetch(`${BASE_URL}/student/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 
@@ -62,18 +100,63 @@ export async function loginStudent(
   return payload as StudentLoginResponse;
 }
 
+export async function getStudentAssignments(): Promise<Assignment[]> {
+  const response = await fetch(`${BASE_URL}/student/assignments`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+  });
+
+  type ErrorResponse = { error: string };
+  type SuccessResponse = { total: number; data: Assignment[] };
+  const payload = (await response
+    .json()
+    .catch(() => ({ error: "Invalid response" }))) as
+    | SuccessResponse
+    | ErrorResponse;
+
+  if (!response.ok) {
+    const errorMessage =
+      "error" in payload ? payload.error : "Failed to fetch assignments";
+    throw new Error(errorMessage);
+  }
+
+  return (payload as SuccessResponse).data ?? [];
+}
+
+export async function getAssignmentQuestions(
+  assignmentId: number,
+): Promise<AssignmentQuestionsResponse> {
+  const response = await fetch(
+    `${BASE_URL}/student/assignments/${assignmentId}/questions`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+    },
+  );
+
+  type ErrorResponse = { error: string };
+  const payload = (await response
+    .json()
+    .catch(() => ({ error: "Invalid response" }))) as
+    | AssignmentQuestionsResponse
+    | ErrorResponse;
+
+  if (!response.ok) {
+    const errorMessage =
+      "error" in payload ? payload.error : "Failed to fetch questions";
+    throw new Error(errorMessage);
+  }
+
+  return payload as AssignmentQuestionsResponse;
+}
+
 export async function submitAnswers(
   assignmentId: number,
   answers: AnswerPayload[],
 ): Promise<SubmitResponse> {
-  const token = localStorage.getItem("student_token");
-
   const response = await fetch(`${BASE_URL}/student/submit/${assignmentId}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ answers }),
   });
 

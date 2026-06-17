@@ -10,9 +10,11 @@ const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 function clearStudentSession() {
   localStorage.removeItem("student_token");
   localStorage.removeItem("student_code");
+  localStorage.removeItem("assignment_id");
   localStorage.removeItem("exam_started");
   localStorage.removeItem("exam_started_at");
   localStorage.removeItem("exam_timer");
+  localStorage.removeItem("exam_duration");
   localStorage.removeItem("quiz_answers");
   localStorage.removeItem("quiz_answer_details");
   localStorage.removeItem("current_question_index");
@@ -46,7 +48,7 @@ export function StudentSubmittedPage() {
   useEffect(() => {
     if (countdown <= 0) {
       clearStudentSession();
-      navigate("/", { replace: true });
+      navigate("/dashboard", { replace: true });
       return;
     }
 
@@ -55,7 +57,7 @@ export function StudentSubmittedPage() {
         if (prev <= 1) {
           clearInterval(id);
           clearStudentSession();
-          navigate("/", { replace: true });
+          navigate("/dashboard", { replace: true });
           return 0;
         }
         return prev - 1;
@@ -67,7 +69,7 @@ export function StudentSubmittedPage() {
 
   const handleRedirectNow = () => {
     clearStudentSession();
-    navigate("/", { replace: true });
+    navigate("/dashboard", { replace: true });
   };
 
   const handleRetry = async () => {

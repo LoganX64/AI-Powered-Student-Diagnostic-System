@@ -3,6 +3,7 @@ import { ProtectedRoute } from "../src/components/ProtectedRoute.tsx";
 import { LandingPage } from "../src/features/landing/LandingPage.tsx";
 import { AboutPage } from "../src/features/landing/AboutPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
+import { StudentDashboardPage } from "../src/features/student/StudentDashboardPage.tsx";
 import { StudentInstructionsPage } from "../src/features/student/StudentInstructionsPage.tsx";
 import { StudentQuizPage } from "../src/features/student/StudentQuizPage.tsx";
 import { StudentSubmittedPage } from "../src/features/student/StudentSubmittedPage.tsx";
@@ -77,6 +78,7 @@ const router = createBrowserRouter([
       { path: "coach/notifications", Component: NotificationsPage },
 
       // Student flow
+      { path: "dashboard", Component: StudentDashboardPage },
       { path: "instructions", Component: StudentInstructionsPage },
       { path: "quiz", Component: StudentQuizPage },
       { path: "submitted", Component: StudentSubmittedPage },

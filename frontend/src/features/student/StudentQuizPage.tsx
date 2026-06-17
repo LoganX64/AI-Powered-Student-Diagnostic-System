@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
@@ -15,8 +15,9 @@ import {
 import { cn } from "../../lib/utils";
 import { useExamTimer } from "../../hooks/useExamTimer";
 import { useAnswerTracker } from "../../hooks/useAnswerTracker";
-import { submitAnswers } from "../../services/student.service";
-import { Flag } from "lucide-react";
+import { getAssignmentQuestions, submitAnswers } from "../../services/student.service";
+import type { AssignmentQuestionsResponse } from "../../services/student.service";
+import { AlertTriangle, ArrowLeft, Flag, RefreshCw } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,48 +31,6 @@ type Question = {
   imageUrl?: string;
   options: Record<Option, string>;
 };
-
-// ---------------------------------------------------------------------------
-// Sample data  (replace with real API fetch)
-// ---------------------------------------------------------------------------
-
-const SAMPLE_QUESTIONS: Question[] = [
-  {
-    id: 1,
-    text: "Which of the following is the capital of France?",
-    options: { A: "Berlin", B: "Madrid", C: "Paris", D: "Rome" },
-  },
-  {
-    id: 2,
-    text: "Which number is even?",
-    options: { A: "7", B: "11", C: "12", D: "9" },
-  },
-  {
-    id: 3,
-    text: "What is 5 + 3?",
-    options: { A: "7", B: "8", C: "10", D: "9" },
-  },
-  {
-    id: 4,
-    text: "Which planet is closest to the Sun?",
-    options: { A: "Venus", B: "Earth", C: "Mars", D: "Mercury" },
-  },
-  {
-    id: 5,
-    text: "What is the square root of 144?",
-    options: { A: "10", B: "11", C: "12", D: "13" },
-  },
-  {
-    id: 6,
-    text: "H₂O is the chemical formula for?",
-    options: { A: "Oxygen", B: "Hydrogen", C: "Water", D: "Hydrogen peroxide" },
-  },
-];
-
-const EXAM_DURATION_SECONDS = 60 * 60;
-
-// Hardcoded assignment ID (replace with real assignment flow later)
-const MOCK_ASSIGNMENT_ID = 1;
 
 // ---------------------------------------------------------------------------
 // Helpers — localStorage persistence (for current index only)
@@ -112,11 +71,58 @@ export function StudentQuizPage() {
     [],
   );
 
-  const [questions] = useState<Question[]>(SAMPLE_QUESTIONS);
+  const assignmentId = Number(localStorage.getItem("assignment_id") || "0");
+
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [currentIndex, setCurrentIndex] = useState<number>(loadCurrentIndex);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const isAutoSubmitRef = useRef(false);
+
+  // Fetch questions from API
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!assignmentId) {
+        if (!cancelled) {
+          setError("No assignment selected.");
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      try {
+        const data: AssignmentQuestionsResponse = await getAssignmentQuestions(assignmentId);
+        if (!cancelled) {
+          const mapped: Question[] = data.questions.map((q) => ({
+            id: q.id,
+            text: q.question_text,
+            options: {
+              A: q.option_a,
+              B: q.option_b,
+              C: q.option_c,
+              D: q.option_d,
+            },
+          }));
+          setQuestions(mapped);
+          localStorage.setItem("exam_duration", String(data.duration));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "Failed to load questions";
+          setError(msg);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [assignmentId, refreshKey]);
 
   const questionIds = useMemo(() => questions.map((q) => q.id), [questions]);
 
@@ -133,10 +139,11 @@ export function StudentQuizPage() {
   } = useAnswerTracker(questionIds);
 
   const currentQuestion = questions[currentIndex];
-  const currentRecord = records[currentQuestion.id];
+  const currentRecord = currentQuestion ? records[currentQuestion.id] : undefined;
 
   // Track question changes — mark seen + start/stop timer
   useEffect(() => {
+    if (!currentQuestion) return;
     const qId = currentQuestion.id;
     markSeen(qId);
     startTracking(qId);
@@ -145,7 +152,7 @@ export function StudentQuizPage() {
       stopTracking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
+  }, [currentIndex, currentQuestion]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -166,7 +173,7 @@ export function StudentQuizPage() {
     const payload = getPayload(questionIds);
 
     try {
-      await submitAnswers(MOCK_ASSIGNMENT_ID, payload);
+      await submitAnswers(assignmentId, payload);
       clearExamStorage();
       navigate("/submitted", { replace: true });
     } catch {
@@ -174,7 +181,7 @@ export function StudentQuizPage() {
       localStorage.setItem(
         "pending_submission",
         JSON.stringify({
-          assignment_id: MOCK_ASSIGNMENT_ID,
+          assignment_id: assignmentId,
           answers: payload,
           queued_at: Date.now(),
         }),
@@ -182,15 +189,13 @@ export function StudentQuizPage() {
       clearExamStorage();
       navigate("/submitted", { replace: true });
     }
-  }, [submitting, stopTracking, getPayload, questionIds, navigate]);
+  }, [submitting, stopTracking, getPayload, questionIds, navigate, assignmentId]);
 
-  /** Called when user manually clicks Submit button — shows confirm dialog if time remains */
   const handleManualSubmit = () => {
     isAutoSubmitRef.current = false;
     setShowConfirmDialog(true);
   };
 
-  /** Called by timer on expiry — submits directly without dialog */
   const handleAutoSubmit = () => {
     isAutoSubmitRef.current = true;
     performSubmit();
@@ -203,9 +208,10 @@ export function StudentQuizPage() {
   const examStarted = localStorage.getItem("exam_started") === "true";
   const examStartedAtRaw = localStorage.getItem("exam_started_at");
   const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
+  const examDuration = Number(localStorage.getItem("exam_duration") || "3600");
 
   const timerTimeLeft = useExamTimer(
-    EXAM_DURATION_SECONDS,
+    examDuration,
     "exam_timer",
     () => {
       handleAutoSubmit();
@@ -221,11 +227,11 @@ export function StudentQuizPage() {
   // ---------------------------------------------------------------------------
 
   const handleSelect = (option: Option) => {
-    selectAnswer(currentQuestion.id, option);
+    if (currentQuestion) selectAnswer(currentQuestion.id, option);
   };
 
   const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
+    if (currentQuestion && currentIndex < questions.length - 1) {
       const next = currentIndex + 1;
       setCurrentIndex(next);
       saveCurrentIndex(next);
@@ -238,18 +244,75 @@ export function StudentQuizPage() {
   };
 
   const handleMarkForReview = () => {
-    toggleMarkForReview(currentQuestion.id);
+    if (currentQuestion) toggleMarkForReview(currentQuestion.id);
   };
 
   // ---------------------------------------------------------------------------
   // Derived state
   // ---------------------------------------------------------------------------
 
-  const isLast = currentIndex === questions.length - 1;
+  const isLast = currentQuestion ? currentIndex === questions.length - 1 : false;
   const isMarked = currentRecord?.marked_for_review ?? false;
 
   // ---------------------------------------------------------------------------
-  // Render
+  // Render: Loading
+  // ---------------------------------------------------------------------------
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
+        <ExamHeader candidateName={studentCode} timeLeft={0} />
+        <div className="mt-6 flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="mt-4 text-sm text-muted-foreground">Loading questions...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Error
+  // ---------------------------------------------------------------------------
+
+  if (error || !currentQuestion) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
+        <ExamHeader candidateName={studentCode} timeLeft={0} />
+        <div className="mt-6 flex flex-1 items-center justify-center">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+              <AlertTriangle className="h-7 w-7 text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-base font-semibold text-foreground">
+              Unable to Load Questions
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {error || "No questions found for this exam."}
+            </p>
+            <div className="mt-6 flex justify-center gap-3">
+              <Button onClick={() => setRefreshKey((k) => k + 1)} variant="outline" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Try Again
+              </Button>
+              <Button
+                onClick={() => navigate("/dashboard", { replace: true })}
+                variant="outline"
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Quiz
   // ---------------------------------------------------------------------------
 
   return (

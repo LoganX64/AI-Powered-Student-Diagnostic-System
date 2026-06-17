@@ -17,7 +17,7 @@ export function StudentLoginPage() {
 
       // Resume: if exam was already started, go straight to quiz
       const examInProgress = localStorage.getItem("exam_started") === "true";
-      navigate(examInProgress ? "/quiz" : "/instructions");
+      navigate(examInProgress ? "/quiz" : "/dashboard");
     } catch (error) {
       alert((error as Error).message || "Login failed");
     } finally {
