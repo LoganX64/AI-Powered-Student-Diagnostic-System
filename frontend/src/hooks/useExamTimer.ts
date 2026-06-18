@@ -44,6 +44,15 @@ export function useExamTimer(
     onExpireRef.current = onExpire;
   });
 
+  // Re-sync timer when initialSeconds changes before the exam starts (e.g. data
+  // loaded asynchronously on the instructions page).
+  useEffect(() => {
+    if (!started) {
+      setTimeLeft(getInitial());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSeconds, started]);
+
   useEffect(() => {
     if (!started) return; // don't tick until exam has started
 

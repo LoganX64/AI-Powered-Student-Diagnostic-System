@@ -87,6 +87,9 @@ export function StudentInstructionsPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Clear stale timer so useExamTimer always initializes with the correct duration
+  localStorage.removeItem("exam_timer");
+
   // Timer does NOT start until the student clicks Accept
   // Backend stores duration in minutes; convert to seconds for useExamTimer
   const durationSeconds = (data?.duration ?? 60) * 60;
@@ -100,6 +103,7 @@ export function StudentInstructionsPage() {
   );
 
   const handleAccept = () => {
+    localStorage.removeItem("exam_timer");
     localStorage.setItem("exam_started", "true");
     localStorage.setItem("exam_started_at", String(Date.now()));
     navigate("/quiz");
