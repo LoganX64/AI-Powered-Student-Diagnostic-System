@@ -488,26 +488,28 @@ export function StudentQuizPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Submit Exam?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>
+              <div>
                 You have{" "}
                 <span className="font-semibold text-foreground">
-                  {Math.floor(timeLeft / 60)}m {timeLeft % 60}s
+                  {timeLeft >= 3600
+                    ? `${Math.floor(timeLeft / 3600)}h ${Math.floor((timeLeft % 3600) / 60)}m`
+                    : `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s`}
                 </span>{" "}
                 remaining. Are you sure you want to submit your exam?
-              </p>
-              <p>Once submitted, you will not be able to:</p>
+              </div>
+              <div>Once submitted, you will not be able to:</div>
               <ul className="list-disc pl-5 text-muted-foreground">
                 <li>Change any answers</li>
                 <li>Review marked questions</li>
                 <li>Return to the exam</li>
               </ul>
-              <p className="font-medium text-foreground">
+              <div className="font-medium text-foreground">
                 {answeredCount} of {questions.length} questions answered.
-              </p>
+              </div>
               {markedForReviewIds.length > 0 && (
-                <p className="text-yellow-600">
+                <div className="text-yellow-600">
                   {markedForReviewIds.length} question(s) marked for review.
-                </p>
+                </div>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
