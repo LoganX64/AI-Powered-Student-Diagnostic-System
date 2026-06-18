@@ -48,7 +48,7 @@ export function StudentSubmittedPage() {
   useEffect(() => {
     if (countdown <= 0) {
       clearStudentSession();
-      navigate("/dashboard", { replace: true });
+      navigate("/", { replace: true });
       return;
     }
 
@@ -57,7 +57,7 @@ export function StudentSubmittedPage() {
         if (prev <= 1) {
           clearInterval(id);
           clearStudentSession();
-          navigate("/dashboard", { replace: true });
+          navigate("/", { replace: true });
           return 0;
         }
         return prev - 1;
@@ -69,7 +69,7 @@ export function StudentSubmittedPage() {
 
   const handleRedirectNow = () => {
     clearStudentSession();
-    navigate("/dashboard", { replace: true });
+    navigate("/", { replace: true });
   };
 
   const handleRetry = async () => {
@@ -142,7 +142,7 @@ export function StudentSubmittedPage() {
         {/* Countdown */}
         <div className="mt-8 rounded-xl border border-border bg-muted/40 px-6 py-4">
           <p className="text-xs text-muted-foreground">
-            You will be redirected to the login page in
+            You will be redirected to the home page in
           </p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-foreground">
             {String(minutes).padStart(2, "0")}:
