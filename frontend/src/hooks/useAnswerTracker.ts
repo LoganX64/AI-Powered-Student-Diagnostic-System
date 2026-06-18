@@ -234,7 +234,7 @@ export function useAnswerTracker(questionIds: number[]) {
           question_id: r.question_id,
           seen: r.seen,
           selected_answer: r.selected_answer,
-          time_spent: Math.round(r.time_spent * 100) / 100, // round to 2 decimals
+          time_spent: Math.round((r.time_spent / 60) * 100) / 100, // convert seconds → minutes, round to 2 decimals
           marked_for_review: r.marked_for_review,
           revisited: r.revisited,
           changed_answer: r.changed_answer,
