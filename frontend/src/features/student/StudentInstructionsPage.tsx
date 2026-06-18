@@ -88,9 +88,10 @@ export function StudentInstructionsPage() {
   }, []);
 
   // Timer does NOT start until the student clicks Accept
-  const duration = data?.duration ?? 3600;
+  // Backend stores duration in minutes; convert to seconds for useExamTimer
+  const durationSeconds = (data?.duration ?? 60) * 60;
   const timeLeft = useExamTimer(
-    duration,
+    durationSeconds,
     "exam_timer",
     () => {
       navigate("/submitted", { replace: true });
@@ -108,7 +109,7 @@ export function StudentInstructionsPage() {
     navigate("/dashboard", { replace: true });
   };
 
-  const examDurationHours = duration / 3600;
+  const examDurationHours = durationSeconds / 3600;
 
   // ---------------------------------------------------------------------------
   // Render: Loading

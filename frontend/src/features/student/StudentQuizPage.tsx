@@ -208,7 +208,8 @@ export function StudentQuizPage() {
   const examStarted = localStorage.getItem("exam_started") === "true";
   const examStartedAtRaw = localStorage.getItem("exam_started_at");
   const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
-  const examDuration = Number(localStorage.getItem("exam_duration") || "3600");
+  // Backend stores duration in minutes; convert to seconds for useExamTimer
+  const examDuration = Number(localStorage.getItem("exam_duration") || "60") * 60;
 
   const timerTimeLeft = useExamTimer(
     examDuration,
