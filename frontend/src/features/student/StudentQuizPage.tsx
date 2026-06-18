@@ -497,12 +497,12 @@ export function StudentQuizPage() {
                 </span>{" "}
                 remaining. Are you sure you want to submit your exam?
               </div>
-              <div>Once submitted, you will not be able to:</div>
-              <ul className="list-disc pl-5 text-muted-foreground">
-                <li>Change any answers</li>
-                <li>Review marked questions</li>
-                <li>Return to the exam</li>
-              </ul>
+              <div className="pl-5 text-muted-foreground space-y-1">
+                <div>Once submitted, you will not be able to:</div>
+                <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Change any answers</div>
+                <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Review marked questions</div>
+                <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Return to the exam</div>
+              </div>
               <div className="font-medium text-foreground">
                 {answeredCount} of {questions.length} questions answered.
               </div>
