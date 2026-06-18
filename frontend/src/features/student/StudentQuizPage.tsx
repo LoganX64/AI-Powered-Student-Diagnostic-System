@@ -487,30 +487,32 @@ export function StudentQuizPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Submit Exam?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
+            <AlertDialogDescription asChild className="text-sm text-muted-foreground space-y-2">
               <div>
-                You have{" "}
-                <span className="font-semibold text-foreground">
-                  {timeLeft >= 3600
-                    ? `${Math.floor(timeLeft / 3600)}h ${Math.floor((timeLeft % 3600) / 60)}m`
-                    : `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s`}
-                </span>{" "}
-                remaining. Are you sure you want to submit your exam?
-              </div>
-              <div className="pl-5 text-muted-foreground space-y-1">
-                <div>Once submitted, you will not be able to:</div>
-                <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Change any answers</div>
-                <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Review marked questions</div>
-                <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Return to the exam</div>
-              </div>
-              <div className="font-medium text-foreground">
-                {answeredCount} of {questions.length} questions answered.
-              </div>
-              {markedForReviewIds.length > 0 && (
-                <div className="text-yellow-600">
-                  {markedForReviewIds.length} question(s) marked for review.
+                <div>
+                  You have{" "}
+                  <span className="font-semibold text-foreground">
+                    {timeLeft >= 3600
+                      ? `${Math.floor(timeLeft / 3600)}h ${Math.floor((timeLeft % 3600) / 60)}m`
+                      : `${Math.floor(timeLeft / 60)}m ${timeLeft % 60}s`}
+                  </span>{" "}
+                  remaining. Are you sure you want to submit your exam?
                 </div>
-              )}
+                <div className="pl-5 text-muted-foreground space-y-1">
+                  <div>Once submitted, you will not be able to:</div>
+                  <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Change any answers</div>
+                  <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Review marked questions</div>
+                  <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Return to the exam</div>
+                </div>
+                <div className="font-medium text-foreground">
+                  {answeredCount} of {questions.length} questions answered.
+                </div>
+                {markedForReviewIds.length > 0 && (
+                  <div className="text-yellow-600">
+                    {markedForReviewIds.length} question(s) marked for review.
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
