@@ -29,33 +29,33 @@ function HeroIllustration() {
       xmlns="http://www.w3.org/2000/svg"
       className="w-full max-w-md"
     >
-      <rect x="40" y="40" width="320" height="240" rx="16" fill="hsl(var(--muted))" opacity="0.5" />
-      <rect x="56" y="56" width="288" height="208" rx="12" fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="1" />
-      <rect x="88" y="180" width="28" height="60" rx="4" fill="hsl(var(--primary))" opacity="0.8" />
-      <rect x="128" y="150" width="28" height="90" rx="4" fill="hsl(var(--primary))" opacity="0.6" />
-      <rect x="168" y="120" width="28" height="120" rx="4" fill="hsl(var(--primary))" opacity="0.9" />
-      <rect x="208" y="140" width="28" height="100" rx="4" fill="hsl(var(--primary))" opacity="0.7" />
-      <rect x="248" y="100" width="28" height="140" rx="4" fill="hsl(var(--primary))" opacity="0.85" />
-      <rect x="288" y="130" width="28" height="110" rx="4" fill="hsl(var(--primary))" opacity="0.65" />
+      <rect x="40" y="40" width="320" height="240" rx="16" fill="var(--muted)" opacity="0.5" />
+      <rect x="56" y="56" width="288" height="208" rx="12" fill="var(--card)" stroke="var(--border)" strokeWidth="1" />
+      <rect x="88" y="180" width="28" height="60" rx="4" fill="var(--primary)" opacity="0.8" />
+      <rect x="128" y="150" width="28" height="90" rx="4" fill="var(--primary)" opacity="0.6" />
+      <rect x="168" y="120" width="28" height="120" rx="4" fill="var(--primary)" opacity="0.9" />
+      <rect x="208" y="140" width="28" height="100" rx="4" fill="var(--primary)" opacity="0.7" />
+      <rect x="248" y="100" width="28" height="140" rx="4" fill="var(--primary)" opacity="0.85" />
+      <rect x="288" y="130" width="28" height="110" rx="4" fill="var(--primary)" opacity="0.65" />
       <polyline
         points="102,170 142,140 182,110 222,130 262,90 302,120"
         fill="none"
-        stroke="hsl(var(--chart-2, #22c55e))"
+        stroke="var(--chart-2, #22c55e)"
         strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle cx="102" cy="170" r="4" fill="hsl(var(--chart-2, #22c55e))" />
-      <circle cx="142" cy="140" r="4" fill="hsl(var(--chart-2, #22c55e))" />
-      <circle cx="182" cy="110" r="4" fill="hsl(var(--chart-2, #22c55e))" />
-      <circle cx="222" cy="130" r="4" fill="hsl(var(--chart-2, #22c55e))" />
-      <circle cx="262" cy="90" r="4" fill="hsl(var(--chart-2, #22c55e))" />
-      <circle cx="302" cy="120" r="4" fill="hsl(var(--chart-2, #22c55e))" />
-      <line x1="80" y1="250" x2="320" y2="250" stroke="hsl(var(--muted-foreground))" strokeWidth="1" opacity="0.3" />
-      <line x1="80" y1="80" x2="80" y2="250" stroke="hsl(var(--muted-foreground))" strokeWidth="1" opacity="0.3" />
-      <rect x="240" y="60" width="120" height="50" rx="8" fill="hsl(var(--background))" stroke="hsl(var(--border))" strokeWidth="1" />
-      <text x="256" y="80" fontSize="10" fill="hsl(var(--muted-foreground))" fontFamily="sans-serif">SQI Score</text>
-      <text x="256" y="98" fontSize="16" fontWeight="bold" fill="hsl(var(--primary))" fontFamily="sans-serif">87.5</text>
+      <circle cx="102" cy="170" r="4" fill="var(--chart-2, #22c55e)" />
+      <circle cx="142" cy="140" r="4" fill="var(--chart-2, #22c55e)" />
+      <circle cx="182" cy="110" r="4" fill="var(--chart-2, #22c55e)" />
+      <circle cx="222" cy="130" r="4" fill="var(--chart-2, #22c55e)" />
+      <circle cx="262" cy="90" r="4" fill="var(--chart-2, #22c55e)" />
+      <circle cx="302" cy="120" r="4" fill="var(--chart-2, #22c55e)" />
+      <line x1="80" y1="250" x2="320" y2="250" stroke="var(--muted-foreground)" strokeWidth="1" opacity="0.3" />
+      <line x1="80" y1="80" x2="80" y2="250" stroke="var(--muted-foreground)" strokeWidth="1" opacity="0.3" />
+      <rect x="240" y="60" width="120" height="50" rx="8" fill="var(--background)" stroke="var(--border)" strokeWidth="1" />
+      <text x="256" y="80" fontSize="10" fill="var(--muted-foreground)" fontFamily="sans-serif">SQI Score</text>
+      <text x="256" y="98" fontSize="16" fontWeight="bold" fill="var(--primary)" fontFamily="sans-serif">87.5</text>
     </svg>
   );
 }
