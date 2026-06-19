@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, BarChart3Icon } from "lucide-react";
+import { Eye, EyeOff, BarChart3Icon, AlertCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,7 +115,10 @@ export function LoginPage({
                 Or continue with
               </FieldSeparator>
               {errors.form && (
-                <p className="text-sm text-destructive text-center">{errors.form}</p>
+                <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <AlertCircleIcon className="size-4 shrink-0" />
+                  <span>{errors.form}</span>
+                </div>
               )}
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
