@@ -97,9 +97,17 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 	var tenantID sql.NullInt32
 
 	err := h.DB.QueryRow(`
-		SELECT id, password, role, tenant_id
-		FROM users 
-		WHERE email = $1
+		SELECT u.id, u.password, u.role, u.tenant_id
+		FROM users u
+		WHERE u.email = $1
+		  AND (
+			u.role <> 'coach'
+			OR EXISTS (
+				SELECT 1
+				FROM coaches c
+				WHERE c.user_id = u.id AND c.deleted_at IS NULL
+			)
+		  )
 	`, req.Email).Scan(&userID, &hashedPassword, &role, &tenantID)
 
 	if err != nil {
@@ -230,11 +238,24 @@ type UpdatePasswordRequest struct {
 
 func (h *AuthHandler) UpdatePassword(c *gin.Context) {
 	userID := c.GetInt("user_id")
+	role := c.GetString("role")
 
 	var req UpdatePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
+	}
+
+	if role == "coach" {
+		var active bool
+		err := h.DB.QueryRow(
+			"SELECT EXISTS(SELECT 1 FROM coaches WHERE user_id = $1 AND deleted_at IS NULL)",
+			userID,
+		).Scan(&active)
+		if err != nil || !active {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
 	}
 
 	// fetch current hashed password

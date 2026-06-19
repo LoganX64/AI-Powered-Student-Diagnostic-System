@@ -83,6 +83,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.DELETE("/students/:id", adminHandler.DeleteStudent)
 		admin.GET("/coaches", adminHandler.ListCoaches)
 		admin.GET("/coaches/:id", adminHandler.GetCoach)
+		admin.DELETE("/coaches/:id", adminHandler.DeleteCoach)
 		admin.GET("/coaches/:id/tests", adminHandler.ListCoachTests)
 		admin.GET("/coaches/:id/students", adminHandler.ListCoachStudents)
 		admin.GET("/subjects", adminHandler.ListSubjects)

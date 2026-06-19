@@ -15,7 +15,7 @@ import (
 func (h *AdminHandler) getCoachIDFromUser(userID int) (int, error) {
 	var coachID int
 	err := h.DB.QueryRow(
-		"SELECT id FROM coaches WHERE user_id = $1",
+		"SELECT id FROM coaches WHERE user_id = $1 AND deleted_at IS NULL",
 		userID,
 	).Scan(&coachID)
 
@@ -434,7 +434,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	} else if role == "admin" {
 
 		if req.CoachID == 0 {
-			err = h.DB.QueryRow("SELECT id FROM coaches WHERE user_id = $1", userID).Scan(&coachID)
+			err = h.DB.QueryRow("SELECT id FROM coaches WHERE user_id = $1 AND deleted_at IS NULL", userID).Scan(&coachID)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id is required, or you must create a coach profile for yourself first"})
 				return
@@ -442,7 +442,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 		} else {
 
 			var exists bool
-			err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", req.CoachID, tenantID).Scan(&exists)
+			err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", req.CoachID, tenantID).Scan(&exists)
 			if err != nil || !exists {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
 				return
@@ -554,7 +554,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	} else if role == "admin" {
 
 		var exists bool
-		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", req.CoachID, tenantID).Scan(&exists)
+		err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", req.CoachID, tenantID).Scan(&exists)
 		if err != nil || !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
 			return
@@ -1303,7 +1303,7 @@ func (h *AdminHandler) ListCoaches(c *gin.Context) {
 	limit, offset := parsePagination(c)
 	search := c.Query("search")
 
-	baseQuery := "FROM coaches c JOIN users u ON c.user_id = u.id WHERE c.tenant_id=$1"
+	baseQuery := "FROM coaches c JOIN users u ON c.user_id = u.id WHERE c.tenant_id=$1 AND c.deleted_at IS NULL"
 	countQuery := "SELECT COUNT(*) " + baseQuery
 	dataQuery := "SELECT c.id, c.user_id, c.name, u.email " + baseQuery
 
@@ -1384,7 +1384,7 @@ func (h *AdminHandler) GetCoach(c *gin.Context) {
 		SELECT c.id, c.user_id, c.name, u.email, c.created_at
 		FROM coaches c
 		JOIN users u ON c.user_id = u.id
-		WHERE c.id = $1 AND c.tenant_id = $2
+		WHERE c.id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL
 	`, coachID, tenantID).Scan(&coach.CoachID, &coach.UserID, &coach.Name, &coach.Email, &coach.CreatedAt)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
@@ -1392,6 +1392,39 @@ func (h *AdminHandler) GetCoach(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, coach)
+}
+
+func (h *AdminHandler) DeleteCoach(c *gin.Context) {
+	coachID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	result, err := h.DB.Exec(`
+		UPDATE coaches
+		SET deleted_at = NOW(), deleted_by = $1
+		WHERE id = $2 AND tenant_id = $3 AND deleted_at IS NULL
+	`, userID, coachID, tenantID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found or already deactivated"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "coach deactivated"})
 }
 
 func (h *AdminHandler) ListCoachTests(c *gin.Context) {
@@ -1409,7 +1442,7 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 	}
 
 	var exists bool
-	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", coachID, tenantID).Scan(&exists)
+	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", coachID, tenantID).Scan(&exists)
 	if err != nil || !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
 		return
@@ -1480,7 +1513,7 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 	}
 
 	var exists bool
-	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", coachID, tenantID).Scan(&exists)
+	err = h.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", coachID, tenantID).Scan(&exists)
 	if err != nil || !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
 		return
@@ -1637,15 +1670,15 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	defer rows.Close()
 
 	type AssignmentRow struct {
-		ID          int     `json:"id"`
-		StudentID   int     `json:"student_id"`
-		StudentName string  `json:"student_name"`
-		StudentCode string  `json:"student_code"`
-		TestID      int     `json:"test_id"`
-		TestTitle   string  `json:"test_title"`
-		CoachID     int     `json:"coach_id"`
-		Status      string  `json:"status"`
-		AssignedAt  string  `json:"assigned_at"`
+		ID          int    `json:"id"`
+		StudentID   int    `json:"student_id"`
+		StudentName string `json:"student_name"`
+		StudentCode string `json:"student_code"`
+		TestID      int    `json:"test_id"`
+		TestTitle   string `json:"test_title"`
+		CoachID     int    `json:"coach_id"`
+		Status      string `json:"status"`
+		AssignedAt  string `json:"assigned_at"`
 	}
 
 	var assignments []AssignmentRow

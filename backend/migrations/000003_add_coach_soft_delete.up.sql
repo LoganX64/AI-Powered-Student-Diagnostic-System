@@ -1,0 +1,4 @@
+ALTER TABLE coaches
+ADD COLUMN deleted_at TIMESTAMP NULL,
+ADD COLUMN deleted_by INT NULL REFERENCES users(id);
+

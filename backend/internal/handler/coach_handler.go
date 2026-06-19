@@ -37,7 +37,7 @@ func (h *CoachHandler) getCoachDetailsFromUser(userID int) (int, int, error) {
 	var coachID int
 	var tenantID int
 	err := h.DB.QueryRow(
-		"SELECT id, tenant_id FROM coaches WHERE user_id = $1",
+		"SELECT id, tenant_id FROM coaches WHERE user_id = $1 AND deleted_at IS NULL",
 		userID,
 	).Scan(&coachID, &tenantID)
 
@@ -687,15 +687,15 @@ func (h *CoachHandler) ListAssignments(c *gin.Context) {
 	defer rows.Close()
 
 	type AssignmentRow struct {
-		ID          int     `json:"id"`
-		StudentID   int     `json:"student_id"`
-		StudentName string  `json:"student_name"`
-		StudentCode string  `json:"student_code"`
-		TestID      int     `json:"test_id"`
-		TestTitle   string  `json:"test_title"`
-		CoachID     int     `json:"coach_id"`
-		Status      string  `json:"status"`
-		AssignedAt  string  `json:"assigned_at"`
+		ID          int    `json:"id"`
+		StudentID   int    `json:"student_id"`
+		StudentName string `json:"student_name"`
+		StudentCode string `json:"student_code"`
+		TestID      int    `json:"test_id"`
+		TestTitle   string `json:"test_title"`
+		CoachID     int    `json:"coach_id"`
+		Status      string `json:"status"`
+		AssignedAt  string `json:"assigned_at"`
 	}
 
 	var assignments []AssignmentRow
