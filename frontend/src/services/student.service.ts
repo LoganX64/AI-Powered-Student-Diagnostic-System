@@ -1,16 +1,12 @@
-const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+import { apiFetch } from "@/lib/api";
+
+// Re-export login types from auth.service for backward compatibility
+export type { StudentLoginPayload, StudentLoginResponse } from "./auth.service";
+export { loginStudent } from "./auth.service";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export type StudentLoginPayload = {
-  student_code: string;
-};
-
-export type StudentLoginResponse = {
-  access_token: string;
-};
 
 export type Assignment = {
   id: number;
@@ -63,115 +59,38 @@ export type SubmitResponse = {
 };
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("student_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-// ---------------------------------------------------------------------------
 // API calls
 // ---------------------------------------------------------------------------
 
-export async function loginStudent(
-  data: StudentLoginPayload,
-): Promise<StudentLoginResponse> {
-  const response = await fetch(`${BASE_URL}/student/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-
-  type ErrorResponse = { error: string };
-  const payload = (await response
-    .json()
-    .catch(() => ({ error: "Invalid response" }))) as
-    | StudentLoginResponse
-    | ErrorResponse;
-
-  if (!response.ok) {
-    const errorMessage =
-      "error" in payload ? payload.error : "Student login failed";
-    throw new Error(errorMessage);
-  }
-
-  return payload as StudentLoginResponse;
-}
-
 export async function getStudentAssignments(): Promise<Assignment[]> {
-  const response = await fetch(`${BASE_URL}/student/assignments`, {
-    method: "GET",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-  });
-
-  type ErrorResponse = { error: string };
-  type SuccessResponse = { total: number; data: Assignment[] };
-  const payload = (await response
-    .json()
-    .catch(() => ({ error: "Invalid response" }))) as
-    | SuccessResponse
-    | ErrorResponse;
-
-  if (!response.ok) {
-    const errorMessage =
-      "error" in payload ? payload.error : "Failed to fetch assignments";
-    throw new Error(errorMessage);
-  }
-
-  return (payload as SuccessResponse).data ?? [];
+  const res = await apiFetch<{ total: number; data: Assignment[] }>(
+    "/student/assignments",
+    {},
+    "student_token"
+  );
+  return res.data ?? [];
 }
 
 export async function getAssignmentQuestions(
   assignmentId: number,
 ): Promise<AssignmentQuestionsResponse> {
-  const response = await fetch(
-    `${BASE_URL}/student/assignments/${assignmentId}/questions`,
-    {
-      method: "GET",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-    },
+  return apiFetch<AssignmentQuestionsResponse>(
+    `/student/assignments/${assignmentId}/questions`,
+    {},
+    "student_token"
   );
-
-  type ErrorResponse = { error: string };
-  const payload = (await response
-    .json()
-    .catch(() => ({ error: "Invalid response" }))) as
-    | AssignmentQuestionsResponse
-    | ErrorResponse;
-
-  if (!response.ok) {
-    const errorMessage =
-      "error" in payload ? payload.error : "Failed to fetch questions";
-    throw new Error(errorMessage);
-  }
-
-  return payload as AssignmentQuestionsResponse;
 }
 
 export async function submitAnswers(
   assignmentId: number,
   answers: AnswerPayload[],
 ): Promise<SubmitResponse> {
-  const response = await fetch(`${BASE_URL}/student/submit/${assignmentId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ answers }),
-  });
-
-  type ErrorResponse = { error: string };
-  const payload = (await response
-    .json()
-    .catch(() => ({ error: "Invalid response" }))) as
-    | SubmitResponse
-    | ErrorResponse;
-
-  if (!response.ok) {
-    const errorMessage =
-      "error" in payload ? payload.error : "Submission failed";
-    throw new Error(errorMessage);
-  }
-
-  return payload as SubmitResponse;
+  return apiFetch<SubmitResponse>(
+    `/student/submit/${assignmentId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    },
+    "student_token"
+  );
 }

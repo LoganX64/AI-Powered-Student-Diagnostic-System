@@ -24,6 +24,14 @@ export interface RegisterResponse {
   role: string;
 }
 
+export interface StudentLoginPayload {
+  student_code: string;
+}
+
+export interface StudentLoginResponse {
+  access_token: string;
+}
+
 export const login = (data: LoginPayload) =>
   apiFetch<AuthResponse>("/auth/login", {
     method: "POST",
@@ -32,6 +40,12 @@ export const login = (data: LoginPayload) =>
 
 export const register = (data: RegisterPayload) =>
   apiFetch<RegisterResponse>("/auth/register-admin", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const loginStudent = (data: StudentLoginPayload) =>
+  apiFetch<StudentLoginResponse>("/student/login", {
     method: "POST",
     body: JSON.stringify(data),
   });

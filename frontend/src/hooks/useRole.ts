@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import type { Role } from "@/contexts/RoleContext";
+
+export type Role = "admin" | "coach" | "student";
 
 export function useRole(): Role {
   const { pathname } = useLocation();

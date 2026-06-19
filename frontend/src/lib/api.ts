@@ -1,13 +1,15 @@
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 /**
- * Shared fetch wrapper that attaches the admin JWT and handles errors.
+ * Shared fetch wrapper that attaches a JWT and handles errors.
+ * @param tokenKey - localStorage key for the token (default: "admin_token")
  */
 export async function apiFetch<T = unknown>(
   url: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  tokenKey: string = "admin_token"
 ): Promise<T> {
-  const token = localStorage.getItem("admin_token");
+  const token = localStorage.getItem(tokenKey);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
