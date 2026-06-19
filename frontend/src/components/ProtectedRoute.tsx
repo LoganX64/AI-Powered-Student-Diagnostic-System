@@ -13,7 +13,7 @@ function detectRole(pathname: string): Role | null {
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/coach")) return "coach";
   // Student-protected routes
-  if (["/instructions", "/quiz", "/submitted"].includes(pathname)) return "student";
+  if (["/dashboard", "/instructions", "/quiz", "/submitted"].includes(pathname)) return "student";
   return null;
 }
 

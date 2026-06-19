@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart3Icon } from "lucide-react";
+import { BarChart3Icon, AlertCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,7 @@ type LoginFormData = {
 type LoginFormProps = {
   onSubmit?: (data: LoginFormData) => void;
   loading?: boolean;
+  error?: string;
   className?: string;
 };
 
@@ -26,6 +27,7 @@ export function StudentLoginForm({
   className,
   onSubmit,
   loading,
+  error,
 }: LoginFormProps) {
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -43,8 +45,8 @@ export function StudentLoginForm({
         <span className="text-lg font-bold">EduQuant</span>
       </Link>
       <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Login to your account</CardTitle>
+        <CardHeader className="text-center">
+          <CardTitle className="text-xl">Login to your account</CardTitle>
           <CardDescription>
             Enter your Student code below to login to your account
           </CardDescription>
@@ -52,6 +54,12 @@ export function StudentLoginForm({
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
+              {error && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <AlertCircleIcon className="size-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
               <Field>
                 <FieldLabel htmlFor="student_code">Student Code</FieldLabel>
                 <Input
@@ -64,21 +72,9 @@ export function StudentLoginForm({
               </Field>
 
               <Field>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
                 </Button>
-                {/* <Button variant="outline" type="button" disabled={loading}> 
-                  Login with Google
-                </Button> */}
-                {/* <FieldDescription className="text-center">
-                  Don&apos;t have an account?{" "}
-                  <Link
-                    to="/student-signup"
-                    className="underline hover:no-underline"
-                  >
-                    Sign up
-                  </Link>
-                </FieldDescription> */}
               </Field>
             </FieldGroup>
           </form>
