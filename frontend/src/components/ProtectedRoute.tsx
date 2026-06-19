@@ -67,9 +67,7 @@ export function ProtectedRoute() {
   const { pathname } = useLocation();
   const role = detectRole(pathname);
 
-  if (!role || isAuthenticated(role)) {
-    return <Outlet />;
-  }
-
+  if (!role) return <Navigate to="/" replace />;
+  if (isAuthenticated(role)) return <Outlet />;
   return <Navigate to={REDIRECT_MAP[role]} replace />;
 }
