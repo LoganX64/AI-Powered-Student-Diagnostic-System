@@ -47,7 +47,6 @@ export type AnswerPayload = {
   marked_for_review: boolean;
   revisited: boolean;
   changed_answer: boolean;
-  was_initially_wrong: boolean;
 };
 
 export type SubmitResponse = {

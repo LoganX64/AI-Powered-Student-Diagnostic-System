@@ -172,6 +172,19 @@ export function StudentQuizPage() {
 
     const payload = getPayload(questionIds);
 
+    // Sanity check: validate total time is plausible
+    const totalTimeMinutes = payload.reduce((sum, p) => sum + p.time_spent, 0);
+    const examDurationMinutes = Number(localStorage.getItem("exam_duration") || "60");
+    if (totalTimeMinutes > examDurationMinutes * 1.5) {
+      const proceed = window.confirm(
+        `Total time spent (${totalTimeMinutes.toFixed(1)} min) exceeds exam duration (${examDurationMinutes} min). Submit anyway?`
+      );
+      if (!proceed) {
+        setSubmitting(false);
+        return;
+      }
+    }
+
     try {
       await submitAnswers(assignmentId, payload);
       clearExamStorage();

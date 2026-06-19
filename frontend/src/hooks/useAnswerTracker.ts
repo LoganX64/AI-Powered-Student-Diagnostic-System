@@ -16,8 +16,7 @@ export type AnswerRecord = {
   marked_for_review: boolean;
   revisited: boolean;
   changed_answer: boolean;
-  was_initially_wrong: boolean;
-  first_answer: Option; // snapshot of first selection (for was_initially_wrong)
+  first_answer: Option; // snapshot of first selection (for backend to derive was_initially_wrong)
 };
 
 /** Payload sent to backend (no internal fields) */
@@ -29,7 +28,6 @@ export type AnswerPayload = {
   marked_for_review: boolean;
   revisited: boolean;
   changed_answer: boolean;
-  was_initially_wrong: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -101,7 +99,6 @@ export function useAnswerTracker(questionIds: number[]) {
               marked_for_review: false,
               revisited: false,
               changed_answer: false,
-              was_initially_wrong: false,
               first_answer: "",
             };
         return { ...prev, [id]: record };
@@ -128,7 +125,6 @@ export function useAnswerTracker(questionIds: number[]) {
             marked_for_review: false,
             revisited: false,
             changed_answer: false,
-            was_initially_wrong: false,
             first_answer: "",
           }),
           seen: true,
@@ -227,7 +223,6 @@ export function useAnswerTracker(questionIds: number[]) {
             marked_for_review: false,
             revisited: false,
             changed_answer: false,
-            was_initially_wrong: false,
           };
         }
         return {
@@ -238,7 +233,6 @@ export function useAnswerTracker(questionIds: number[]) {
           marked_for_review: r.marked_for_review,
           revisited: r.revisited,
           changed_answer: r.changed_answer,
-          was_initially_wrong: r.was_initially_wrong,
         };
       });
     },

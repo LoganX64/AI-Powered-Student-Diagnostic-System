@@ -45,6 +45,14 @@ export function StudentSubmittedPage() {
     loadPendingSubmission,
   );
 
+  // Auto-retry pending submission on mount
+  useEffect(() => {
+    if (pending && !retrying && !retrySuccess) {
+      handleRetry();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (countdown <= 0) {
       clearStudentSession();
