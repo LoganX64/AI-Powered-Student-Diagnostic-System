@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { getCoaches, getSubjects, updateTest, type Test, type Coach, type Subject } from "@/services/admin.service";
+import { getCoaches, getSubjects, updateTest, type Test, type Coach, type Subject } from "@/services/dashboard.service";
 
 type Props = {
   test: Test | null;

@@ -1,160 +1,47 @@
 import { apiFetch } from "@/lib/api";
+import type {
+  CreateCoachPayload,
+  CreateStudentPayload,
+  CreateSubjectPayload,
+  CreateTestPayload,
+  CreateQuestionPayload,
+  CreateAssignmentPayload,
+  Test,
+  Coach,
+  Student,
+  Subject,
+  Assignment,
+  StudentDetail,
+  StudentAssignment,
+  CoachDetail,
+  CoachTest,
+  CoachStudent,
+  PaginatedResponse,
+  PaginationParams,
+} from "./types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type CreateCoachPayload = {
-  email: string;
-  password: string;
-  name: string;
+export type {
+  CreateCoachPayload,
+  CreateStudentPayload,
+  CreateSubjectPayload,
+  CreateTestPayload,
+  CreateQuestionPayload,
+  CreateAssignmentPayload,
+  Test,
+  Coach,
+  Student,
+  Subject,
+  Assignment,
+  StudentDetail,
+  StudentAssignment,
+  CoachDetail,
+  CoachTest,
+  CoachStudent,
+  PaginatedResponse,
+  PaginationParams,
 };
 
-export type CreateStudentPayload = {
-  name: string;
-  student_code: string;
-  coach_id: number;
-};
-
-export type CreateSubjectPayload = {
-  name: string;
-};
-
-export type CreateTestPayload = {
-  title: string;
-  subject_id: number;
-  coach_id: number;
-  duration: number;
-  exam_date?: string;
-};
-
-export type CreateQuestionPayload = {
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: "A" | "B" | "C" | "D";
-  marks: number;
-  neg_marks: number;
-  importance: string;
-  difficulty: string;
-  type: string;
-  expected_time: number;
-  concept_tag: string;
-};
-
-export type CreateAssignmentPayload = {
-  student_id: number;
-  test_id: number;
-  coach_id: number;
-};
-
-// ─── Types (rows returned by list endpoints) ──────────────────────────────────
-
-export type Test = {
-  test_id: number;
-  title: string;
-  subject_id: number;
-  coach_id: number;
-  duration: number;
-  subject_name: string;
-  coach_name: string;
-  exam_date?: string;
-};
-
-export type Coach = {
-  coach_id: number;
-  user_id: number;
-  name: string;
-  email: string;
-};
-
-export type Student = {
-  student_id: number;
-  name: string;
-  student_code: string;
-  coach_id: number;
-};
-
-export type Subject = {
-  subject_id: number;
-  name: string;
-};
-
-export type Assignment = {
-  id: number;
-  student_id: number;
-  student_name: string;
-  student_code: string;
-  test_id: number;
-  test_title: string;
-  coach_id: number;
-  status: string;
-  assigned_at: string;
-};
-
-export type StudentDetail = {
-  student_id: number;
-  name: string;
-  student_code: string;
-  coach_id: number;
-  coach_name: string;
-  created_at: string;
-  deleted_at: string | null;
-  deleted_by_name: string | null;
-  deleted_by_email: string | null;
-  deleted_by_role: string | null;
-};
-
-export type StudentAssignment = {
-  id: number;
-  test_id: number;
-  test_title: string;
-  status: string;
-  assigned_at: string;
-  submitted: boolean;
-};
-
-export type CoachDetail = {
-  coach_id: number;
-  user_id: number;
-  name: string;
-  email: string;
-  created_at: string;
-};
-
-export type CoachTest = {
-  test_id: number;
-  title: string;
-  subject_id: number;
-  duration: number;
-  subject_name: string;
-  exam_date?: string;
-  created_at: string;
-};
-
-export type CoachStudent = {
-  student_id: number;
-  name: string;
-  student_code: string;
-  created_at: string;
-};
-
-// ─── Pagination types ─────────────────────────────────────────────────────────
-
-export type PaginatedResponse<T> = {
-  total: number;
-  limit: number;
-  offset: number;
-  data: T[];
-};
-
-export type PaginationParams = {
-  limit?: number;
-  offset?: number;
-  search?: string;
-};
-
-// ─── Role-aware API calls ─────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getPrefix(): string {
   const role = localStorage.getItem("admin_role");
@@ -170,6 +57,25 @@ function buildQuery(params?: PaginationParams): string {
   return qs ? `?${qs}` : "";
 }
 
+function buildStudentQuery(params?: PaginationParams & { include_deactivated?: boolean }): string {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.include_deactivated) query.set("include_deactivated", "true");
+  if (params?.search) query.set("search", params.search);
+  const qs = query.toString();
+  return qs ? `?${qs}` : "";
+}
+
+function buildAssignmentQuery(params?: PaginationParams & { test_id?: number }): string {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.test_id) query.set("test_id", params.test_id.toString());
+  const qs = query.toString();
+  return qs ? `?${qs}` : "";
+}
+
 // ─── Coach endpoints (admin-only) ─────────────────────────────────────────────
 
 export const createCoach = (data: CreateCoachPayload) =>
@@ -177,6 +83,9 @@ export const createCoach = (data: CreateCoachPayload) =>
     method: "POST",
     body: JSON.stringify(data),
   });
+
+export const getCoaches = (params?: PaginationParams) =>
+  apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildQuery(params)}`);
 
 export const getCoach = (coachId: number) =>
   apiFetch<CoachDetail>(`/admin/coaches/${coachId}`);
@@ -192,10 +101,7 @@ export const deleteCoach = (coachId: number) =>
     method: "DELETE",
   });
 
-export const getCoaches = (params?: PaginationParams) =>
-  apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildQuery(params)}`);
-
-// ─── Student endpoints ────────────────────────────────────────────────────────
+// ─── Student endpoints (role-aware) ───────────────────────────────────────────
 
 export const createStudent = (data: CreateStudentPayload) =>
   apiFetch<{ student_id: number }>(`${getPrefix()}/students`, {
@@ -216,17 +122,10 @@ export const getStudentAssignments = (studentId: number) =>
     `${getPrefix()}/students/${studentId}/assignments`
   );
 
-export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) => {
-  const query = new URLSearchParams();
-  if (params?.limit) query.set("limit", params.limit.toString());
-  if (params?.offset) query.set("offset", params.offset.toString());
-  if (params?.include_deactivated) query.set("include_deactivated", "true");
-  if (params?.search) query.set("search", params.search);
-  const qs = query.toString();
-  return apiFetch<PaginatedResponse<Student>>(`${getPrefix()}/students${qs ? `?${qs}` : ""}`);
-};
+export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) =>
+  apiFetch<PaginatedResponse<Student>>(`${getPrefix()}/students${buildStudentQuery(params)}`);
 
-// ─── Subject endpoints ────────────────────────────────────────────────────────
+// ─── Subject endpoints (role-aware) ───────────────────────────────────────────
 
 export const createSubject = (data: CreateSubjectPayload) =>
   apiFetch<{ subject_id: number }>(`${getPrefix()}/subjects`, {
@@ -242,7 +141,7 @@ export const deleteSubject = (subjectId: number) =>
 export const getSubjects = (params?: PaginationParams) =>
   apiFetch<PaginatedResponse<Subject>>(`${getPrefix()}/subjects${buildQuery(params)}`);
 
-// ─── Test endpoints ───────────────────────────────────────────────────────────
+// ─── Test endpoints (role-aware) ──────────────────────────────────────────────
 
 export const createTest = (data: CreateTestPayload) =>
   apiFetch<{ test_id: number }>(`${getPrefix()}/tests`, {
@@ -264,7 +163,7 @@ export const deleteTest = (testId: number) =>
 export const getTests = (params?: PaginationParams) =>
   apiFetch<PaginatedResponse<Test>>(`${getPrefix()}/tests${buildQuery(params)}`);
 
-// ─── Question endpoints ───────────────────────────────────────────────────────
+// ─── Question endpoints (role-aware) ──────────────────────────────────────────
 
 export const createQuestions = (testId: number, data: CreateQuestionPayload[]) =>
   apiFetch<{ question_ids: number[]; count: number }>(`${getPrefix()}/tests/${testId}/questions`, {
@@ -283,7 +182,7 @@ export const deleteQuestion = (testId: number, questionId: number) =>
     method: "DELETE",
   });
 
-// ─── Assignment endpoints ─────────────────────────────────────────────────────
+// ─── Assignment endpoints (role-aware) ────────────────────────────────────────
 
 export const createAssignment = (data: CreateAssignmentPayload) =>
   apiFetch<{ assignment_id: number }>(`${getPrefix()}/assignments`, {
@@ -291,11 +190,5 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
     body: JSON.stringify(data),
   });
 
-export const getAssignments = (params?: PaginationParams & { test_id?: number }) => {
-  const query = new URLSearchParams();
-  if (params?.limit) query.set("limit", params.limit.toString());
-  if (params?.offset) query.set("offset", params.offset.toString());
-  if (params?.test_id) query.set("test_id", params.test_id.toString());
-  const qs = query.toString();
-  return apiFetch<PaginatedResponse<Assignment>>(`${getPrefix()}/assignments${qs ? `?${qs}` : ""}`);
-};
+export const getAssignments = (params?: PaginationParams & { test_id?: number }) =>
+  apiFetch<PaginatedResponse<Assignment>>(`${getPrefix()}/assignments${buildAssignmentQuery(params)}`);

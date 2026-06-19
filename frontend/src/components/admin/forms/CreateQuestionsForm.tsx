@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { createQuestions as adminCreateQuestions, type CreateQuestionPayload } from "@/services/admin.service";
+import { createQuestions as adminCreateQuestions, type CreateQuestionPayload } from "@/services/dashboard.service";
 
 type QuestionDraft = CreateQuestionPayload;
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createSubject } from "@/services/admin.service";
+import { createSubject } from "@/services/dashboard.service";
 
 export function CreateSubjectForm() {
   const [loading, setLoading] = useState(false);

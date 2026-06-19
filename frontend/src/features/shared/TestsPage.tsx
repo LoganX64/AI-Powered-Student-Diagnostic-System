@@ -27,7 +27,7 @@ import {
   getStudents as coachGetStudents,
   getTests as coachGetTests,
   getSubjects as coachGetSubjects,
-} from "@/services/coach.service";
+} from "@/services/dashboard.service";
 import { ClipboardListIcon, LinkIcon } from "lucide-react";
 
 const TABS = [

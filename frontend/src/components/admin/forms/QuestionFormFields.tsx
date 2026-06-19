@@ -16,7 +16,7 @@ import {
   PlusIcon,
   Trash2Icon,
 } from "lucide-react";
-import { type CreateQuestionPayload } from "@/services/admin.service";
+import { type CreateQuestionPayload } from "@/services/dashboard.service";
 
 export type QuestionDraft = CreateQuestionPayload;
 

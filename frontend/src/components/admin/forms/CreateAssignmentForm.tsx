@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createAssignment as adminCreateAssignment, getStudents as adminGetStudents, getTests as adminGetTests, type Student, type Test } from "@/services/admin.service";
+import { createAssignment as adminCreateAssignment, getStudents as adminGetStudents, getTests as adminGetTests, type Student, type Test } from "@/services/dashboard.service";
 
 type Props = {
   onSubmit?: (data: { student_id: number; test_id: number; coach_id: number }) => Promise<{ assignment_id: number }>;

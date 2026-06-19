@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createTest as adminCreateTest, getCoaches as adminGetCoaches, getSubjects as adminGetSubjects, type CreateTestPayload, type Coach, type Subject, type PaginationParams, type PaginatedResponse } from "@/services/admin.service";
+import { createTest as adminCreateTest, getCoaches as adminGetCoaches, getSubjects as adminGetSubjects, type CreateTestPayload, type Coach, type Subject, type PaginationParams, type PaginatedResponse } from "@/services/dashboard.service";
 
 type Props = {
   onCreated?: (testId: number) => void;
