@@ -169,6 +169,157 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	})
 }
 
+func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	assignmentID, err := strconv.Atoi(c.Param("assignmentId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	var exists bool
+	err = h.DB.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM students WHERE id=$1 AND tenant_id=$2)",
+		studentID, tenantID,
+	).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	var assignmentStudentID int
+	var testID int
+	var status string
+	var assignedAt string
+	var testTitle string
+	err = h.DB.QueryRow(`
+		SELECT a.student_id, a.test_id, a.status, a.assigned_at, t.title
+		FROM assignments a
+		JOIN tests t ON a.test_id = t.id
+		WHERE a.id = $1 AND a.student_id = $2
+	`, assignmentID, studentID).Scan(&assignmentStudentID, &testID, &status, &assignedAt, &testTitle)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		return
+	}
+
+	var studentName string
+	var studentCode string
+	err = h.DB.QueryRow(
+		"SELECT name, student_code FROM students WHERE id=$1 AND tenant_id=$2",
+		studentID, tenantID,
+	).Scan(&studentName, &studentCode)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		return
+	}
+
+	var attemptID int
+	var submittedAt sql.NullTime
+	err = h.DB.QueryRow(
+		"SELECT id, submitted_at FROM attempts WHERE assignment_id=$1",
+		assignmentID,
+	).Scan(&attemptID, &submittedAt)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
+			"testing":    gin.H{"id": testID, "title": testTitle},
+			"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
+			"attempt":    nil,
+			"sqi_score":  nil,
+			"answers":    []interface{}{},
+		})
+		return
+	}
+
+	var sqiScore sql.NullFloat64
+	err = h.DB.QueryRow(
+		"SELECT sqi_score FROM attempt_results WHERE attempt_id=$1",
+		attemptID,
+	).Scan(&sqiScore)
+
+	answerRows, err := h.DB.Query(`
+		SELECT al.question_id, q.question_text,
+		       q.option_a, q.option_b, q.option_c, q.option_d,
+		       q.correct_answer, q.marks, q.concept_tag, q.difficulty,
+		       COALESCE(al.selected_answer, ''),
+		       COALESCE(al.time_spent, 0),
+		       COALESCE(al.marked_for_review, false),
+		       COALESCE(al.changed_answer, false),
+		       COALESCE(al.seen, true)
+		FROM answer_logs al
+		JOIN questions q ON al.question_id = q.id
+		WHERE al.attempt_id = $1
+		ORDER BY q.id
+	`, attemptID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch answers"})
+		return
+	}
+	defer answerRows.Close()
+
+	type AnswerDetail struct {
+		QuestionID      int     `json:"question_id"`
+		QuestionText    string  `json:"question_text"`
+		OptionA         string  `json:"option_a"`
+		OptionB         string  `json:"option_b"`
+		OptionC         string  `json:"option_c"`
+		OptionD         string  `json:"option_d"`
+		CorrectAnswer   string  `json:"correct_answer"`
+		SelectedAnswer  string  `json:"selected_answer"`
+		IsCorrect       bool    `json:"is_correct"`
+		Marks           float64 `json:"marks"`
+		TimeSpent       float64 `json:"time_spent"`
+		MarkedForReview bool    `json:"marked_for_review"`
+		ChangedAnswer   bool    `json:"changed_answer"`
+		Seen            bool    `json:"seen"`
+		ConceptTag      string  `json:"concept_tag"`
+		Difficulty      string  `json:"difficulty"`
+	}
+
+	var answers []AnswerDetail
+	for answerRows.Next() {
+		var a AnswerDetail
+		if err := answerRows.Scan(
+			&a.QuestionID, &a.QuestionText,
+			&a.OptionA, &a.OptionB, &a.OptionC, &a.OptionD,
+			&a.CorrectAnswer, &a.Marks, &a.ConceptTag, &a.Difficulty,
+			&a.SelectedAnswer, &a.TimeSpent,
+			&a.MarkedForReview, &a.ChangedAnswer, &a.Seen,
+		); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+			return
+		}
+		a.IsCorrect = a.SelectedAnswer != "" && a.SelectedAnswer == a.CorrectAnswer
+		answers = append(answers, a)
+	}
+	if err := answerRows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
+		"test":       gin.H{"id": testID, "title": testTitle},
+		"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
+		"attempt":    gin.H{"id": attemptID, "submitted_at": submittedAt.Time},
+		"sqi_score":  sqiScore.Float64,
+		"answers":    answers,
+	})
+}
+
 func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
