@@ -145,7 +145,7 @@ func SubmitAnswers(c *gin.Context) {
 	//  Create attempt
 	var attemptID int
 	err = tx.QueryRow(
-		"INSERT INTO attempts (assignment_id) VALUES ($1) RETURNING id",
+		"INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id",
 		assignmentID,
 	).Scan(&attemptID)
 
