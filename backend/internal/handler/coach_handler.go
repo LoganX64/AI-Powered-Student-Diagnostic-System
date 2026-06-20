@@ -521,10 +521,7 @@ func (h *CoachHandler) ListStudentAssignments(c *gin.Context) {
 
 	rows, err := h.DB.Query(`
 		SELECT a.id, a.test_id, t.title, a.status, a.assigned_at,
-		       EXISTS(
-		         SELECT 1 FROM attempts att
-		         WHERE att.assignment_id = a.id AND att.submitted_at IS NOT NULL
-		       ) AS submitted
+		       (a.status = 'submitted') AS submitted
 		FROM assignments a
 		JOIN tests t ON a.test_id = t.id
 		WHERE a.student_id = $1 AND a.coach_id = $2

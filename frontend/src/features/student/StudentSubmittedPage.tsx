@@ -45,15 +45,41 @@ export function StudentSubmittedPage() {
     loadPendingSubmission,
   );
 
-  // Auto-retry pending submission on mount
+  const hasPendingSubmission = pending !== null && !retrySuccess;
+
+  const retryPendingSubmission = async () => {
+    if (!pending || retrying) return;
+    setRetrying(true);
+
+    try {
+      await submitAnswers(pending.assignment_id, pending.answers);
+      localStorage.removeItem("pending_submission");
+      setPending(null);
+      setRetrySuccess(true);
+    } catch {
+      // Still failed, user can try again.
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  // Auto-retry pending submission on mount.
   useEffect(() => {
     if (pending && !retrying && !retrySuccess) {
-      handleRetry();
+      const id = window.setTimeout(() => {
+        retryPendingSubmission();
+      }, 0);
+
+      return () => window.clearTimeout(id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (hasPendingSubmission) {
+      return;
+    }
+
     if (countdown <= 0) {
       clearStudentSession();
       navigate("/", { replace: true });
@@ -73,27 +99,11 @@ export function StudentSubmittedPage() {
     }, 1000);
 
     return () => clearInterval(id);
-  }, [navigate, countdown]);
+  }, [navigate, countdown, hasPendingSubmission]);
 
   const handleRedirectNow = () => {
     clearStudentSession();
     navigate("/", { replace: true });
-  };
-
-  const handleRetry = async () => {
-    if (!pending || retrying) return;
-    setRetrying(true);
-
-    try {
-      await submitAnswers(pending.assignment_id, pending.answers);
-      localStorage.removeItem("pending_submission");
-      setPending(null);
-      setRetrySuccess(true);
-    } catch {
-      // Still failed — user can try again
-    } finally {
-      setRetrying(false);
-    }
   };
 
   const minutes = Math.floor(countdown / 60);
@@ -102,7 +112,6 @@ export function StudentSubmittedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-12 shadow-sm text-center">
-        {/* Icon */}
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
           <CheckCircle
             className="h-8 w-8 text-green-600 dark:text-green-400"
@@ -110,23 +119,22 @@ export function StudentSubmittedPage() {
           />
         </div>
 
-        {/* Heading */}
         <h1 className="text-xl font-semibold text-foreground">
-          Your test has been submitted
+          {hasPendingSubmission ? "Submission pending" : "Your test has been submitted"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Thank you for completing the assessment. Your answers have been
-          recorded successfully.
+          {hasPendingSubmission
+            ? "Your answers are saved on this device. Keep this page open while we retry."
+            : "Thank you for completing the assessment. Your answers have been recorded successfully."}
         </p>
 
-        {/* Pending submission retry */}
-        {pending && !retrySuccess && (
+        {hasPendingSubmission && (
           <div className="mt-6 rounded-xl border border-yellow-300 bg-yellow-50 px-6 py-4 dark:bg-yellow-900/20 dark:border-yellow-700">
             <p className="text-sm text-yellow-800 dark:text-yellow-300">
-              Your submission is pending (saved offline). Click below to retry.
+              Your submission is pending. Click below to retry.
             </p>
             <Button
-              onClick={handleRetry}
+              onClick={retryPendingSubmission}
               disabled={retrying}
               className="mt-3 gap-2"
               variant="outline"
@@ -147,25 +155,27 @@ export function StudentSubmittedPage() {
           </div>
         )}
 
-        {/* Countdown */}
-        <div className="mt-8 rounded-xl border border-border bg-muted/40 px-6 py-4">
-          <p className="text-xs text-muted-foreground">
-            You will be redirected to the home page in
-          </p>
-          <p className="mt-1 text-3xl font-bold tabular-nums text-foreground">
-            {String(minutes).padStart(2, "0")}:
-            {String(seconds).padStart(2, "0")}
-          </p>
-        </div>
+        {!hasPendingSubmission && (
+          <>
+            <div className="mt-8 rounded-xl border border-border bg-muted/40 px-6 py-4">
+              <p className="text-xs text-muted-foreground">
+                You will be redirected to the home page in
+              </p>
+              <p className="mt-1 text-3xl font-bold tabular-nums text-foreground">
+                {String(minutes).padStart(2, "0")}:
+                {String(seconds).padStart(2, "0")}
+              </p>
+            </div>
 
-        {/* Redirect now */}
-        <Button
-          variant="outline"
-          className="mt-6 min-w-[160px]"
-          onClick={handleRedirectNow}
-        >
-          Redirect Now
-        </Button>
+            <Button
+              variant="outline"
+              className="mt-6 min-w-[160px]"
+              onClick={handleRedirectNow}
+            >
+              Redirect Now
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

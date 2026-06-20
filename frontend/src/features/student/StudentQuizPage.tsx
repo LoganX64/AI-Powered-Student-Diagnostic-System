@@ -56,7 +56,6 @@ function clearExamStorage() {
   localStorage.removeItem("exam_started");
   localStorage.removeItem("exam_started_at");
   localStorage.removeItem("exam_timer");
-  localStorage.removeItem("pending_submission");
 }
 
 // ---------------------------------------------------------------------------

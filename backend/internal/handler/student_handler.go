@@ -316,17 +316,20 @@ func SubmitAnswers(c *gin.Context) {
 		return
 	}
 
+	_, err = tx.Exec(
+		"UPDATE assignments SET status = 'submitted' WHERE id = $1",
+		assignmentID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark assignment submitted"})
+		return
+	}
+
 	//  Commit
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 		return
 	}
-
-	//  Mark assignment as submitted
-	database.Exec(
-		"UPDATE assignments SET status = 'submitted' WHERE id = $1",
-		assignmentID,
-	)
 
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       attemptID,
@@ -368,11 +371,11 @@ func ListStudentAssignments(c *gin.Context) {
 	defer rows.Close()
 
 	type AssignmentItem struct {
-		ID          int    `json:"id"`
-		TestID      int    `json:"test_id"`
-		TestTitle   string `json:"test_title"`
-		Status      string `json:"status"`
-		AssignedAt  string `json:"assigned_at"`
+		ID         int    `json:"id"`
+		TestID     int    `json:"test_id"`
+		TestTitle  string `json:"test_title"`
+		Status     string `json:"status"`
+		AssignedAt string `json:"assigned_at"`
 	}
 
 	var assignments []AssignmentItem
@@ -469,18 +472,18 @@ func GetAssignmentQuestions(c *gin.Context) {
 	defer rows.Close()
 
 	type QuestionResponse struct {
-		ID            int     `json:"id"`
-		QuestionText  string  `json:"question_text"`
-		OptionA       string  `json:"option_a"`
-		OptionB       string  `json:"option_b"`
-		OptionC       string  `json:"option_c"`
-		OptionD       string  `json:"option_d"`
-		Marks         float64 `json:"marks"`
-		NegMarks      float64 `json:"neg_marks"`
-		Difficulty    string  `json:"difficulty"`
-		Type          string  `json:"type"`
-		ExpectedTime  float64 `json:"expected_time"`
-		ConceptTag    string  `json:"concept_tag"`
+		ID           int     `json:"id"`
+		QuestionText string  `json:"question_text"`
+		OptionA      string  `json:"option_a"`
+		OptionB      string  `json:"option_b"`
+		OptionC      string  `json:"option_c"`
+		OptionD      string  `json:"option_d"`
+		Marks        float64 `json:"marks"`
+		NegMarks     float64 `json:"neg_marks"`
+		Difficulty   string  `json:"difficulty"`
+		Type         string  `json:"type"`
+		ExpectedTime float64 `json:"expected_time"`
+		ConceptTag   string  `json:"concept_tag"`
 	}
 
 	var questions []QuestionResponse
