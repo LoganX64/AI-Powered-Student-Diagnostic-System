@@ -18,6 +18,7 @@ import type {
   CoachStudent,
   PaginatedResponse,
   PaginationParams,
+  AssignmentDetail,
 } from "./types";
 
 export type {
@@ -39,6 +40,7 @@ export type {
   CoachStudent,
   PaginatedResponse,
   PaginationParams,
+  AssignmentDetail,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

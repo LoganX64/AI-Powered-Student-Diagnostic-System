@@ -151,3 +151,33 @@ export type PaginationParams = {
   offset?: number;
   search?: string;
 };
+
+// ─── Assignment Detail ──────────────────────────────────────────────────────
+
+export type AnswerDetail = {
+  question_id: number;
+  question_text: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+  selected_answer: string;
+  is_correct: boolean;
+  marks: number;
+  time_spent: number;
+  marked_for_review: boolean;
+  changed_answer: boolean;
+  seen: boolean;
+  concept_tag: string;
+  difficulty: string;
+};
+
+export type AssignmentDetail = {
+  student: { id: number; name: string; student_code: string };
+  test: { id: number; title: string };
+  assignment: { id: number; status: string; assigned_at: string };
+  attempt: { id: number; submitted_at: string } | null;
+  sqi_score: number;
+  answers: AnswerDetail[];
+};
