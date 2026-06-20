@@ -34,6 +34,7 @@ const router = createBrowserRouter([
   { path: "/", Component: LandingPage },
   { path: "about", Component: AboutPage },
 
+
   // Auth pages — centered layout
   { path: "student-login", Component: StudentLoginPage },
   { path: "admin-signin", Component: AdminSigninPage },
