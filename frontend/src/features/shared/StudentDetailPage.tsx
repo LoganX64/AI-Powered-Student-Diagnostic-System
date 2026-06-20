@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, BarChart3Icon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, BarChart3Icon, BarChartIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
+import { toast } from "sonner";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -142,11 +143,16 @@ export function StudentDetailPage() {
                     <TableHead>Test Title</TableHead>
                     <TableHead className="w-36">Status</TableHead>
                     <TableHead>Assigned At</TableHead>
+                    <TableHead className="w-28">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {assignments.map((a) => (
-                    <TableRow key={a.id}>
+                    <TableRow
+                      key={a.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`${prefix}/students/${studentId}/assignments/${a.id}`)}
+                    >
                       <TableCell className="font-medium">{a.test_title}</TableCell>
                       <TableCell>
                         <Badge variant={a.submitted ? "default" : "secondary"}>
@@ -155,6 +161,19 @@ export function StudentDetailPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {formatDateDDMMYYYY(a.assigned_at)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toast.info("SQI details coming soon");
+                          }}
+                        >
+                          <BarChartIcon className="size-3.5" /> SQI Score
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -28,6 +28,7 @@ import { GetHelpPage } from "../src/features/shared/GetHelpPage.tsx";
 import { AccountsPage } from "../src/features/shared/AccountsPage.tsx";
 import { BillingPage } from "../src/features/shared/BillingPage.tsx";
 import { NotificationsPage } from "../src/features/shared/NotificationsPage.tsx";
+import { AssignmentDetailPage } from "../src/features/shared/AssignmentDetailPage.tsx";
 
 const router = createBrowserRouter([
   // Public pages
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
       { path: "admin/students", Component: StudentsPage },
       { path: "admin/students/:id", Component: StudentDetailPage },
       { path: "admin/students/:id/sqi", Component: StudentSQIPage },
+      { path: "admin/students/:id/assignments/:assignmentId", Component: AssignmentDetailPage },
       { path: "admin/subjects", Component: SubjectsPage },
       { path: "admin/tests", Component: TestsPage },
       { path: "admin/all-tests", Component: AllTestsPage },
@@ -68,6 +70,7 @@ const router = createBrowserRouter([
       { path: "coach/students", Component: StudentsPage },
       { path: "coach/students/:id", Component: StudentDetailPage },
       { path: "coach/students/:id/sqi", Component: StudentSQIPage },
+      { path: "coach/students/:id/assignments/:assignmentId", Component: AssignmentDetailPage },
       { path: "coach/subjects", Component: SubjectsPage },
       { path: "coach/tests", Component: TestsPage },
       { path: "coach/all-tests", Component: AllTestsPage },

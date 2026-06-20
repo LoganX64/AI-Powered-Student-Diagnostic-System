@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon, BarChartIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
@@ -305,11 +305,16 @@ export function TestDetailPage() {
                       <TableHead>Student Code</TableHead>
                       <TableHead className="w-24">Status</TableHead>
                       <TableHead>Assigned At</TableHead>
+                      <TableHead className="w-28">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {assignments.map((a) => (
-                      <TableRow key={a.id}>
+                      <TableRow
+                        key={a.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`${prefix}/students/${a.student_id}/assignments/${a.id}`)}
+                      >
                         <TableCell className="font-mono text-sm text-muted-foreground">{a.id}</TableCell>
                         <TableCell className="font-medium">{a.student_name}</TableCell>
                         <TableCell>
@@ -319,6 +324,19 @@ export function TestDetailPage() {
                           <Badge variant={a.status === "assigned" ? "secondary" : "default"}>{a.status}</Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">{a.assigned_at}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toast.info("SQI details coming soon");
+                            }}
+                          >
+                            <BarChartIcon className="size-3.5" /> SQI Score
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

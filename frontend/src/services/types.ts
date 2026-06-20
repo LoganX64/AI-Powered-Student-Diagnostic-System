@@ -177,7 +177,7 @@ export type AssignmentDetail = {
   student: { id: number; name: string; student_code: string };
   test: { id: number; title: string };
   assignment: { id: number; status: string; assigned_at: string };
-  attempt: { id: number; submitted_at: string } | null;
+  attempt: { id: number; submitted_at: string | null } | null;
   sqi_score: number;
   answers: AnswerDetail[];
 };

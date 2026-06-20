@@ -194,3 +194,8 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
 
 export const getAssignments = (params?: PaginationParams & { test_id?: number }) =>
   apiFetch<PaginatedResponse<Assignment>>(`${getPrefix()}/assignments${buildAssignmentQuery(params)}`);
+
+// ─── Assignment Detail endpoint (role-aware) ───────────────────────────────
+
+export const getAssignmentDetail = (studentId: number, assignmentId: number) =>
+  apiFetch<AssignmentDetail>(`${getPrefix()}/students/${studentId}/assignments/${assignmentId}`);
