@@ -740,7 +740,40 @@ func (h *CoachHandler) DeleteStudent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "student deactivated"})
+	c.JSON(http.StatusOK, gin.H{"message": "student account deactivated"})
+}
+
+func (h *CoachHandler) ReactivateStudent(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	coachID, tenantID, err := h.getCoachDetailsFromUser(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`UPDATE students SET deleted_at = NULL, deleted_by = NULL
+		 WHERE id = $1 AND tenant_id = $2 AND coach_id = $3 AND deleted_at IS NOT NULL`,
+		studentID, tenantID, coachID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found or already active"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "student account reactivated"})
 }
 
 func (h *CoachHandler) ListSubjects(c *gin.Context) {
