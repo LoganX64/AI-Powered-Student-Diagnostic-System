@@ -1437,7 +1437,40 @@ func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "student deactivated"})
+	c.JSON(http.StatusOK, gin.H{"message": "student account deactivated"})
+}
+
+func (h *AdminHandler) ReactivateStudent(c *gin.Context) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`UPDATE students SET deleted_at = NULL, deleted_by = NULL
+		 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NOT NULL`,
+		studentID, tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "student not found or already active"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "student account reactivated"})
 }
 
 func (h *AdminHandler) ListCoaches(c *gin.Context) {
@@ -1450,8 +1483,12 @@ func (h *AdminHandler) ListCoaches(c *gin.Context) {
 
 	limit, offset := parsePagination(c)
 	search := c.Query("search")
+	includeDeactivated := c.Query("include_deactivated") == "true"
 
-	baseQuery := "FROM coaches c JOIN users u ON c.user_id = u.id WHERE c.tenant_id=$1 AND c.deleted_at IS NULL"
+	baseQuery := "FROM coaches c JOIN users u ON c.user_id = u.id WHERE c.tenant_id=$1"
+	if !includeDeactivated {
+		baseQuery += " AND c.deleted_at IS NULL"
+	}
 	countQuery := "SELECT COUNT(*) " + baseQuery
 	dataQuery := "SELECT c.id, c.user_id, c.name, u.email " + baseQuery
 
@@ -1572,7 +1609,40 @@ func (h *AdminHandler) DeleteCoach(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "coach deactivated"})
+	c.JSON(http.StatusOK, gin.H{"message": "coach account deactivated"})
+}
+
+func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
+	coachID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		return
+	}
+
+	userID := c.GetInt("user_id")
+	tenantID, err := h.getTenantID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	result, err := h.DB.Exec(
+		`UPDATE coaches SET deleted_at = NULL, deleted_by = NULL
+		 WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NOT NULL`,
+		coachID, tenantID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found or already active"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "coach account reactivated"})
 }
 
 func (h *AdminHandler) ListCoachTests(c *gin.Context) {
