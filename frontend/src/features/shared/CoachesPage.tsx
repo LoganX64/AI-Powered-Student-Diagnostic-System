@@ -38,6 +38,7 @@ export function CoachesPage() {
   const [creating, setCreating] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
+  const [dialogOpenId, setDialogOpenId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
@@ -203,7 +204,11 @@ export function CoachesPage() {
                   <TableRow
                     key={coach.coach_id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/admin/coaches/${coach.coach_id}`)}
+                    onClick={() => {
+                      if (dialogOpenId !== coach.coach_id) {
+                        navigate(`/admin/coaches/${coach.coach_id}`);
+                      }
+                    }}
                   >
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {coach.coach_id}
@@ -212,7 +217,7 @@ export function CoachesPage() {
                     <TableCell className="text-muted-foreground">{coach.email}</TableCell>
                     <TableCell className="text-right">
                       {coach.deleted_at ? (
-                        <AlertDialog>
+                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? coach.coach_id : null)}>
                           <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
@@ -244,7 +249,7 @@ export function CoachesPage() {
                           </AlertDialogContent>
                         </AlertDialog>
                       ) : (
-                        <AlertDialog>
+                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? coach.coach_id : null)}>
                           <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"

@@ -43,6 +43,7 @@ export function StudentsPage() {
   const [creating, setCreating] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
+  const [dialogOpenId, setDialogOpenId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
@@ -311,7 +312,11 @@ export function StudentsPage() {
                   <TableRow
                     key={student.student_id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`${prefix}/students/${student.student_id}`)}
+                    onClick={() => {
+                      if (dialogOpenId !== student.student_id) {
+                        navigate(`${prefix}/students/${student.student_id}`);
+                      }
+                    }}
                   >
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {student.student_id}
@@ -329,7 +334,7 @@ export function StudentsPage() {
                     )}
                     <TableCell className="text-right">
                       {student.deleted_at ? (
-                        <AlertDialog>
+                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? student.student_id : null)}>
                           <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
@@ -363,7 +368,7 @@ export function StudentsPage() {
                           </AlertDialogContent>
                         </AlertDialog>
                       ) : (
-                        <AlertDialog>
+                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? student.student_id : null)}>
                           <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
