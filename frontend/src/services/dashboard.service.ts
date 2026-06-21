@@ -86,8 +86,15 @@ export const createCoach = (data: CreateCoachPayload) =>
     body: JSON.stringify(data),
   });
 
-export const getCoaches = (params?: PaginationParams) =>
-  apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildQuery(params)}`);
+export const getCoaches = (params?: PaginationParams & { include_deactivated?: boolean }) => {
+  const query = new URLSearchParams();
+  if (params?.limit) query.set("limit", params.limit.toString());
+  if (params?.offset) query.set("offset", params.offset.toString());
+  if (params?.search) query.set("search", params.search);
+  if (params?.include_deactivated) query.set("include_deactivated", "true");
+  const qs = query.toString();
+  return apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${qs ? `?${qs}` : ""}`);
+};
 
 export const getCoach = (coachId: number) =>
   apiFetch<CoachDetail>(`/admin/coaches/${coachId}`);
@@ -103,6 +110,11 @@ export const deleteCoach = (coachId: number) =>
     method: "DELETE",
   });
 
+export const reactivateCoach = (coachId: number) =>
+  apiFetch<{ message: string }>(`/admin/coaches/${coachId}/reactivate`, {
+    method: "PUT",
+  });
+
 // ─── Student endpoints (role-aware) ───────────────────────────────────────────
 
 export const createStudent = (data: CreateStudentPayload) =>
@@ -114,6 +126,11 @@ export const createStudent = (data: CreateStudentPayload) =>
 export const deleteStudent = (studentId: number) =>
   apiFetch<{ message: string }>(`${getPrefix()}/students/${studentId}`, {
     method: "DELETE",
+  });
+
+export const reactivateStudent = (studentId: number) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/students/${studentId}/reactivate`, {
+    method: "PUT",
   });
 
 export const getStudent = (studentId: number) =>
