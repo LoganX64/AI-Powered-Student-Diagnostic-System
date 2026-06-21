@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createStudent, deleteStudent, getStudents, getCoaches, type CreateStudentPayload, type Student, type Coach } from "@/services/dashboard.service";
+import { createStudent, deleteStudent, reactivateStudent, getStudents, getCoaches, type CreateStudentPayload, type Student, type Coach } from "@/services/dashboard.service";
 
 const PAGE_SIZE = 50;
 
@@ -41,7 +41,8 @@ export function StudentsPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [creating, setCreating] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);

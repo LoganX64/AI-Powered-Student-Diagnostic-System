@@ -64,6 +64,7 @@ export type Coach = {
   user_id: number;
   name: string;
   email: string;
+  deleted_at?: string | null;
 };
 
 export type Student = {
@@ -71,6 +72,7 @@ export type Student = {
   name: string;
   student_code: string;
   coach_id: number;
+  deleted_at?: string | null;
 };
 
 export type Subject = {

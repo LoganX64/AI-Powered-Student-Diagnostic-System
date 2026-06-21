@@ -1246,7 +1246,7 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 		return
 	}
 
-	query := "SELECT id, name, student_code, coach_id FROM students WHERE tenant_id=$1"
+	query := "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE tenant_id=$1"
 	if !includeDeactivated {
 		query += " AND deleted_at IS NULL"
 	}
@@ -1260,16 +1260,17 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 	defer rows.Close()
 
 	type StudentRow struct {
-		StudentID   int    `json:"student_id"`
-		Name        string `json:"name"`
-		StudentCode string `json:"student_code"`
-		CoachID     int    `json:"coach_id"`
+		StudentID   int     `json:"student_id"`
+		Name        string  `json:"name"`
+		StudentCode string  `json:"student_code"`
+		CoachID     int     `json:"coach_id"`
+		DeletedAt   *string `json:"deleted_at"`
 	}
 
 	var students []StudentRow
 	for rows.Next() {
 		var s StudentRow
-		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID); err != nil {
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.DeletedAt); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
 			return
 		}
