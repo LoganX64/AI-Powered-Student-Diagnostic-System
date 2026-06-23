@@ -65,7 +65,7 @@ type SQIDimensionsV2 struct {
 // per-concept breakdowns, and behavioral flags.
 type DiagnosticPayloadV2 struct {
 	// ── Scores (also shown to student / teacher) ──────────────────
-	OverallSQI float64          `json:"overall_sqi"`
+	OverallSQI float64         `json:"overall_sqi"`
 	Dimensions SQIDimensionsV2 `json:"dimensions"`
 
 	// ── Exam-level summary ─────────────────────────────────────────
@@ -125,10 +125,10 @@ type AttemptProfileV2 struct {
 
 // ConceptProfileV2 is the per-topic diagnostic entry.
 type ConceptProfileV2 struct {
-	ConceptTag   string             `json:"concept_tag"`
-	Subject      string             `json:"subject"`
-	Status       ConceptStatusV2    `json:"status"`
-	PriorityRank int                `json:"priority_rank"`
+	ConceptTag   string            `json:"concept_tag"`
+	Subject      string            `json:"subject"`
+	Status       ConceptStatusV2   `json:"status"`
+	PriorityRank int               `json:"priority_rank"`
 	Evidence     ConceptEvidenceV2 `json:"evidence"`
 }
 
@@ -146,21 +146,21 @@ const (
 
 // ConceptEvidenceV2 is the raw numbers behind a concept's status.
 type ConceptEvidenceV2 struct {
-	TotalQuestions int     `json:"total_questions"`
-	Attempted      int     `json:"attempted"`
-	Correct        int     `json:"correct"`
-	Wrong          int     `json:"wrong"`
-	Skipped        int     `json:"skipped"`
-	Unseen         int     `json:"unseen"`
-	AccuracyPct    float64 `json:"accuracy_pct"`
-	AvgTimeRatio   float64 `json:"avg_time_ratio"`
-	NegMarksCost   float64 `json:"neg_marks_cost"`
-	GuessCount     int     `json:"guess_count"`
-	GenuineWrong   int     `json:"genuine_wrong"`
-	ChangedToCorrect int   `json:"changed_to_correct"`
+	TotalQuestions   int     `json:"total_questions"`
+	Attempted        int     `json:"attempted"`
+	Correct          int     `json:"correct"`
+	Wrong            int     `json:"wrong"`
+	Skipped          int     `json:"skipped"`
+	Unseen           int     `json:"unseen"`
+	AccuracyPct      float64 `json:"accuracy_pct"`
+	AvgTimeRatio     float64 `json:"avg_time_ratio"`
+	NegMarksCost     float64 `json:"neg_marks_cost"`
+	GuessCount       int     `json:"guess_count"`
+	GenuineWrong     int     `json:"genuine_wrong"`
+	ChangedToCorrect int     `json:"changed_to_correct"`
 	ChangedToWrong   int     `json:"changed_to_wrong"`
-	MasteryScore    float64 `json:"mastery_score"`
-	PriorityScore   float64 `json:"priority_score"`
+	MasteryScore     float64 `json:"mastery_score"`
+	PriorityScore    float64 `json:"priority_score"`
 }
 
 // BehaviorFlagsV2 are boolean coaching signals with a confidence weight.
@@ -459,7 +459,7 @@ func computeDimensions(results []questionResult, summary ExamSummaryV2, cfg Exam
 // Wrong on easy questions penalized more.
 // Skipped = 30% penalty, unseen = no penalty (time issue, not knowledge).
 func computeMastery(results []questionResult) float64 {
-	var weightedScore, weightedMax float64
+	var scoreSum, minSum, maxSum float64
 
 	for _, r := range results {
 		w := r.WeightFactor
@@ -467,72 +467,69 @@ func computeMastery(results []questionResult) float64 {
 			w = 1
 		}
 
+		var val float64
+
 		switch r.Outcome {
 		case outcomeCorrect:
-			weightedScore += 1.0 * w
-			weightedMax += 1.0 * w
+			val = 1.0
+
 		case outcomeWrong:
-			// Wrong on easy = bigger penalty
-			penalty := 0.0
-			switch r.Difficulty {
-			case "E":
-				penalty = -0.4
-			case "M":
-				penalty = -0.2
-			case "H":
-				penalty = -0.1
-			}
-			weightedScore += penalty * w
-			weightedMax += 1.0 * w
+			diffWt := helper.GetSQIV2DifficultyWeight(r.Difficulty)
+			val = -0.3 / diffWt
+
 		case outcomeSkipped:
-			// Skipped = mild mastery hit (made a choice, didn't attempt)
-			weightedScore += -0.15 * w
-			weightedMax += 1.0 * w
+			val = -0.2
+
 		case outcomeUnseen:
-			// Unseen does not count against mastery — it's a coverage issue
-			weightedMax += 1.0 * w
+			val = 0
 		}
+
+		val *= w
+
+		scoreSum += val
+		maxSum += 1.0 * w
+		minSum += -0.3 * w
 	}
 
-	if weightedMax == 0 {
+	if maxSum-minSum == 0 {
 		return 0
 	}
-	return helper.ClampV2((weightedScore/weightedMax)*100, 0, 100)
+
+	return helper.ClampV2(((scoreSum-minSum)/(maxSum-minSum))*100, 0, 100)
 }
 
 // Speed — quality of time usage on attempted questions.
 // Matrix: outcome × timeBucket → score (0–100)
 // Fast+correct = 100 (fluent), slow+wrong = 15 (wasted time AND marks)
 func computeSpeed(results []questionResult) float64 {
-	speedMatrix := map[outcomeType]map[timeBucket]float64{
-		outcomeCorrect: {
-			timeFast:     100,
-			timeNormal:   80,
-			timeSlow:     55,
-			timeVerySlow: 30,
-		},
-		outcomeWrong: {
-			timeFast:     25, // guessing — at least didn't waste much time
-			timeNormal:   40,
-			timeSlow:     20,
-			timeVerySlow: 10,
-		},
-	}
-
 	var totalScore, totalWeight float64
+
 	for _, r := range results {
 		if r.Outcome != outcomeCorrect && r.Outcome != outcomeWrong {
-			continue // skipped/unseen don't affect speed score
+			continue
 		}
+
 		w := helper.GetSQIV2ImportanceWeight(r.Importance)
-		score := speedMatrix[r.Outcome][r.TimeBucket]
+		tr := r.TimeRatio
+
+		var score float64
+
+		if tr <= 0 {
+			score = 0
+		} else if r.IsCorrect {
+			score = math.Exp(-1.2*math.Abs(tr-1)) * 100
+		} else {
+			score = math.Exp(-0.8*tr) * 50
+		}
+
 		totalScore += score * w
 		totalWeight += w
 	}
 
 	if totalWeight == 0 {
-		return 50 // neutral default if no attempted questions
+		return 50
 	}
+
 	return helper.ClampV2(totalScore/totalWeight, 0, 100)
 }
 
@@ -540,50 +537,59 @@ func computeSpeed(results []questionResult) float64 {
 // Starts at 100, deductions for guessing and bad behavioral patterns,
 // small bonuses for good risk awareness.
 func computeRisk(results []questionResult, summary ExamSummaryV2, cfg ExamConfigV2) float64 {
-	score := 100.0
 
-	if !cfg.HasNegativeMarking {
-		// Without negative marking, risk is purely about coverage of easy questions
-		// Penalize only for leaving easy questions unseen
-		for _, r := range results {
-			if r.Outcome == outcomeUnseen && r.Difficulty == "E" {
-				score -= 3 * helper.GetSQIV2ImportanceWeight(r.Importance)
-			}
-		}
-		return helper.ClampV2(score, 0, 100)
-	}
+	var scoreSum, minSum, maxSum float64
 
 	for _, r := range results {
-		iw := helper.GetSQIV2ImportanceWeight(r.Importance)
+		w := helper.GetSQIV2ImportanceWeight(r.Importance)
 
-		switch {
-		case r.AttemptKind == attemptGuess:
-			// Fast + wrong = gambling. Heavier deduction for important questions.
-			score -= 6 * iw
+		isGuess := r.TimeRatio < 0.6 && helper.GetSQIV2DifficultyWeight(r.Difficulty) >= 1.5
 
-		case r.Outcome == outcomeWrong && r.AttemptKind == attemptGenuine:
-			// Genuinely wrong — smaller risk deduction (acceptable risk taking)
-			score -= 2 * iw
+		var val float64
 
-		case r.ChangedAnswer && r.WasInitiallyWrong && r.IsCorrect:
-			// Changed wrong → correct = good self-awareness, small bonus
-			score += 2
+		switch r.Outcome {
 
-		case r.ChangedAnswer && !r.WasInitiallyWrong && !r.IsCorrect:
-			// Changed correct → wrong = overconfidence, deduct
-			score -= 5
+		case outcomeCorrect:
+			if r.TimeRatio < 0.6 {
+				val = 1
+			} else {
+				val = 2
+			}
 
-		case r.Outcome == outcomeUnseen && r.Difficulty == "E":
-			// Left easy questions unseen = poor time/risk management
-			score -= 3 * iw
+		case outcomeWrong:
+			if isGuess {
+				val = -1
+			} else {
+				val = -3
+			}
 
-		case r.Outcome == outcomeSkipped && r.Difficulty == "H":
-			// Skipped hard questions when negative marking is on = good risk management
-			score += 1
+		case outcomeSkipped:
+			if r.Difficulty == "H" {
+				val = 1
+			} else {
+				val = -1
+			}
+
+		case outcomeUnseen:
+			if r.Difficulty == "E" {
+				val = -2
+			} else {
+				val = 0
+			}
 		}
+
+		val *= w
+
+		scoreSum += val
+		maxSum += 2 * w
+		minSum += -3 * w
 	}
 
-	return helper.ClampV2(score, 0, 100)
+	if maxSum-minSum == 0 {
+		return 0
+	}
+
+	return helper.ClampV2(((scoreSum-minSum)/(maxSum-minSum))*100, 0, 100)
 }
 
 // Coverage — how much of the paper the student engaged with.
@@ -998,4 +1004,86 @@ func AnalyzeFromLegacy(questions []QuestionMeta, answers []AnswerLog, cfg ExamCo
 	}
 
 	return Analyze(v2Qs, v2Ans, cfg)
+}
+
+// -----------------------------
+// UPDATED SCORING HELPERS
+// -----------------------------
+
+func computeMasteryScoreV2(outcome string, difficulty string) float64 {
+	basePenalty := 0.3
+	diffWt := helper.GetDifficultyWeight(difficulty)
+
+	switch outcome {
+	case "correct":
+		return 1.0
+	case "wrong":
+		return -basePenalty / diffWt
+	case "skipped":
+		return -0.2
+	case "unseen":
+		return 0
+	}
+	return 0
+}
+
+func computeSpeedScoreV2(isCorrect bool, timeRatio float64) float64 {
+	if timeRatio <= 0 {
+		return 0
+	}
+
+	if isCorrect {
+		return math.Exp(-1.2 * math.Abs(timeRatio-1))
+	}
+
+	return math.Exp(-0.8*timeRatio) * 0.5
+}
+
+func detectGuessV2(timeRatio float64, difficulty string, isCorrect bool) bool {
+	if isCorrect {
+		return false
+	}
+
+	diffWt := helper.GetDifficultyWeight(difficulty)
+
+	return timeRatio < 0.6 && diffWt >= 1.5
+}
+
+func computeRiskScoreV2(outcome string, difficulty string, timeRatio float64, isGuess bool) float64 {
+
+	switch outcome {
+
+	case "correct":
+		if timeRatio < 0.6 {
+			return 1
+		}
+		return 2
+
+	case "wrong":
+		if isGuess {
+			return -1
+		}
+		return -3
+
+	case "skipped":
+		if difficulty == "H" {
+			return 1
+		}
+		return -1
+
+	case "unseen":
+		if difficulty == "E" {
+			return -2
+		}
+		return 0
+	}
+
+	return 0
+}
+
+func normalizeV2(value, min, max float64) float64 {
+	if max-min == 0 {
+		return 0
+	}
+	return ((value - min) / (max - min)) * 100
 }
