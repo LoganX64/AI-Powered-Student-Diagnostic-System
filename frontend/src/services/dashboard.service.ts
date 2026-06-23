@@ -216,3 +216,27 @@ export const getAssignments = (params?: PaginationParams & { test_id?: number })
 
 export const getAssignmentDetail = (studentId: number, assignmentId: number) =>
   apiFetch<AssignmentDetail>(`${getPrefix()}/students/${studentId}/assignments/${assignmentId}`);
+
+// ─── Dashboard stats (role-aware) ───────────────────────────────────────────
+
+export type DashboardCounts = {
+  totalCoaches: number;
+  totalStudents: number;
+  testsCreated: number;
+};
+
+export const getDashboardCounts = async (): Promise<DashboardCounts> => {
+  const prefix = getPrefix();
+
+  const [coachesRes, studentsRes, testsRes] = await Promise.all([
+    apiFetch<PaginatedResponse<unknown>>(`${prefix}/coaches?limit=1`),
+    apiFetch<PaginatedResponse<unknown>>(`${prefix}/students?limit=1`),
+    apiFetch<PaginatedResponse<unknown>>(`${prefix}/tests?limit=1`),
+  ]);
+
+  return {
+    totalCoaches: coachesRes.total,
+    totalStudents: studentsRes.total,
+    testsCreated: testsRes.total,
+  };
+};

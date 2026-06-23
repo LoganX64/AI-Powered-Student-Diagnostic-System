@@ -2,6 +2,7 @@ planning.md
 code_review.md
 TEST_PAYLOADS.md
 backend/TEST_PAYLOADS.md
+tracker.md
 
 # environment variables
 .env
