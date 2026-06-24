@@ -2,10 +2,8 @@ package handlers
 
 import (
 	db "ai-student-diagnostic/backend/internal/repository"
-	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -202,12 +200,6 @@ func SubmitAnswers(c *gin.Context) {
 		correctMap[q.QuestionID] = correct
 	}
 
-	var questionMetaList []services.QuestionMetaV2
-	var answerLogs []services.AnswerLogV2
-	for _, q := range qMap {
-		questionMetaList = append(questionMetaList, q)
-	}
-
 	seenQuestionIDs := make(map[int]bool)
 	var totalTimeSpent float64
 
@@ -290,55 +282,6 @@ func SubmitAnswers(c *gin.Context) {
 			return
 		}
 
-		answerLogs = append(answerLogs, services.AnswerLogV2{
-			QuestionID:        ans.QuestionID,
-			SelectedAnswer:    ans.SelectedAnswer,
-			CorrectAnswer:     correctAnswer,
-			TimeSpent:         ans.TimeSpent,
-			MarkedForReview:   ans.MarkedForReview,
-			Revisited:         ans.Revisited,
-			ChangedAnswer:     ans.ChangedAnswer,
-			WasInitiallyWrong: ans.WasInitiallyWrong,
-			Seen:              answerSeen,
-		})
-	}
-
-	// Build ExamConfigV2
-	hasNegMarking := false
-	for _, q := range questionMetaList {
-		if q.NegMarks > 0 {
-			hasNegMarking = true
-			break
-		}
-	}
-	cfg := services.ExamConfigV2{
-		ExamType:           "competitive",
-		HasNegativeMarking: hasNegMarking,
-		TotalDuration:      float64(duration),
-	}
-
-	// Call V2 engine
-	payload := services.Analyze(questionMetaList, answerLogs, cfg)
-	analysisJSON, err := json.Marshal(payload)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode analysis"})
-		return
-	}
-
-	_, err = tx.Exec(`
-		INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
-		VALUES ($1,$2,$3,$4,$5)
-	`,
-		attemptID,
-		payload.OverallSQI,
-		payload.ExamSummary.NetScore,
-		analysisJSON,
-		payload.Version,
-	)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store result"})
-		return
 	}
 
 	_, err = tx.Exec(
@@ -358,10 +301,8 @@ func SubmitAnswers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       attemptID,
-		"sqi_score":        payload.OverallSQI,
 		"total_time_spent": helperRoundForResponse(totalTimeSpent),
 		"test_duration":    duration,
-		"analysis":         payload,
 	})
 }
 
