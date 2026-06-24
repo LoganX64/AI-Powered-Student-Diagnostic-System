@@ -164,7 +164,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		"student_id":  studentID,
 		"name":        name,
 		"attempts":    results,
-		"average_sqi": helper.Round(avgSQI, 2),
+		"average_sqi": helper.Round2V2(avgSQI),
 		"total_tests": len(results),
 	})
 }
@@ -472,7 +472,7 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 		"subject_id":     subjectID,
 		"subject_name":   subjectName,
 		"results":        results,
-		"average_sqi":    helper.Round(averageSQI, 2),
+		"average_sqi":    helper.Round2V2(averageSQI),
 		"total_attempts": len(results),
 		"calculation":    "sqi_engine",
 	}
