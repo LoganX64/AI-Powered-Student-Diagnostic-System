@@ -155,9 +155,16 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	rows, err := tx.Query(`
-		SELECT id, correct_answer, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag
-		FROM questions
-		WHERE test_id = $1
+		SELECT q.id, q.correct_answer, q.marks, q.neg_marks,
+		       CASE q.importance WHEN 'A' THEN 'high' WHEN 'B' THEN 'medium' WHEN 'C' THEN 'low' END,
+		       q.difficulty,
+		       CASE q.type WHEN 'Theory' THEN 'mcq' WHEN 'Practical' THEN 'integer' END,
+		       q.expected_time, q.concept_tag,
+		       COALESCE(s.name, 'Uncategorized')
+		FROM questions q
+		JOIN tests t ON q.test_id = t.id
+		LEFT JOIN subjects s ON t.subject_id = s.id
+		WHERE q.test_id = $1
 	`, testID)
 
 	if err != nil {
@@ -167,11 +174,11 @@ func SubmitAnswers(c *gin.Context) {
 	defer rows.Close()
 
 	// Maps
-	qMap := make(map[int]services.QuestionMeta)
+	qMap := make(map[int]services.QuestionMetaV2)
 	correctMap := make(map[int]string)
 
 	for rows.Next() {
-		var q services.QuestionMeta
+		var q services.QuestionMetaV2
 		var correct string
 
 		err := rows.Scan(
@@ -184,6 +191,7 @@ func SubmitAnswers(c *gin.Context) {
 			&q.Type,
 			&q.ExpectedTime,
 			&q.ConceptTag,
+			&q.Subject,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "question scan failed"})
@@ -194,8 +202,8 @@ func SubmitAnswers(c *gin.Context) {
 		correctMap[q.QuestionID] = correct
 	}
 
-	var questionMetaList []services.QuestionMeta
-	var answerLogs []services.AnswerLog
+	var questionMetaList []services.QuestionMetaV2
+	var answerLogs []services.AnswerLogV2
 	for _, q := range qMap {
 		questionMetaList = append(questionMetaList, q)
 	}
@@ -282,7 +290,7 @@ func SubmitAnswers(c *gin.Context) {
 			return
 		}
 
-		answerLogs = append(answerLogs, services.AnswerLog{
+		answerLogs = append(answerLogs, services.AnswerLogV2{
 			QuestionID:        ans.QuestionID,
 			SelectedAnswer:    ans.SelectedAnswer,
 			CorrectAnswer:     correctAnswer,
@@ -295,20 +303,36 @@ func SubmitAnswers(c *gin.Context) {
 		})
 	}
 
-	analysis := services.CalculateSQIAnalysis(questionMetaList, answerLogs)
-	analysisJSON, err := json.Marshal(analysis)
+	// Build ExamConfigV2
+	hasNegMarking := false
+	for _, q := range questionMetaList {
+		if q.NegMarks > 0 {
+			hasNegMarking = true
+			break
+		}
+	}
+	cfg := services.ExamConfigV2{
+		ExamType:           "competitive",
+		HasNegativeMarking: hasNegMarking,
+		TotalDuration:      float64(duration),
+	}
+
+	// Call V2 engine
+	payload := services.Analyze(questionMetaList, answerLogs, cfg)
+	analysisJSON, err := json.Marshal(payload)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode analysis"})
 		return
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO attempt_results (attempt_id, sqi_score, analysis_json)
-		VALUES ($1,$2,$3)
+		INSERT INTO attempt_results (attempt_id, sqi_score, analysis_json, version)
+		VALUES ($1,$2,$3,$4)
 	`,
 		attemptID,
-		analysis.OverallSQI,
+		payload.OverallSQI,
 		analysisJSON,
+		"v2",
 	)
 
 	if err != nil {
@@ -333,10 +357,10 @@ func SubmitAnswers(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       attemptID,
-		"sqi_score":        analysis.OverallSQI,
+		"sqi_score":        payload.OverallSQI,
 		"total_time_spent": helperRoundForResponse(totalTimeSpent),
 		"test_duration":    duration,
-		"analysis":         analysis,
+		"analysis":         payload,
 	})
 }
 

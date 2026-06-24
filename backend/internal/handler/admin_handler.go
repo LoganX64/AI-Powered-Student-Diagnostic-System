@@ -38,11 +38,11 @@ type AttemptResult struct {
 }
 
 type SubjectTestResult struct {
-	AttemptID int                  `json:"attempt_id"`
-	TestID    int                  `json:"test_id"`
-	TestTitle string               `json:"test_title"`
-	SQI       float64              `json:"sqi_score"`
-	Analysis  services.SQIAnalysis `json:"analysis"`
+	AttemptID int                       `json:"attempt_id"`
+	TestID    int                       `json:"test_id"`
+	TestTitle string                    `json:"test_title"`
+	SQI       float64                   `json:"sqi_score"`
+	Analysis  services.DiagnosticPayloadV2 `json:"analysis"`
 }
 
 func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
@@ -245,10 +245,11 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 	}
 
 	var sqiScore sql.NullFloat64
+	var analysisJSON sql.NullString
 	err = h.DB.QueryRow(
-		"SELECT sqi_score FROM attempt_results WHERE attempt_id=$1",
+		"SELECT sqi_score, analysis_json FROM attempt_results WHERE attempt_id=$1",
 		attemptID,
-	).Scan(&sqiScore)
+	).Scan(&sqiScore, &analysisJSON)
 
 	answerRows, err := h.DB.Query(`
 		SELECT al.question_id, q.question_text,
@@ -310,12 +311,22 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 
+	// Parse analysis JSON if present
+	var analysis interface{}
+	if analysisJSON.Valid && analysisJSON.String != "" {
+		var payload services.DiagnosticPayloadV2
+		if err := json.Unmarshal([]byte(analysisJSON.String), &payload); err == nil {
+			analysis = payload
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
 		"test":       gin.H{"id": testID, "title": testTitle},
 		"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
 		"attempt":    gin.H{"id": attemptID, "submitted_at": submittedAt.Time},
 		"sqi_score":  sqiScore.Float64,
+		"analysis":   analysis,
 		"answers":    answers,
 	})
 }
@@ -472,21 +483,28 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (services.SQIAnalysis, error) {
+func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (services.DiagnosticPayloadV2, error) {
 	questionRows, err := h.DB.Query(`
-		SELECT id, marks, neg_marks, importance, difficulty, type, expected_time, concept_tag
-		FROM questions
-		WHERE test_id = $1
-		ORDER BY id
+		SELECT q.id, q.marks, q.neg_marks,
+		       CASE q.importance WHEN 'A' THEN 'high' WHEN 'B' THEN 'medium' WHEN 'C' THEN 'low' END,
+		       q.difficulty,
+		       CASE q.type WHEN 'Theory' THEN 'mcq' WHEN 'Practical' THEN 'integer' END,
+		       q.expected_time, q.concept_tag,
+		       COALESCE(s.name, 'Uncategorized')
+		FROM questions q
+		JOIN tests t ON q.test_id = t.id
+		LEFT JOIN subjects s ON t.subject_id = s.id
+		WHERE q.test_id = $1
+		ORDER BY q.id
 	`, testID)
 	if err != nil {
-		return services.SQIAnalysis{}, err
+		return services.DiagnosticPayloadV2{}, err
 	}
 	defer questionRows.Close()
 
-	var questions []services.QuestionMeta
+	var questions []services.QuestionMetaV2
 	for questionRows.Next() {
-		var q services.QuestionMeta
+		var q services.QuestionMetaV2
 		if err := questionRows.Scan(
 			&q.QuestionID,
 			&q.Marks,
@@ -496,13 +514,14 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 			&q.Type,
 			&q.ExpectedTime,
 			&q.ConceptTag,
+			&q.Subject,
 		); err != nil {
-			return services.SQIAnalysis{}, err
+			return services.DiagnosticPayloadV2{}, err
 		}
 		questions = append(questions, q)
 	}
 	if err := questionRows.Err(); err != nil {
-		return services.SQIAnalysis{}, err
+		return services.DiagnosticPayloadV2{}, err
 	}
 
 	answerRows, err := h.DB.Query(`
@@ -521,13 +540,13 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 		WHERE al.attempt_id = $1
 	`, attemptID)
 	if err != nil {
-		return services.SQIAnalysis{}, err
+		return services.DiagnosticPayloadV2{}, err
 	}
 	defer answerRows.Close()
 
-	var answers []services.AnswerLog
+	var answers []services.AnswerLogV2
 	for answerRows.Next() {
-		var a services.AnswerLog
+		var a services.AnswerLogV2
 		if err := answerRows.Scan(
 			&a.QuestionID,
 			&a.SelectedAnswer,
@@ -539,15 +558,33 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 			&a.WasInitiallyWrong,
 			&a.Seen,
 		); err != nil {
-			return services.SQIAnalysis{}, err
+			return services.DiagnosticPayloadV2{}, err
 		}
 		answers = append(answers, a)
 	}
 	if err := answerRows.Err(); err != nil {
-		return services.SQIAnalysis{}, err
+		return services.DiagnosticPayloadV2{}, err
 	}
 
-	return services.CalculateSQIAnalysis(questions, answers), nil
+	// Get test duration and check for negative marking
+	var duration int
+	var hasNegMarking bool
+	err = h.DB.QueryRow(`
+		SELECT COALESCE(t.duration, 0),
+		       EXISTS(SELECT 1 FROM questions WHERE test_id = $1 AND neg_marks > 0)
+		FROM tests t WHERE t.id = $1
+	`, testID).Scan(&duration, &hasNegMarking)
+	if err != nil {
+		return services.DiagnosticPayloadV2{}, err
+	}
+
+	cfg := services.ExamConfigV2{
+		ExamType:           "competitive",
+		HasNegativeMarking: hasNegMarking,
+		TotalDuration:      float64(duration),
+	}
+
+	return services.Analyze(questions, answers, cfg), nil
 }
 
 // add student
