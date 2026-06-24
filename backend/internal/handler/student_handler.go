@@ -153,15 +153,8 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	rows, err := tx.Query(`
-		SELECT q.id, q.correct_answer, q.marks, q.neg_marks,
-		       CASE q.importance WHEN 'A' THEN 'high' WHEN 'B' THEN 'medium' WHEN 'C' THEN 'low' END,
-		       q.difficulty,
-		       CASE q.type WHEN 'Theory' THEN 'mcq' WHEN 'Practical' THEN 'integer' END,
-		       q.expected_time, q.concept_tag,
-		       COALESCE(s.name, 'Uncategorized')
+		SELECT q.id, q.correct_answer
 		FROM questions q
-		JOIN tests t ON q.test_id = t.id
-		LEFT JOIN subjects s ON t.subject_id = s.id
 		WHERE q.test_id = $1
 	`, testID)
 
@@ -172,32 +165,22 @@ func SubmitAnswers(c *gin.Context) {
 	defer rows.Close()
 
 	// Maps
-	qMap := make(map[int]services.QuestionMetaV2)
 	correctMap := make(map[int]string)
 
 	for rows.Next() {
-		var q services.QuestionMetaV2
+		var questionID int
 		var correct string
 
 		err := rows.Scan(
-			&q.QuestionID,
+			&questionID,
 			&correct,
-			&q.Marks,
-			&q.NegMarks,
-			&q.Importance,
-			&q.Difficulty,
-			&q.Type,
-			&q.ExpectedTime,
-			&q.ConceptTag,
-			&q.Subject,
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "question scan failed"})
 			return
 		}
 
-		qMap[q.QuestionID] = q
-		correctMap[q.QuestionID] = correct
+		correctMap[questionID] = correct
 	}
 
 	seenQuestionIDs := make(map[int]bool)
@@ -205,7 +188,7 @@ func SubmitAnswers(c *gin.Context) {
 
 	for _, ans := range req.Answers {
 
-		_, exists := qMap[ans.QuestionID]
+		_, exists := correctMap[ans.QuestionID]
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
 			return
