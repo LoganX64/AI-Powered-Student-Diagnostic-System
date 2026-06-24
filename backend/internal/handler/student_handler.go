@@ -326,11 +326,12 @@ func SubmitAnswers(c *gin.Context) {
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO attempt_results (attempt_id, sqi_score, analysis_json, version)
-		VALUES ($1,$2,$3,$4)
+		INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
+		VALUES ($1,$2,$3,$4,$5)
 	`,
 		attemptID,
 		payload.OverallSQI,
+		payload.ExamSummary.NetScore,
 		analysisJSON,
 		payload.Version,
 	)
