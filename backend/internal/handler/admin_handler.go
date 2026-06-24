@@ -107,8 +107,59 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		return
 	}
 
-	// optional query param: include_analysis=true
+	// optional query param: include_analysis=true, compute=true
 	includeAnalysis := c.Query("include_analysis") == "true"
+	compute := c.Query("compute") == "true"
+
+	if compute {
+		// Find attempts without attempt_results and compute SQI for each
+		uncomputedRows, err := h.DB.Query(`
+			SELECT a.id, ass.test_id
+			FROM attempts a
+			JOIN assignments ass ON a.assignment_id = ass.id
+			WHERE ass.student_id = $1
+			  AND NOT EXISTS (SELECT 1 FROM attempt_results ar WHERE ar.attempt_id = a.id)
+			ORDER BY a.id DESC
+		`, studentID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch uncomputed attempts"})
+			return
+		}
+		defer uncomputedRows.Close()
+
+		for uncomputedRows.Next() {
+			var attemptID, testID int
+			if err := uncomputedRows.Scan(&attemptID, &testID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+				return
+			}
+
+			payload, err := calculateAttemptSQIAnalysis(h.DB, attemptID, testID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate sqi"})
+				return
+			}
+
+			analysisJSON, err := json.Marshal(payload)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode analysis"})
+				return
+			}
+
+			_, err = h.DB.Exec(`
+				INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
+				VALUES ($1, $2, $3, $4, $5)
+			`, attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store result"})
+				return
+			}
+		}
+		if err := uncomputedRows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read uncomputed attempts"})
+			return
+		}
+	}
 
 	query := `
 		SELECT ar.attempt_id, ass.test_id, ar.sqi_score
@@ -445,7 +496,7 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 			return
 		}
 
-		analysis, err := h.calculateAttemptSQIAnalysis(result.AttemptID, result.TestID)
+			analysis, err := calculateAttemptSQIAnalysis(h.DB, result.AttemptID, result.TestID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate sqi"})
 			return
@@ -483,8 +534,8 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (services.DiagnosticPayloadV2, error) {
-	questionRows, err := h.DB.Query(`
+func calculateAttemptSQIAnalysis(db *sql.DB, attemptID int, testID int) (services.DiagnosticPayloadV2, error) {
+	questionRows, err := db.Query(`
 		SELECT q.id, q.marks, q.neg_marks,
 		       CASE q.importance WHEN 'A' THEN 'high' WHEN 'B' THEN 'medium' WHEN 'C' THEN 'low' END,
 		       q.difficulty,
@@ -524,7 +575,7 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 		return services.DiagnosticPayloadV2{}, err
 	}
 
-	answerRows, err := h.DB.Query(`
+	answerRows, err := db.Query(`
 		SELECT
 			al.question_id,
 			COALESCE(al.selected_answer, ''),
@@ -569,7 +620,7 @@ func (h *AdminHandler) calculateAttemptSQIAnalysis(attemptID int, testID int) (s
 	// Get test duration and check for negative marking
 	var duration int
 	var hasNegMarking bool
-	err = h.DB.QueryRow(`
+	err = db.QueryRow(`
 		SELECT COALESCE(t.duration, 0),
 		       EXISTS(SELECT 1 FROM questions WHERE test_id = $1 AND neg_marks > 0)
 		FROM tests t WHERE t.id = $1

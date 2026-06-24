@@ -78,6 +78,57 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 
 	//  Fetch SQI results
 	includeAnalysis := c.Query("include_analysis") == "true"
+	compute := c.Query("compute") == "true"
+
+	if compute {
+		// Find attempts without attempt_results and compute SQI for each
+		uncomputedRows, err := h.DB.Query(`
+			SELECT a.id, ass.test_id
+			FROM attempts a
+			JOIN assignments ass ON a.assignment_id = ass.id
+			WHERE ass.student_id = $1
+			  AND NOT EXISTS (SELECT 1 FROM attempt_results ar WHERE ar.attempt_id = a.id)
+			ORDER BY a.id DESC
+		`, studentID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch uncomputed attempts"})
+			return
+		}
+		defer uncomputedRows.Close()
+
+		for uncomputedRows.Next() {
+			var attemptID, testID int
+			if err := uncomputedRows.Scan(&attemptID, &testID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+				return
+			}
+
+			payload, err := calculateAttemptSQIAnalysis(h.DB, attemptID, testID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate sqi"})
+				return
+			}
+
+			analysisJSON, err := json.Marshal(payload)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode analysis"})
+				return
+			}
+
+			_, err = h.DB.Exec(`
+				INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
+				VALUES ($1, $2, $3, $4, $5)
+			`, attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store result"})
+				return
+			}
+		}
+		if err := uncomputedRows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read uncomputed attempts"})
+			return
+		}
+	}
 
 	query := `
 		SELECT ar.attempt_id, ass.test_id, ar.sqi_score
