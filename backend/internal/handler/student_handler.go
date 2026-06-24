@@ -332,7 +332,7 @@ func SubmitAnswers(c *gin.Context) {
 		attemptID,
 		payload.OverallSQI,
 		analysisJSON,
-		"v2",
+		payload.Version,
 	)
 
 	if err != nil {

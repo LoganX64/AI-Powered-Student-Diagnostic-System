@@ -155,7 +155,7 @@ CREATE TABLE attempt_results (
     raw_score FLOAT,
 
     analysis_json JSONB,
-    version VARCHAR(10) DEFAULT 'v1',
+    version VARCHAR(10) DEFAULT 'v2',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

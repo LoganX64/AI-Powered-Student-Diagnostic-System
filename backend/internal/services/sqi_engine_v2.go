@@ -64,6 +64,9 @@ type SQIDimensionsV2 struct {
 // It contains scores, exam context, per-attempt profiles,
 // per-concept breakdowns, and behavioral flags.
 type DiagnosticPayloadV2 struct {
+	// ── Engine version — set automatically by Analyze() ──────────
+	Version string `json:"version"`
+
 	// ── Scores (also shown to student / teacher) ──────────────────
 	OverallSQI float64         `json:"overall_sqi"`
 	Dimensions SQIDimensionsV2 `json:"dimensions"`
@@ -280,6 +283,7 @@ func Analyze(questions []QuestionMetaV2, answers []AnswerLogV2, cfg ExamConfigV2
 	firstAcc, secondAcc := computeHalfAccuracy(results)
 
 	return DiagnosticPayloadV2{
+		Version:            "v2",
 		OverallSQI:         overallSQI,
 		Dimensions:         dims,
 		ExamSummary:        summary,
