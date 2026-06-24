@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/helper"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"database/sql"
@@ -76,13 +77,23 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 	}
 
 	//  Fetch SQI results
-	rows, err := h.DB.Query(`
+	includeAnalysis := c.Query("include_analysis") == "true"
+
+	query := `
 		SELECT ar.attempt_id, ass.test_id, ar.sqi_score
+	`
+	if includeAnalysis {
+		query += `, ar.analysis_json`
+	}
+	query += `
 		FROM attempt_results ar
 		JOIN attempts a ON ar.attempt_id = a.id
 		JOIN assignments ass ON a.assignment_id = ass.id
 		WHERE ass.student_id = $1
-	`, studentID)
+		ORDER BY a.id DESC
+	`
+
+	rows, err := h.DB.Query(query, studentID)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch results"})
@@ -96,9 +107,16 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 	for rows.Next() {
 		var r AttemptResult
 
-		if err := rows.Scan(&r.AttemptID, &r.TestID, &r.SQI); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
-			return
+		if includeAnalysis {
+			if err := rows.Scan(&r.AttemptID, &r.TestID, &r.SQI, &r.Analysis); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+				return
+			}
+		} else {
+			if err := rows.Scan(&r.AttemptID, &r.TestID, &r.SQI); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "scan failed"})
+				return
+			}
 		}
 
 		results = append(results, r)
@@ -114,7 +132,7 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 		"student_id":  studentID,
 		"name":        name,
 		"attempts":    results,
-		"average_sqi": avgSQI,
+		"average_sqi": helper.Round2V2(avgSQI),
 		"total_tests": len(results),
 	})
 }
