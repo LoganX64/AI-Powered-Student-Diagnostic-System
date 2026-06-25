@@ -16,7 +16,7 @@ import { cn } from "../../lib/utils";
 import { useExamTimer } from "../../hooks/useExamTimer";
 import { useAnswerTracker } from "../../hooks/useAnswerTracker";
 import { getAssignmentQuestions, submitAnswers } from "../../services/student.service";
-import type { AssignmentQuestionsResponse } from "../../services/student.service";
+import type { AssignmentQuestionsResponse, SubmitResponse } from "../../services/student.service";
 import { AlertTriangle, ArrowLeft, Flag, RefreshCw } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -185,9 +185,9 @@ export function StudentQuizPage() {
     }
 
     try {
-      await submitAnswers(assignmentId, payload);
+      const result: SubmitResponse = await submitAnswers(assignmentId, payload);
       clearExamStorage();
-      navigate("/submitted", { replace: true });
+      navigate("/submitted", { replace: true, state: { submitResult: result } });
     } catch {
       // Queue for retry — store in localStorage
       localStorage.setItem(
