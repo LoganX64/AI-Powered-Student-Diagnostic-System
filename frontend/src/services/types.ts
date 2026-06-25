@@ -181,6 +181,7 @@ export type AssignmentDetail = {
   assignment: { id: number; status: string; assigned_at: string };
   attempt: { id: number; submitted_at: string | null } | null;
   sqi_score: number;
+  analysis?: Record<string, unknown>;
   answers: AnswerDetail[];
 };
 

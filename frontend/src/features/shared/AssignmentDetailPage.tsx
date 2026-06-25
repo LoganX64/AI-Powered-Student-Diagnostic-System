@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon } from "lucide-react";
-import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -140,7 +139,11 @@ export function AssignmentDetailPage() {
       {/* SQI Score + Time */}
       <div className="flex items-center gap-3">
         {sqi_score > 0 && (
-          <Button variant="outline" className="w-fit gap-2" onClick={() => toast.info("SQI details coming soon")}>
+          <Button
+            variant="outline"
+            className="w-fit gap-2"
+            onClick={() => navigate(`${prefix}/students/${studentId}/sqi`)}
+          >
             <BarChart3Icon className="size-4" /> SQI Score: {sqi_score}
           </Button>
         )}
