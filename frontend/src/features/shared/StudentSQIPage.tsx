@@ -1,18 +1,19 @@
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, BarChart3Icon } from "lucide-react";
+import { ArrowLeftIcon, BarChart3Icon, Loader2Icon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getStudentSQI } from "@/services/dashboard.service";
+import type { SQIResponse } from "@/services/types";
 
-const DUMMY_ATTEMPTS = [
-  { attempt_id: 10, test_id: 5, test_title: "Mathematics Mid-Term", sqi_score: 78.2 },
-  { attempt_id: 8, test_id: 3, test_title: "Physics Chapter Test", sqi_score: 65.4 },
-  { attempt_id: 5, test_id: 1, test_title: "Chemistry Quiz", sqi_score: 82.1 },
-];
-
-const AVG_SQI = DUMMY_ATTEMPTS.reduce((sum, a) => sum + a.sqi_score, 0) / DUMMY_ATTEMPTS.length;
+function sqiColor(score: number): string {
+  if (score >= 75) return "text-green-600";
+  if (score >= 50) return "text-yellow-600";
+  return "text-red-600";
+}
 
 export function StudentSQIPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,9 +22,28 @@ export function StudentSQIPage() {
   const studentId = Number(id);
   const prefix = role === "admin" ? "/admin" : "/coach";
 
+  const [data, setData] = useState<SQIResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await getStudentSQI(studentId, { compute: true, include_analysis: true });
+        if (!cancelled) setData(res);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load SQI data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [studentId]);
+
   return (
     <DashboardLayout title="SQI Score">
-      {/* Back button */}
       <Button
         variant="ghost"
         size="sm"
@@ -33,60 +53,96 @@ export function StudentSQIPage() {
         <ArrowLeftIcon className="size-4 mr-2" /> Back to Student Detail
       </Button>
 
-      {/* Header */}
       <div className="flex items-center gap-3">
         <BarChart3Icon className="size-6 text-muted-foreground" />
         <h1 className="text-2xl font-bold">SQI Score</h1>
-        <Badge variant="secondary">Demo Data</Badge>
+        {data?.name && <Badge variant="secondary">{data.name}</Badge>}
       </div>
 
-      {/* Summary card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-8">
-            <div>
-              <p className="text-sm text-muted-foreground">Average SQI</p>
-              <p className="text-3xl font-bold">{AVG_SQI.toFixed(1)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Tests</p>
-              <p className="text-3xl font-bold">{DUMMY_ATTEMPTS.length}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {loading && (
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" /> Loading SQI data...
+        </div>
+      )}
 
-      {/* Per-attempt cards */}
-      <div className="flex flex-col gap-3">
-        <h2 className="text-base font-semibold">Attempts</h2>
-        {DUMMY_ATTEMPTS.map((attempt) => (
-          <Card key={attempt.attempt_id}>
+      {error && (
+        <Card>
+          <CardContent className="py-6 text-center text-destructive">{error}</CardContent>
+        </Card>
+      )}
+
+      {!loading && !error && data && (
+        <>
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>{attempt.test_title}</span>
-                <Badge variant="outline" className="font-mono">
-                  SQI: {attempt.sqi_score.toFixed(1)}
-                </Badge>
-              </CardTitle>
+              <CardTitle>Summary</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-6 text-sm">
+              <div className="flex gap-8">
                 <div>
-                  <span className="text-muted-foreground">Attempt ID: </span>
-                  <span className="font-mono">{attempt.attempt_id}</span>
+                  <p className="text-sm text-muted-foreground">Average SQI</p>
+                  <p className={`text-3xl font-bold ${sqiColor(data.average_sqi)}`}>
+                    {data.average_sqi.toFixed(1)}
+                  </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Test ID: </span>
-                  <span className="font-mono">{attempt.test_id}</span>
+                  <p className="text-sm text-muted-foreground">Total Tests</p>
+                  <p className="text-3xl font-bold">{data.total_tests}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
+
+          <div className="flex flex-col gap-3">
+            <h2 className="text-base font-semibold">Attempts</h2>
+            {data.attempts.length === 0 && (
+              <p className="text-sm text-muted-foreground">No attempts found.</p>
+            )}
+            {data.attempts.map((attempt) => (
+              <Card key={attempt.attempt_id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="truncate">Attempt #{attempt.attempt_id}</span>
+                    <Badge variant="outline" className={`font-mono ${sqiColor(attempt.sqi_score)}`}>
+                      SQI: {attempt.sqi_score.toFixed(1)}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-6 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Attempt ID: </span>
+                      <span className="font-mono">{attempt.attempt_id}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Test ID: </span>
+                      <span className="font-mono">{attempt.test_id}</span>
+                    </div>
+                  </div>
+                  {attempt.analysis && (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                        View Analysis
+                      </summary>
+                      <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 text-xs">
+                        {JSON.stringify(attempt.analysis, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {!loading && !error && data && data.attempts.length === 0 && (
+        <Card>
+          <CardContent className="py-6 text-center text-muted-foreground">
+            No SQI data available. The student hasn&apos;t submitted any tests yet.
+          </CardContent>
+        </Card>
+      )}
     </DashboardLayout>
   );
 }

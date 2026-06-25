@@ -19,6 +19,7 @@ import type {
   PaginatedResponse,
   PaginationParams,
   AssignmentDetail,
+  SQIResponse,
 } from "./types";
 
 export type {
@@ -41,6 +42,7 @@ export type {
   PaginatedResponse,
   PaginationParams,
   AssignmentDetail,
+  SQIResponse,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -216,6 +218,16 @@ export const getAssignments = (params?: PaginationParams & { test_id?: number })
 
 export const getAssignmentDetail = (studentId: number, assignmentId: number) =>
   apiFetch<AssignmentDetail>(`${getPrefix()}/students/${studentId}/assignments/${assignmentId}`);
+
+// ─── SQI endpoint (role-aware) ────────────────────────────────────────────
+
+export const getStudentSQI = (studentId: number, opts?: { compute?: boolean; include_analysis?: boolean }) => {
+  const query = new URLSearchParams();
+  if (opts?.compute) query.set("compute", "true");
+  if (opts?.include_analysis) query.set("include_analysis", "true");
+  const qs = query.toString();
+  return apiFetch<SQIResponse>(`${getPrefix()}/students/${studentId}/sqi${qs ? `?${qs}` : ""}`);
+};
 
 // ─── Dashboard stats (role-aware) ───────────────────────────────────────────
 

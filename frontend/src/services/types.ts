@@ -183,3 +183,20 @@ export type AssignmentDetail = {
   sqi_score: number;
   answers: AnswerDetail[];
 };
+
+// ─── SQI Types ───────────────────────────────────────────────────────────────
+
+export type SQIAttempt = {
+  attempt_id: number;
+  test_id: number;
+  sqi_score: number;
+  analysis?: Record<string, unknown>;
+};
+
+export type SQIResponse = {
+  student_id: number;
+  name: string;
+  attempts: SQIAttempt[];
+  average_sqi: number;
+  total_tests: number;
+};
