@@ -181,17 +181,81 @@ export type AssignmentDetail = {
   assignment: { id: number; status: string; assigned_at: string };
   attempt: { id: number; submitted_at: string | null } | null;
   sqi_score: number;
-  analysis?: Record<string, unknown>;
+  analysis?: SQIAnalysis;
   answers: AnswerDetail[];
 };
 
 // ─── SQI Types ───────────────────────────────────────────────────────────────
 
+export type SQIAnalysis = {
+  version: string;
+  overall_sqi: number;
+  dimensions: {
+    mastery: number;
+    speed: number;
+    risk: number;
+    coverage: number;
+  };
+  exam_summary: {
+    total_questions: number;
+    attempted: number;
+    correct: number;
+    wrong: number;
+    skipped: number;
+    unseen: number;
+    total_marks_earned: number;
+    total_marks_lost: number;
+    net_score: number;
+    max_possible_score: number;
+    score_percent: number;
+  };
+  attempt_profile: {
+    guessed_wrong: number;
+    carefully_wrong: number;
+    guessed_right: number;
+    carefully_right: number;
+    seen_abandoned: number;
+    never_reached: number;
+  };
+  concept_profiles: Array<{
+    concept_tag: string;
+    subject: string;
+    status: string;
+    priority_rank: number;
+    evidence: {
+      total_questions: number;
+      attempted: number;
+      correct: number;
+      wrong: number;
+      skipped: number;
+      unseen: number;
+      accuracy_pct: number;
+      avg_time_ratio: number;
+      neg_marks_cost: number;
+      guess_count: number;
+      genuine_wrong: number;
+      changed_to_correct: number;
+      changed_to_wrong: number;
+      mastery_score: number;
+      priority_score: number;
+    };
+  }>;
+  behavior_flags: {
+    [key: string]: {
+      detected: boolean;
+      confidence: number;
+      evidence: string;
+    };
+  };
+  first_half_accuracy: number;
+  second_half_accuracy: number;
+};
+
 export type SQIAttempt = {
   attempt_id: number;
   test_id: number;
   sqi_score: number;
-  analysis?: Record<string, unknown>;
+  analysis?: SQIAnalysis;
 };
 
 export type SQIResponse = {

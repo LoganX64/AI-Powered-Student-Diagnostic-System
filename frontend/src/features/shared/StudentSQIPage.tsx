@@ -3,9 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, BarChart3Icon, Loader2Icon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
+import { AnalysisDashboard } from "@/components/shared/AnalysisDashboard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { getStudentSQI } from "@/services/dashboard.service";
 import type { SQIResponse } from "@/services/types";
 
@@ -124,9 +126,11 @@ export function StudentSQIPage() {
                       <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
                         View Analysis
                       </summary>
-                      <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 text-xs">
-                        {JSON.stringify(attempt.analysis, null, 2)}
-                      </pre>
+                      <div className="mt-2">
+                        <TooltipProvider>
+                          <AnalysisDashboard data={attempt.analysis} />
+                        </TooltipProvider>
+                      </div>
                     </details>
                   )}
                 </CardContent>
