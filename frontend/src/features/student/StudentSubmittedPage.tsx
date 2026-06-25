@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { CheckCircle, RefreshCw } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { CheckCircle, RefreshCw, BarChart3Icon } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { submitAnswers } from "../../services/student.service";
-import type { AnswerPayload } from "../../services/student.service";
+import type { AnswerPayload, SubmitResponse } from "../../services/student.service";
 
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
@@ -36,14 +36,23 @@ function loadPendingSubmission(): PendingSubmission | null {
   }
 }
 
+function sqiColor(score: number): string {
+  if (score >= 75) return "text-green-600";
+  if (score >= 50) return "text-yellow-600";
+  return "text-red-600";
+}
+
 export function StudentSubmittedPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [countdown, setCountdown] = useState(REDIRECT_AFTER_SECONDS);
   const [retrying, setRetrying] = useState(false);
   const [retrySuccess, setRetrySuccess] = useState(false);
   const [pending, setPending] = useState<PendingSubmission | null>(
     loadPendingSubmission,
   );
+
+  const submitResult = (location.state as { submitResult?: SubmitResponse } | null)?.submitResult ?? null;
 
   const hasPendingSubmission = pending !== null && !retrySuccess;
 
@@ -127,6 +136,36 @@ export function StudentSubmittedPage() {
             ? "Your answers are saved on this device. Keep this page open while we retry."
             : "Thank you for completing the assessment. Your answers have been recorded successfully."}
         </p>
+
+        {!hasPendingSubmission && submitResult && (
+          <div className="mt-6 rounded-xl border border-border bg-muted/40 px-6 py-5">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <BarChart3Icon className="size-4" />
+              Your SQI Score
+            </div>
+            <p className={`mt-2 text-5xl font-bold tabular-nums ${sqiColor(submitResult.sqi_score)}`}>
+              {submitResult.sqi_score.toFixed(1)}
+            </p>
+            {submitResult.total_time_spent > 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Time spent: {Math.floor(submitResult.total_time_spent / 60)}m{" "}
+                {Math.round(submitResult.total_time_spent % 60)}s
+              </p>
+            )}
+          </div>
+        )}
+
+        {!hasPendingSubmission && !submitResult && (
+          <div className="mt-6 rounded-xl border border-border bg-muted/40 px-6 py-5">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <BarChart3Icon className="size-4" />
+              SQI Score
+            </div>
+            <p className="mt-2 text-lg font-medium text-muted-foreground">
+              Score pending — check back later
+            </p>
+          </div>
+        )}
 
         {hasPendingSubmission && (
           <div className="mt-6 rounded-xl border border-yellow-300 bg-yellow-50 px-6 py-4 dark:bg-yellow-900/20 dark:border-yellow-700">
