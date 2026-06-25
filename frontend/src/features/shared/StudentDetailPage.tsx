@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, BarChart3Icon, BarChartIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
-import { toast } from "sonner";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -169,7 +168,7 @@ export function StudentDetailPage() {
                           className="gap-1"
                           onClick={(e) => {
                             e.stopPropagation();
-                            toast.info("SQI details coming soon");
+                            navigate(`${prefix}/students/${studentId}/sqi`);
                           }}
                         >
                           <BarChartIcon className="size-3.5" /> SQI Score

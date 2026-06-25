@@ -56,6 +56,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Columns3Icon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
+import { getStudents, getCoaches, getStudentSQI } from "@/services/dashboard.service";
 
 // ─── Student Types & Data ─────────────────────────────────────────────────────
 
@@ -69,20 +70,47 @@ export type StudentRow = {
   completedQuizzes: number;
 };
 
-const studentData: StudentRow[] = [
-  { id: 1, name: "Alice Johnson", email: "alice@school.edu", sqiScore: 88, status: "Passing", lastAssessment: "2024-06-28", completedQuizzes: 5 },
-  { id: 2, name: "Bob Martinez", email: "bob@school.edu", sqiScore: 54, status: "At Risk", lastAssessment: "2024-06-25", completedQuizzes: 3 },
-  { id: 3, name: "Carol White", email: "carol@school.edu", sqiScore: 76, status: "Passing", lastAssessment: "2024-06-30", completedQuizzes: 6 },
-  { id: 4, name: "David Kim", email: "david@school.edu", sqiScore: 91, status: "Passing", lastAssessment: "2024-06-29", completedQuizzes: 7 },
-  { id: 5, name: "Eva Chen", email: "eva@school.edu", sqiScore: 48, status: "At Risk", lastAssessment: "2024-06-20", completedQuizzes: 2 },
-  { id: 6, name: "Frank Lopez", email: "frank@school.edu", sqiScore: 67, status: "Passing", lastAssessment: "2024-06-27", completedQuizzes: 4 },
-  { id: 7, name: "Grace Park", email: "grace@school.edu", sqiScore: 0, status: "Pending", lastAssessment: "—", completedQuizzes: 0 },
-  { id: 8, name: "Henry Brown", email: "henry@school.edu", sqiScore: 82, status: "Passing", lastAssessment: "2024-06-26", completedQuizzes: 5 },
-  { id: 9, name: "Isla Garcia", email: "isla@school.edu", sqiScore: 59, status: "At Risk", lastAssessment: "2024-06-18", completedQuizzes: 3 },
-  { id: 10, name: "Jack Wilson", email: "jack@school.edu", sqiScore: 95, status: "Passing", lastAssessment: "2024-06-30", completedQuizzes: 8 },
-  { id: 11, name: "Karen Lee", email: "karen@school.edu", sqiScore: 73, status: "Passing", lastAssessment: "2024-06-24", completedQuizzes: 5 },
-  { id: 12, name: "Leo Nguyen", email: "leo@school.edu", sqiScore: 44, status: "At Risk", lastAssessment: "2024-06-15", completedQuizzes: 2 },
-];
+function getStudentStatus(sqi: number): "Passing" | "At Risk" | "Pending" {
+  if (sqi === 0) return "Pending";
+  if (sqi < 55) return "At Risk";
+  return "Passing";
+}
+
+async function fetchStudentsWithSQI(): Promise<StudentRow[]> {
+  try {
+    const res = await getStudents({ limit: 100 });
+    const students = res.data ?? [];
+    const rows: StudentRow[] = await Promise.all(
+      students.map(async (s) => {
+        try {
+          const sqi = await getStudentSQI(s.student_id, { compute: true });
+          return {
+            id: s.student_id,
+            name: s.name,
+            email: s.student_code,
+            sqiScore: sqi.average_sqi,
+            status: getStudentStatus(sqi.average_sqi),
+            lastAssessment: sqi.total_tests > 0 ? `${sqi.total_tests} test(s)` : "—",
+            completedQuizzes: sqi.total_tests,
+          };
+        } catch {
+          return {
+            id: s.student_id,
+            name: s.name,
+            email: s.student_code,
+            sqiScore: 0,
+            status: "Pending" as const,
+            lastAssessment: "—",
+            completedQuizzes: 0,
+          };
+        }
+      })
+    );
+    return rows;
+  } catch {
+    return [];
+  }
+}
 
 // ─── Coach Types & Data ───────────────────────────────────────────────────────
 
@@ -96,14 +124,23 @@ export type CoachRow = {
   joinedDate: string;
 };
 
-const coachData: CoachRow[] = [
-  { id: 1, name: "Sarah Johnson", email: "sarah@school.edu", studentsCount: 12, avgStudentSqi: 78, status: "Active", joinedDate: "2023-08-15" },
-  { id: 2, name: "Michael Brown", email: "michael@school.edu", studentsCount: 10, avgStudentSqi: 72, status: "Active", joinedDate: "2023-09-01" },
-  { id: 3, name: "Emily Davis", email: "emily@school.edu", studentsCount: 8, avgStudentSqi: 81, status: "Active", joinedDate: "2024-01-10" },
-  { id: 4, name: "James Wilson", email: "james@school.edu", studentsCount: 0, avgStudentSqi: 0, status: "Inactive", joinedDate: "2023-06-20" },
-  { id: 5, name: "Lisa Anderson", email: "lisa@school.edu", studentsCount: 15, avgStudentSqi: 69, status: "Active", joinedDate: "2023-07-05" },
-  { id: 6, name: "Robert Taylor", email: "robert@school.edu", studentsCount: 3, avgStudentSqi: 85, status: "Active", joinedDate: "2024-03-15" },
-];
+async function fetchCoachesWithSQI(): Promise<CoachRow[]> {
+  try {
+    const res = await getCoaches({ limit: 100 });
+    const coaches = res.data ?? [];
+    return coaches.map((c) => ({
+      id: c.coach_id,
+      name: c.name,
+      email: c.email,
+      studentsCount: 0,
+      avgStudentSqi: 0,
+      status: c.deleted_at ? "Inactive" as const : "Active" as const,
+      joinedDate: "—",
+    }));
+  } catch {
+    return [];
+  }
+}
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
@@ -480,6 +517,35 @@ function DataTable<T>({
 
 export function DashboardTable() {
   const role = useRole();
+  const [studentData, setStudentData] = React.useState<StudentRow[]>([]);
+  const [coachData, setCoachData] = React.useState<CoachRow[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      const [students, coaches] = await Promise.all([
+        fetchStudentsWithSQI(),
+        role === "admin" ? fetchCoachesWithSQI() : Promise.resolve([]),
+      ]);
+      if (!cancelled) {
+        setStudentData(students);
+        setCoachData(coaches);
+        setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [role]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <p className="text-muted-foreground">Loading students...</p>
+      </div>
+    );
+  }
 
   if (role === "admin") {
     return (
