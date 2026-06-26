@@ -25,6 +25,15 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		c.Next()
 	})
 
+	// health check
+	r.GET("/health", func(c *gin.Context) {
+		if err := db.Ping(); err != nil {
+			c.JSON(503, gin.H{"status": "unhealthy", "error": err.Error()})
+			return
+		}
+		c.JSON(200, gin.H{"status": "healthy"})
+	})
+
 	//  auth
 	authHandler := auth.NewAuthHandler(db)
 
