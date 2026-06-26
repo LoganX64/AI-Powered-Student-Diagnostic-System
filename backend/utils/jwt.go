@@ -54,15 +54,8 @@ func GenerateToken(userID int, role string, studentID int) (string, error) {
 	return token.SignedString(jwtKey())
 }
 
-func TokenPreview(tokenStr string) string {
-	if len(tokenStr) <= 20 {
-		return tokenStr
-	}
-	return tokenStr[:20]
-}
-
 func ValidateToken(tokenStr string) (*Claims, error) {
-	log.Printf("[JWT] Validating token: %s...\n", TokenPreview(tokenStr))
+	log.Println("[JWT] Validating token...")
 
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		key := jwtKey()

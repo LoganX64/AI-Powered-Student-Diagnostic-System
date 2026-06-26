@@ -38,7 +38,7 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		log.Printf("[AUTH MIDDLEWARE] Token received: %s...\n", utils.TokenPreview(tokenStr))
+		log.Println("[AUTH MIDDLEWARE] Token received")
 
 		claims, err := utils.ValidateToken(tokenStr)
 		if err != nil {
