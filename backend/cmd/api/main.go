@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/repository"
 	routes "ai-student-diagnostic/backend/internal/routes"
+	"ai-student-diagnostic/backend/utils"
 	"context"
 	"log"
 	"net/http"
@@ -39,6 +40,7 @@ func runMigrations(dbURL string) {
 
 func main() {
 	cfg := config.LoadConfig()
+	utils.InitJWTConfig(cfg.JWTSecret, cfg.JWTExpiry)
 
 	runMigrations(cfg.DBURL)
 

@@ -2,29 +2,32 @@ package utils
 
 import (
 	"log"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/joho/godotenv"
 )
 
-// jwtKey is called at use-time so JWT_SECRET is read AFTER the .env is loaded.
-func jwtKey() []byte {
-	return []byte(os.Getenv("JWT_SECRET"))
+var (
+	jwtSecret string
+	jwtExpiryStr string
+)
+
+func InitJWTConfig(secret, expiry string) {
+	jwtSecret = secret
+	jwtExpiryStr = expiry
 }
 
-// jwtExpiry reads the JWT expiry duration from environment variables
-func jwtExpiry() time.Duration {
-	godotenv.Load() // ensure .env is loaded
-	expiryStr := os.Getenv("JWT_EXPIRY")
-	if expiryStr == "" {
-		expiryStr = "4h" // default to 4 hours
-	}
+func jwtKey() []byte {
+	return []byte(jwtSecret)
+}
 
-	expiry, err := time.ParseDuration(expiryStr)
+func jwtExpiry() time.Duration {
+	if jwtExpiryStr == "" {
+		jwtExpiryStr = "4h"
+	}
+	expiry, err := time.ParseDuration(jwtExpiryStr)
 	if err != nil {
-		log.Printf("[JWT] Invalid JWT_EXPIRY format '%s', using default 4h: %v\n", expiryStr, err)
+		log.Printf("[JWT] Invalid JWT_EXPIRY format '%s', using default 4h: %v\n", jwtExpiryStr, err)
 		return 4 * time.Hour
 	}
 	return expiry
