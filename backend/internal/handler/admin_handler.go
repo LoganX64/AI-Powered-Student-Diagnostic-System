@@ -2052,6 +2052,13 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 		return
 	}
 
+	var coachTenantID int
+	err = h.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", req.CoachID).Scan(&coachTenantID)
+	if err != nil || coachTenantID != tenantID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id does not belong to your organization"})
+		return
+	}
+
 	result, err := h.DB.Exec(
 		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4, exam_date=$5 WHERE id=$6 AND tenant_id=$7`,
 		req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate, testID, tenantID,
