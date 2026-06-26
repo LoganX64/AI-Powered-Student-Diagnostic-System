@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	db "ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 	"database/sql"
 	"net/http"
@@ -10,28 +10,40 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// student login
+type StudentHandler struct {
+	StudentRepo    *repository.StudentRepo
+	AssignmentRepo *repository.AssignmentRepo
+	AttemptRepo    *repository.AttemptRepo
+	TestRepo       *repository.TestRepo
+}
+
+func NewStudentHandler(
+	studentRepo *repository.StudentRepo,
+	assignmentRepo *repository.AssignmentRepo,
+	attemptRepo *repository.AttemptRepo,
+	testRepo *repository.TestRepo,
+) *StudentHandler {
+	return &StudentHandler{
+		StudentRepo:    studentRepo,
+		AssignmentRepo: assignmentRepo,
+		AttemptRepo:    attemptRepo,
+		TestRepo:       testRepo,
+	}
+}
 
 type StudentLoginRequest struct {
 	StudentCode string `json:"student_code" binding:"required"`
 }
 
-func StudentLogin(c *gin.Context) {
+func (h *StudentHandler) StudentLogin(c *gin.Context) {
 	var req StudentLoginRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
 
-	database := db.GetDB()
-
 	var studentID int
-	err := database.QueryRow(
-		"SELECT id FROM students WHERE student_code = $1",
-		req.StudentCode,
-	).Scan(&studentID)
-
+	err := h.StudentRepo.DB.QueryRow("SELECT id FROM students WHERE student_code = $1", req.StudentCode).Scan(&studentID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid student code"})
 		return
@@ -43,12 +55,9 @@ func StudentLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token": token,
-	})
+	c.JSON(http.StatusOK, gin.H{"access_token": token})
 }
 
-// submit answers
 type Answer struct {
 	QuestionID        int     `json:"question_id" binding:"required"`
 	SelectedAnswer    string  `json:"selected_answer"`
@@ -64,24 +73,19 @@ type SubmitRequest struct {
 	Answers []Answer `json:"answers" binding:"required"`
 }
 
-func SubmitAnswers(c *gin.Context) {
-	assignmentIDParam := c.Param("id")
-	assignmentID, err := strconv.Atoi(assignmentIDParam)
+func (h *StudentHandler) SubmitAnswers(c *gin.Context) {
+	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment_id"})
 		return
 	}
 
 	var req SubmitRequest
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
 
-	database := db.GetDB()
-
-	//  Extract JWT claims
 	studentIDRaw, exists := c.Get("student_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -94,92 +98,57 @@ func SubmitAnswers(c *gin.Context) {
 		return
 	}
 
-	var ownerID int
-	var testID int
-	var duration int
-	err = database.QueryRow(
-		`
+	var ownerID, testID, duration int
+	err = h.AssignmentRepo.DB.QueryRow(`
 		SELECT ass.student_id, ass.test_id, COALESCE(t.duration, 0)
-		FROM assignments ass
-		JOIN tests t ON ass.test_id = t.id
+		FROM assignments ass JOIN tests t ON ass.test_id = t.id
 		WHERE ass.id = $1
-		`,
-		assignmentID,
-	).Scan(&ownerID, &testID, &duration)
-
+	`, assignmentID).Scan(&ownerID, &testID, &duration)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment"})
 		return
 	}
 
 	if ownerID != studentID {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "assignment does not belong to student",
-		})
+		c.JSON(http.StatusForbidden, gin.H{"error": "assignment does not belong to student"})
 		return
 	}
 
-	//  Check if attempt already exists for this assignment (prevent re-attempt)
-	var existingAttemptID int
-	err = database.QueryRow(
-		"SELECT id FROM attempts WHERE assignment_id = $1",
-		assignmentID,
-	).Scan(&existingAttemptID)
-	if err == nil {
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "assignment already submitted",
-		})
+	existsAttempt, _ := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	if existsAttempt {
+		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
 		return
 	}
 
-	//  Start transaction
-	tx, err := database.Begin()
+	tx, err := h.AttemptRepo.DB.Begin()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start transaction"})
 		return
 	}
 	defer tx.Rollback()
 
-	//  Create attempt
 	var attemptID int
-	err = tx.QueryRow(
-		"INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id",
-		assignmentID,
-	).Scan(&attemptID)
-
+	err = tx.QueryRow("INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id", assignmentID).Scan(&attemptID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create attempt"})
 		return
 	}
 
-	rows, err := tx.Query(`
-		SELECT q.id, q.correct_answer
-		FROM questions q
-		WHERE q.test_id = $1
-	`, testID)
-
+	rows, err := tx.Query("SELECT q.id, q.correct_answer FROM questions q WHERE q.test_id = $1", testID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
 		return
 	}
 	defer rows.Close()
 
-	// Maps
 	correctMap := make(map[int]string)
-
 	for rows.Next() {
 		var questionID int
 		var correct string
-
-		err := rows.Scan(
-			&questionID,
-			&correct,
-		)
-		if err != nil {
+		if err := rows.Scan(&questionID, &correct); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "question scan failed"})
 			return
 		}
-
 		correctMap[questionID] = correct
 	}
 
@@ -187,7 +156,6 @@ func SubmitAnswers(c *gin.Context) {
 	var totalTimeSpent float64
 
 	for _, ans := range req.Answers {
-
 		_, exists := correctMap[ans.QuestionID]
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
@@ -213,11 +181,7 @@ func SubmitAnswers(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "not seen question cannot have selected_answer"})
 			return
 		}
-		if ans.SelectedAnswer != "" &&
-			ans.SelectedAnswer != "A" &&
-			ans.SelectedAnswer != "B" &&
-			ans.SelectedAnswer != "C" &&
-			ans.SelectedAnswer != "D" {
+		if ans.SelectedAnswer != "" && ans.SelectedAnswer != "A" && ans.SelectedAnswer != "B" && ans.SelectedAnswer != "C" && ans.SelectedAnswer != "D" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "selected_answer must be A/B/C/D"})
 			return
 		}
@@ -247,36 +211,20 @@ func SubmitAnswers(c *gin.Context) {
 			INSERT INTO answer_logs 
 			(question_id, attempt_id, selected_answer, is_correct, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong, seen)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-		`,
-			ans.QuestionID,
-			attemptID,
-			ans.SelectedAnswer,
-			isCorrect,
-			ans.TimeSpent,
-			ans.MarkedForReview,
-			ans.Revisited,
-			ans.ChangedAnswer,
-			ans.WasInitiallyWrong,
-			answerSeen,
-		)
-
+		`, ans.QuestionID, attemptID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
+			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert answer"})
 			return
 		}
-
 	}
 
-	_, err = tx.Exec(
-		"UPDATE assignments SET status = 'submitted' WHERE id = $1",
-		assignmentID,
-	)
+	_, err = tx.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1", assignmentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark assignment submitted"})
 		return
 	}
 
-	//  Commit
 	if err := tx.Commit(); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "commit failed"})
 		return
@@ -289,8 +237,7 @@ func SubmitAnswers(c *gin.Context) {
 	})
 }
 
-// list student assignments
-func ListStudentAssignments(c *gin.Context) {
+func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {
 	studentIDRaw, exists := c.Get("student_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -303,54 +250,21 @@ func ListStudentAssignments(c *gin.Context) {
 		return
 	}
 
-	database := db.GetDB()
-
-	rows, err := database.Query(`
-		SELECT a.id, a.test_id, t.title, a.status, a.assigned_at
-		FROM assignments a
-		JOIN tests t ON a.test_id = t.id
-		WHERE a.student_id = $1
-		ORDER BY a.assigned_at DESC
-	`, studentID)
-
+	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, nil, 100, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch assignments"})
 		return
 	}
-	defer rows.Close()
-
-	type AssignmentItem struct {
-		ID         int    `json:"id"`
-		TestID     int    `json:"test_id"`
-		TestTitle  string `json:"test_title"`
-		Status     string `json:"status"`
-		AssignedAt string `json:"assigned_at"`
-	}
-
-	var assignments []AssignmentItem
-	for rows.Next() {
-		var a AssignmentItem
-		if err := rows.Scan(&a.ID, &a.TestID, &a.TestTitle, &a.Status, &a.AssignedAt); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan assignment"})
-			return
-		}
-		assignments = append(assignments, a)
-	}
 
 	if assignments == nil {
-		assignments = []AssignmentItem{}
+		assignments = []repository.AssignmentRow{}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"total": len(assignments),
-		"data":  assignments,
-	})
+	c.JSON(http.StatusOK, gin.H{"total": total, "data": assignments})
 }
 
-// get assignment questions (student-facing, excludes correct_answer)
-func GetAssignmentQuestions(c *gin.Context) {
-	assignmentIDParam := c.Param("id")
-	assignmentID, err := strconv.Atoi(assignmentIDParam)
+func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
+	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment_id"})
 		return
@@ -368,22 +282,16 @@ func GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 
-	database := db.GetDB()
-
-	// Verify assignment belongs to student and get test info
-	var ownerID int
-	var testID int
+	var ownerID, testID int
 	var testTitle string
 	var duration int
 	var examDate sql.NullTime
 
-	err = database.QueryRow(`
+	err = h.AssignmentRepo.DB.QueryRow(`
 		SELECT ass.student_id, ass.test_id, t.title, COALESCE(t.duration, 0), t.exam_date
-		FROM assignments ass
-		JOIN tests t ON ass.test_id = t.id
+		FROM assignments ass JOIN tests t ON ass.test_id = t.id
 		WHERE ass.id = $1
 	`, assignmentID).Scan(&ownerID, &testID, &testTitle, &duration, &examDate)
-
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
 		return
@@ -394,31 +302,21 @@ func GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 
-	// Check if already submitted
-	var existingAttemptID int
-	err = database.QueryRow(
-		"SELECT id FROM attempts WHERE assignment_id = $1",
-		assignmentID,
-	).Scan(&existingAttemptID)
-	if err == nil {
+	existsAttempt, _ := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	if existsAttempt {
 		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
 		return
 	}
 
-	// Fetch questions (exclude correct_answer)
-	rows, err := database.Query(`
-		SELECT id, question_text, option_a, option_b, option_c, option_d,
-		       marks, neg_marks, difficulty, type, expected_time, concept_tag
-		FROM questions
-		WHERE test_id = $1
-		ORDER BY id ASC
-	`, testID)
-
+	questions, _, err := h.TestRepo.ListQuestions(testID, 1000, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
 		return
 	}
-	defer rows.Close()
+
+	if questions == nil {
+		questions = []repository.QuestionRow{}
+	}
 
 	type QuestionResponse struct {
 		ID           int     `json:"id"`
@@ -435,21 +333,14 @@ func GetAssignmentQuestions(c *gin.Context) {
 		ConceptTag   string  `json:"concept_tag"`
 	}
 
-	var questions []QuestionResponse
-	for rows.Next() {
-		var q QuestionResponse
-		if err := rows.Scan(
-			&q.ID, &q.QuestionText, &q.OptionA, &q.OptionB, &q.OptionC, &q.OptionD,
-			&q.Marks, &q.NegMarks, &q.Difficulty, &q.Type, &q.ExpectedTime, &q.ConceptTag,
-		); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to scan question"})
-			return
-		}
-		questions = append(questions, q)
-	}
-
-	if questions == nil {
-		questions = []QuestionResponse{}
+	var responseQuestions []QuestionResponse
+	for _, q := range questions {
+		responseQuestions = append(responseQuestions, QuestionResponse{
+			ID: q.ID, QuestionText: q.QuestionText,
+			OptionA: q.OptionA, OptionB: q.OptionB, OptionC: q.OptionC, OptionD: q.OptionD,
+			Marks: q.Marks, NegMarks: q.NegMarks, Difficulty: q.Difficulty, Type: q.Type,
+			ExpectedTime: q.ExpectedTime, ConceptTag: q.ConceptTag,
+		})
 	}
 
 	examDateStr := ""
@@ -462,7 +353,7 @@ func GetAssignmentQuestions(c *gin.Context) {
 		"test_title":    testTitle,
 		"duration":      duration,
 		"exam_date":     examDateStr,
-		"questions":     questions,
+		"questions":     responseQuestions,
 	})
 }
 
