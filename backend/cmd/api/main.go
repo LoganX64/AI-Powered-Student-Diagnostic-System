@@ -2,7 +2,7 @@ package main
 
 import (
 	"ai-student-diagnostic/backend/internal/config"
-	db "ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/repository"
 	routes "ai-student-diagnostic/backend/internal/routes"
 	"context"
 	"log"
@@ -42,7 +42,7 @@ func main() {
 
 	runMigrations(cfg.DBURL)
 
-	conn := db.InitDB(cfg)
+	conn := repository.InitDB(cfg)
 
 	r := routes.SetupRouter(conn)
 
