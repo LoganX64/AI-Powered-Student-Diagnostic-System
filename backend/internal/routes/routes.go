@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/auth"
 	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/middleware"
+	"ai-student-diagnostic/backend/internal/repository"
 
 	"database/sql"
 
@@ -34,9 +35,21 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		c.JSON(200, gin.H{"status": "healthy"})
 	})
 
-	//  auth
-	authHandler := auth.NewAuthHandler(db)
+	// Initialize repos
+	userRepo := repository.NewUserRepo(db)
+	studentRepo := repository.NewStudentRepo(db)
+	coachRepo := repository.NewCoachRepo(db)
+	testRepo := repository.NewTestRepo(db)
+	assignmentRepo := repository.NewAssignmentRepo(db)
+	attemptRepo := repository.NewAttemptRepo(db)
 
+	// Initialize handlers
+	authHandler := auth.NewAuthHandler(db)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo)
+	coachHandler := handlers.NewCoachHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testRepo)
+
+	// auth
 	authRoute := r.Group("/auth")
 	{
 		authRoute.POST("/login", authHandler.UserLogin)
@@ -44,25 +57,21 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		authRoute.POST("/google", authHandler.GoogleLogin)
 	}
 
-	//  student
+	// student
 	student := r.Group("/student")
 	{
-		// public
-		student.POST("/login", handlers.StudentLogin)
+		student.POST("/login", studentHandler.StudentLogin)
 
-		// protected
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware(db))
 		{
-			protected.POST("/submit/:id", handlers.SubmitAnswers)
-			protected.GET("/assignments", handlers.ListStudentAssignments)
-			protected.GET("/assignments/:id/questions", handlers.GetAssignmentQuestions)
+			protected.POST("/submit/:id", studentHandler.SubmitAnswers)
+			protected.GET("/assignments", studentHandler.ListStudentAssignments)
+			protected.GET("/assignments/:id/questions", studentHandler.GetAssignmentQuestions)
 		}
 	}
 
-	//  admin
-	adminHandler := handlers.NewAdminHandler(db)
-
+	// admin
 	admin := r.Group("/admin")
 	admin.Use(
 		middleware.AuthMiddleware(db),
@@ -104,9 +113,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		admin.GET("/students/:id/subjects/:subject_id/results", adminHandler.GetStudentSubjectResults)
 	}
 
-	//  coach
-	coachHandler := handlers.NewCoachHandler(db)
-
+	// coach
 	coach := r.Group("/coach")
 	coach.Use(
 		middleware.AuthMiddleware(db),
@@ -138,7 +145,6 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		coach.GET("/subjects", coachHandler.ListSubjects)
 		coach.GET("/assignments", coachHandler.ListAssignments)
 
-		// update own password
 		coach.PUT("/password", authHandler.UpdatePassword)
 	}
 
