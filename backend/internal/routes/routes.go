@@ -77,7 +77,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		student.POST("/login", studentHandler.StudentLogin)
 
 		protected := student.Group("")
-		protected.Use(middleware.AuthMiddleware(db))
+		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo))
 		{
 			protected.POST("/submit/:id", studentHandler.SubmitAnswers)
 			protected.GET("/assignments", studentHandler.ListStudentAssignments)
@@ -88,7 +88,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	// admin
 	admin := r.Group("/admin")
 	admin.Use(
-		middleware.AuthMiddleware(db),
+		middleware.AuthMiddleware(studentRepo, userRepo),
 		middleware.RoleMiddleware("admin"),
 	)
 	{
@@ -130,7 +130,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	// coach
 	coach := r.Group("/coach")
 	coach.Use(
-		middleware.AuthMiddleware(db),
+		middleware.AuthMiddleware(studentRepo, userRepo),
 		middleware.RoleMiddleware("coach"),
 	)
 	{

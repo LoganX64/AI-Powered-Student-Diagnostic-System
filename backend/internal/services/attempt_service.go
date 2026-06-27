@@ -93,7 +93,13 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to fetch questions"}
 	}
 
-	attemptID, err := s.AttemptRepo.CreateAttempt(assignmentID)
+	tx, err := s.AttemptRepo.DB.Begin()
+	if err != nil {
+		return nil, &SubmitAnswersError{Status: 500, Message: "failed to start transaction"}
+	}
+	defer tx.Rollback()
+
+	attemptID, err := s.AttemptRepo.CreateAttemptTx(tx, assignmentID)
 	if err != nil {
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to create attempt"}
 	}
@@ -146,15 +152,19 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 		correctAnswer := correctMap[ans.QuestionID]
 		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctAnswer
 
-		err = s.AttemptRepo.InsertAnswerLog(attemptID, ans.QuestionID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
+		err = s.AttemptRepo.InsertAnswerLogTx(tx, attemptID, ans.QuestionID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
 			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen)
 		if err != nil {
 			return nil, &SubmitAnswersError{Status: 500, Message: "failed to insert answer"}
 		}
 	}
 
-	if err := s.AssignmentRepo.MarkSubmitted(assignmentID); err != nil {
+	if err := s.AssignmentRepo.MarkSubmittedTx(tx, assignmentID); err != nil {
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to mark assignment submitted"}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, &SubmitAnswersError{Status: 500, Message: "failed to commit transaction"}
 	}
 
 	return &SubmitAnswersResult{

@@ -157,8 +157,14 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 
 func (r *StudentRepo) GetIDByStudentCode(studentCode string) (int, error) {
 	var id int
-	err := r.DB.QueryRow("SELECT id FROM students WHERE student_code = $1", studentCode).Scan(&id)
+	err := r.DB.QueryRow("SELECT id FROM students WHERE student_code = $1 AND deleted_at IS NULL", studentCode).Scan(&id)
 	return id, err
+}
+
+func (r *StudentRepo) ExistsByID(studentID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM students WHERE id = $1)", studentID).Scan(&exists)
+	return exists, err
 }
 
 func (r *StudentRepo) GetDetail(studentID, tenantID int, coachID *int) (*StudentDetailRow, error) {

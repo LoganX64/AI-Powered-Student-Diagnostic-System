@@ -84,3 +84,9 @@ func (r *UserRepo) UpdatePassword(userID int, newHash string) error {
 	_, err := r.DB.Exec("UPDATE users SET password = $1 WHERE id = $2", newHash, userID)
 	return err
 }
+
+func (r *UserRepo) ExistsByID(userID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
+	return exists, err
+}

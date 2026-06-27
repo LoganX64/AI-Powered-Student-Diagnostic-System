@@ -104,7 +104,10 @@ func (s *AuthService) GoogleLogin(idToken string) (*LoginResult, error) {
 		return nil, err
 	}
 
-	email := payload.Claims["email"].(string)
+	email, ok := payload.Claims["email"].(string)
+	if !ok || email == "" {
+		return nil, sql.ErrNoRows
+	}
 
 	userID, role, tenantID, err := s.UserRepo.GetByEmail(email)
 	if err == sql.ErrNoRows {

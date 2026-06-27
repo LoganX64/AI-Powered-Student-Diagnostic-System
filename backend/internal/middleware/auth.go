@@ -1,15 +1,15 @@
 package middleware
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
-	"database/sql"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
+func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.UserRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 
@@ -40,8 +40,7 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 		}
 
 		if claims.Role == "student" {
-			var exists bool
-			err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM students WHERE id = $1)", claims.StudentID).Scan(&exists)
+			exists, err := studentRepo.ExistsByID(claims.StudentID)
 			if err != nil || !exists {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "student no longer exists"})
 				c.Abort()
@@ -49,8 +48,7 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 			}
 			c.Set("student_id", claims.StudentID)
 		} else {
-			var exists bool
-			err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", claims.UserID).Scan(&exists)
+			exists, err := userRepo.ExistsByID(claims.UserID)
 			if err != nil || !exists {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "user no longer exists"})
 				c.Abort()
