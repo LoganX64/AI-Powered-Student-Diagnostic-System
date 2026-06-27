@@ -24,22 +24,6 @@ func NewAttemptService(attemptRepo *repository.AttemptRepo, assignmentRepo *repo
 	}
 }
 
-func (s *AttemptService) GetByAssignment(assignmentID int) (int, interface{}, error) {
-	return s.AttemptRepo.GetByAssignment(assignmentID)
-}
-
-func (s *AttemptService) ExistsByAssignment(assignmentID int) (bool, error) {
-	return s.AttemptRepo.ExistsByAssignment(assignmentID)
-}
-
-func (s *AttemptService) GetSQIResult(attemptID int) (interface{}, interface{}, error) {
-	return s.AttemptRepo.GetSQIResult(attemptID)
-}
-
-func (s *AttemptService) GetAnswerDetails(attemptID int) ([]repository.AnswerDetail, error) {
-	return s.AttemptRepo.GetAnswerDetails(attemptID)
-}
-
 // ─────────────────────────────────────────────
 // SubmitAnswers
 // ─────────────────────────────────────────────

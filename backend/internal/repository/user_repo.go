@@ -16,12 +16,6 @@ func (r *UserRepo) GetTenantID(userID int) (int, error) {
 	return tenantID, err
 }
 
-func (r *UserRepo) EmailExists(email string) (bool, error) {
-	var exists bool
-	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)", email).Scan(&exists)
-	return exists, err
-}
-
 type UserLoginRow struct {
 	UserID   int
 	Password string

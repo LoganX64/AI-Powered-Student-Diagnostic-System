@@ -218,11 +218,6 @@ func (r *AssignmentRepo) GetDetailForStudent(assignmentID int) (AssignmentStuden
 	return row, err
 }
 
-func (r *AssignmentRepo) MarkSubmitted(assignmentID int) error {
-	_, err := r.DB.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1", assignmentID)
-	return err
-}
-
 func (r *AssignmentRepo) MarkSubmittedTx(tx *sql.Tx, assignmentID int) error {
 	_, err := tx.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1", assignmentID)
 	return err

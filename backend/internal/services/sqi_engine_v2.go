@@ -134,7 +134,7 @@ func Analyze(questions []QuestionMetaV2, answers []AnswerLogV2, cfg ExamConfigV2
 	overallSQI := helper.Round2V2(0.35*dims.Mastery + 0.25*dims.Speed + 0.25*dims.Risk + 0.15*dims.Coverage)
 
 	// ── Step 5: Concept profiles ────────────────────────────────────
-	conceptMap := groupByConcept(results, questions)
+	conceptMap := groupByConcept(results)
 	conceptProfiles := buildConceptProfiles(conceptMap)
 
 	// ── Step 6: Behavioral flags ────────────────────────────────────
@@ -488,12 +488,7 @@ func computeCoverage(results []questionResult) float64 {
 // STEP 5 — CONCEPT PROFILES
 // ─────────────────────────────────────────────
 
-func groupByConcept(results []questionResult, questions []QuestionMetaV2) map[string]*conceptAggregateV2 {
-	subjectMap := make(map[int]string)
-	for _, q := range questions {
-		subjectMap[q.QuestionID] = q.Subject
-	}
-
+func groupByConcept(results []questionResult) map[string]*conceptAggregateV2 {
 	concepts := make(map[string]*conceptAggregateV2)
 	for _, r := range results {
 		tag := r.ConceptTag

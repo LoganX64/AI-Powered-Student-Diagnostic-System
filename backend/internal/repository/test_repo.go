@@ -96,13 +96,6 @@ func (r *TestRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool, erro
 	return exists, err
 }
 
-func (r *TestRepo) ExistsOwnedByCoachOrTenant(testID int, coachID *int, tenantID int) (bool, error) {
-	if coachID != nil {
-		return r.ExistsOwnedByCoach(testID, *coachID, tenantID)
-	}
-	return r.Exists(testID, tenantID)
-}
-
 func (r *TestRepo) List(tenantID int, coachID *int, search string, limit, offset int) ([]TestRow, int, error) {
 	var tests []TestRow
 	var total int
@@ -328,12 +321,6 @@ func (r *TestRepo) DeleteQuestion(questionID, testID int) (bool, error) {
 	}
 	rowsAffected, _ := result.RowsAffected()
 	return rowsAffected > 0, nil
-}
-
-func (r *TestRepo) CoachExistsInTenant(coachID, tenantID int) (bool, error) {
-	var exists bool
-	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", coachID, tenantID).Scan(&exists)
-	return exists, err
 }
 
 func (r *TestRepo) CoachTenantID(coachID int) (int, error) {

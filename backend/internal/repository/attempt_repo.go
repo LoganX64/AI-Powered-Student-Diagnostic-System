@@ -38,17 +38,6 @@ type AttemptResultRow struct {
 	Analysis  sql.NullString
 }
 
-type CorrectAnswer struct {
-	QuestionID    int
-	CorrectAnswer string
-}
-
-func (r *AttemptRepo) CreateAttempt(assignmentID int) (int, error) {
-	var id int
-	err := r.DB.QueryRow("INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id", assignmentID).Scan(&id)
-	return id, err
-}
-
 func (r *AttemptRepo) CreateAttemptTx(tx *sql.Tx, assignmentID int) (int, error) {
 	var id int
 	err := tx.QueryRow("INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id", assignmentID).Scan(&id)
@@ -75,15 +64,6 @@ func (r *AttemptRepo) GetCorrectAnswers(testID int) (map[int]string, error) {
 		return nil, err
 	}
 	return correctMap, nil
-}
-
-func (r *AttemptRepo) InsertAnswerLog(attemptID, questionID int, selectedAnswer string, isCorrect bool, timeSpent float64, markedForReview, revisited, changedAnswer, wasInitiallyWrong, seen bool) error {
-	_, err := r.DB.Exec(`
-		INSERT INTO answer_logs 
-		(question_id, attempt_id, selected_answer, is_correct, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong, seen)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, questionID, attemptID, selectedAnswer, isCorrect, timeSpent, markedForReview, revisited, changedAnswer, wasInitiallyWrong, seen)
-	return err
 }
 
 func (r *AttemptRepo) InsertAnswerLogTx(tx *sql.Tx, attemptID, questionID int, selectedAnswer string, isCorrect bool, timeSpent float64, markedForReview, revisited, changedAnswer, wasInitiallyWrong, seen bool) error {
