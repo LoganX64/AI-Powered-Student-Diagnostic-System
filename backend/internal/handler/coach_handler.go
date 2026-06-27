@@ -67,7 +67,11 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 	compute := c.Query("compute") == "true"
 
 	if compute {
-		uncomputed, _ := h.AttemptRepo.GetUncomputedAttempts(studentID)
+		uncomputed, err := h.AttemptRepo.GetUncomputedAttempts(studentID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch uncomputed attempts")
+			return
+		}
 		for _, pair := range uncomputed {
 			attemptID, testID := pair[0], pair[1]
 			payload, err := calculateAttemptSQIAnalysis(h.AttemptRepo.DB, attemptID, testID)
@@ -75,14 +79,25 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate sqi"})
 				return
 			}
-			analysisJSON, _ := json.Marshal(payload)
-			_ = h.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version)
+			analysisJSON, err := json.Marshal(payload)
+			if err != nil {
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to marshal analysis")
+				return
+			}
+			if err := h.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version); err != nil {
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to store result")
+				return
+			}
 		}
 	}
 
 	_ = coachID
 
-	resultRows, _ := h.AttemptRepo.GetResults(studentID, includeAnalysis)
+	resultRows, err := h.AttemptRepo.GetResults(studentID, includeAnalysis)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch results")
+		return
+	}
 
 	var attempts []AttemptResult
 	var total float64
@@ -129,7 +144,11 @@ func (h *CoachHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
+	exists, err := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
 		return
@@ -160,8 +179,16 @@ func (h *CoachHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 
-	sqiScore, analysisJSON, _ := h.AttemptRepo.GetSQIResult(attemptID)
-	answers, _ := h.AttemptRepo.GetAnswerDetails(attemptID)
+	sqiScore, analysisJSON, err := h.AttemptRepo.GetSQIResult(attemptID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch SQI result")
+		return
+	}
+	answers, err := h.AttemptRepo.GetAnswerDetails(attemptID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch answer details")
+		return
+	}
 
 	var analysis interface{}
 	if analysisJSON.Valid && analysisJSON.String != "" {
@@ -259,7 +286,11 @@ func (h *CoachHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+	exists, err := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id or access denied"})
 		return
@@ -399,7 +430,11 @@ func (h *CoachHandler) ListStudentAssignments(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
+	exists, err := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
 		return
