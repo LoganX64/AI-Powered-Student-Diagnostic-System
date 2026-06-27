@@ -38,7 +38,6 @@ export function CoachesPage() {
   const [creating, setCreating] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
-  const [dialogOpenId, setDialogOpenId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
@@ -204,11 +203,7 @@ export function CoachesPage() {
                   <TableRow
                     key={coach.coach_id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => {
-                      if (dialogOpenId !== coach.coach_id) {
-                        navigate(`/admin/coaches/${coach.coach_id}`);
-                      }
-                    }}
+                    onClick={() => navigate(`/admin/coaches/${coach.coach_id}`)}
                   >
                     <TableCell className="font-mono text-sm text-muted-foreground">
                       {coach.coach_id}
@@ -217,69 +212,73 @@ export function CoachesPage() {
                     <TableCell className="text-muted-foreground">{coach.email}</TableCell>
                     <TableCell className="text-right">
                       {coach.deleted_at ? (
-                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? coach.coach_id : null)}>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-muted-foreground hover:text-green-600"
-                              disabled={reactivatingId === coach.coach_id}
-                              aria-label={`Reactivate account for ${coach.name}`}
-                            >
-                              <RotateCcwIcon className="size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Reactivate Account</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to reactivate the account for{" "}
-                                <span className="font-semibold">{coach.name}</span>?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleReactivate(coach)}
-                                className="bg-green-600 text-white hover:bg-green-700"
-                              >
-                                Reactivate Account
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                         <span onClick={(e) => e.stopPropagation()}>
+                           <AlertDialog>
+                             <AlertDialogTrigger asChild>
+                               <Button
+                                 variant="ghost"
+                                 size="icon"
+                                 className="size-8 text-muted-foreground hover:text-green-600"
+                                 disabled={reactivatingId === coach.coach_id}
+                                 aria-label={`Reactivate account for ${coach.name}`}
+                               >
+                                 <RotateCcwIcon className="size-4" />
+                               </Button>
+                             </AlertDialogTrigger>
+                             <AlertDialogContent>
+                               <AlertDialogHeader>
+                                 <AlertDialogTitle>Reactivate Account</AlertDialogTitle>
+                                 <AlertDialogDescription>
+                                   Are you sure you want to reactivate the account for{" "}
+                                   <span className="font-semibold">{coach.name}</span>?
+                                 </AlertDialogDescription>
+                               </AlertDialogHeader>
+                               <AlertDialogFooter>
+                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                 <AlertDialogAction
+                                   onClick={() => handleReactivate(coach)}
+                                   className="bg-green-600 text-white hover:bg-green-700"
+                                 >
+                                   Reactivate Account
+                                 </AlertDialogAction>
+                               </AlertDialogFooter>
+                             </AlertDialogContent>
+                           </AlertDialog>
+                         </span>
                       ) : (
-                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? coach.coach_id : null)}>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-muted-foreground hover:text-destructive"
-                              disabled={deactivatingId === coach.coach_id}
-                              aria-label={`Deactivate account for ${coach.name}`}
-                            >
-                              <Trash2Icon className="size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Deactivate Account</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to deactivate the account for{" "}
-                                <span className="font-semibold">{coach.name}</span>?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeactivate(coach)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Deactivate Account
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                         <span onClick={(e) => e.stopPropagation()}>
+                           <AlertDialog>
+                             <AlertDialogTrigger asChild>
+                               <Button
+                                 variant="ghost"
+                                 size="icon"
+                                 className="size-8 text-muted-foreground hover:text-destructive"
+                                 disabled={deactivatingId === coach.coach_id}
+                                 aria-label={`Deactivate account for ${coach.name}`}
+                               >
+                                 <Trash2Icon className="size-4" />
+                               </Button>
+                             </AlertDialogTrigger>
+                             <AlertDialogContent>
+                               <AlertDialogHeader>
+                                 <AlertDialogTitle>Deactivate Account</AlertDialogTitle>
+                                 <AlertDialogDescription>
+                                   Are you sure you want to deactivate the account for{" "}
+                                   <span className="font-semibold">{coach.name}</span>?
+                                 </AlertDialogDescription>
+                               </AlertDialogHeader>
+                               <AlertDialogFooter>
+                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                 <AlertDialogAction
+                                   onClick={() => handleDeactivate(coach)}
+                                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                 >
+                                   Deactivate Account
+                                 </AlertDialogAction>
+                               </AlertDialogFooter>
+                             </AlertDialogContent>
+                           </AlertDialog>
+                         </span>
                       )}
                     </TableCell>
                   </TableRow>
