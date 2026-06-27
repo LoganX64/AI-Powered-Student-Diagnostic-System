@@ -2,6 +2,7 @@ package services
 
 import (
 	"ai-student-diagnostic/backend/internal/helper"
+	"ai-student-diagnostic/backend/internal/types"
 	"math"
 	"sort"
 )
@@ -42,146 +43,6 @@ type ExamConfigV2 struct {
 	ExamType           string  `json:"exam_type"`
 	HasNegativeMarking bool    `json:"has_negative_marking"`
 	TotalDuration      float64 `json:"total_duration"`
-}
-
-// ─────────────────────────────────────────────
-// OUTPUT TYPES — SCORES
-// ─────────────────────────────────────────────
-
-// SQIDimensionsV2 holds the four individual dimension scores (0–100 each).
-type SQIDimensionsV2 struct {
-	Mastery  float64 `json:"mastery"`
-	Speed    float64 `json:"speed"`
-	Risk     float64 `json:"risk"`
-	Coverage float64 `json:"coverage"`
-}
-
-// ─────────────────────────────────────────────
-// OUTPUT TYPES — DIAGNOSTIC PAYLOAD
-// ─────────────────────────────────────────────
-
-// DiagnosticPayloadV2 is the full object fed to the LLM.
-// It contains scores, exam context, per-attempt profiles,
-// per-concept breakdowns, and behavioral flags.
-type DiagnosticPayloadV2 struct {
-	// ── Engine version — set automatically by Analyze() ──────────
-	Version string `json:"version"`
-
-	// ── Scores (also shown to student / teacher) ──────────────────
-	OverallSQI float64         `json:"overall_sqi"`
-	Dimensions SQIDimensionsV2 `json:"dimensions"`
-
-	// ── Exam-level summary ─────────────────────────────────────────
-	ExamSummary ExamSummaryV2 `json:"exam_summary"`
-
-	// ── How the student attempted the paper ────────────────────────
-	AttemptProfile AttemptProfileV2 `json:"attempt_profile"`
-
-	// ── Per-concept breakdown, sorted by priority ──────────────────
-	ConceptProfiles []ConceptProfileV2 `json:"concept_profiles"`
-
-	// ── Behavioral coaching signals ────────────────────────────────
-	BehaviorFlags BehaviorFlagsV2 `json:"behavior_flags"`
-
-	// ── Half-paper performance split ───────────────────────────────
-	// Useful for detecting early exhaustion / panic in latter half.
-	FirstHalfAccuracy  float64 `json:"first_half_accuracy"`  // % correct in first 50% of questions
-	SecondHalfAccuracy float64 `json:"second_half_accuracy"` // % correct in second 50% of questions
-}
-
-// ExamSummaryV2 is the high-level numbers — what teachers see at a glance.
-type ExamSummaryV2 struct {
-	ExamType           string  `json:"exam_type"`
-	HasNegativeMarking bool    `json:"has_negative_marking"`
-	TotalQuestions     int     `json:"total_questions"`
-	Attempted          int     `json:"attempted"`
-	Correct            int     `json:"correct"`
-	Wrong              int     `json:"wrong"`
-	Skipped            int     `json:"skipped"`
-	Unseen             int     `json:"unseen"`
-	TotalMarksEarned   float64 `json:"total_marks_earned"`
-	TotalMarksLost     float64 `json:"total_marks_lost"`
-	NetScore           float64 `json:"net_score"`
-	MaxPossibleScore   float64 `json:"max_possible_score"`
-	ScorePercent       float64 `json:"score_percent"`
-}
-
-// AttemptProfileV2 classifies every question attempt by type.
-// This is core LLM context: it shows *why* marks were lost.
-type AttemptProfileV2 struct {
-	// Wrong answers
-	GuessedWrong   int `json:"guessed_wrong"`
-	CarefullyWrong int `json:"carefully_wrong"`
-
-	// Correct answers
-	GuessedRight   int `json:"guessed_right"`
-	CarefullyRight int `json:"carefully_right"`
-
-	// Non-attempts
-	SeenAbandoned int `json:"seen_abandoned"`
-	NeverReached  int `json:"never_reached"`
-
-	// Negative marks breakdown
-	NegMarksFromGuess   float64 `json:"neg_marks_from_guess"`
-	NegMarksFromCareful float64 `json:"neg_marks_from_careful"`
-}
-
-// ConceptProfileV2 is the per-topic diagnostic entry.
-type ConceptProfileV2 struct {
-	ConceptTag   string            `json:"concept_tag"`
-	Subject      string            `json:"subject"`
-	Status       ConceptStatusV2   `json:"status"`
-	PriorityRank int               `json:"priority_rank"`
-	Evidence     ConceptEvidenceV2 `json:"evidence"`
-}
-
-// ConceptStatusV2 is a human-readable classification computed by Go.
-// The LLM uses this to decide what kind of plan to generate.
-type ConceptStatusV2 string
-
-const (
-	StatusMasteredV2    ConceptStatusV2 = "mastered"     // knows it well and fast
-	StatusAlmostThereV2 ConceptStatusV2 = "almost_there" // knows it but slow or inconsistent
-	StatusConfusedV2    ConceptStatusV2 = "confused"     // attempted but mostly wrong — wrong mental model
-	StatusNotStudiedV2  ConceptStatusV2 = "not_studied"  // mostly guessing or skipping — topic not covered
-	StatusNotReachedV2  ConceptStatusV2 = "not_reached"  // majority unseen — time issue, not knowledge
-)
-
-// ConceptEvidenceV2 is the raw numbers behind a concept's status.
-type ConceptEvidenceV2 struct {
-	TotalQuestions   int     `json:"total_questions"`
-	Attempted        int     `json:"attempted"`
-	Correct          int     `json:"correct"`
-	Wrong            int     `json:"wrong"`
-	Skipped          int     `json:"skipped"`
-	Unseen           int     `json:"unseen"`
-	AccuracyPct      float64 `json:"accuracy_pct"`
-	AvgTimeRatio     float64 `json:"avg_time_ratio"`
-	NegMarksCost     float64 `json:"neg_marks_cost"`
-	GuessCount       int     `json:"guess_count"`
-	GenuineWrong     int     `json:"genuine_wrong"`
-	ChangedToCorrect int     `json:"changed_to_correct"`
-	ChangedToWrong   int     `json:"changed_to_wrong"`
-	MasteryScore     float64 `json:"mastery_score"`
-	PriorityScore    float64 `json:"priority_score"`
-}
-
-// BehaviorFlagsV2 are boolean coaching signals with a confidence weight.
-type BehaviorFlagsV2 struct {
-	PanicGuesser    BehaviorFlagV2 `json:"panic_guesser"`
-	TimeMismanager  BehaviorFlagV2 `json:"time_mismanager"`
-	Overconfident   BehaviorFlagV2 `json:"overconfident"`
-	ReviewWasted    BehaviorFlagV2 `json:"review_wasted"`
-	EarlyExhaustion BehaviorFlagV2 `json:"early_exhaustion"`
-	RiskyAttempter  BehaviorFlagV2 `json:"risky_attempter"`
-	StrongStarter   BehaviorFlagV2 `json:"strong_starter"`
-}
-
-// BehaviorFlagV2 pairs a detected behavior with a confidence level.
-type BehaviorFlagV2 struct {
-	Detected   bool    `json:"detected"`
-	Confidence float64 `json:"confidence"`
-	Evidence   string  `json:"evidence"`
 }
 
 // ─────────────────────────────────────────────
@@ -248,8 +109,8 @@ type conceptAggregateV2 struct {
 // ─────────────────────────────────────────────
 
 // Analyze is the single public function. It takes the question list,
-// answer log, and exam config, and returns the full DiagnosticPayloadV2.
-func Analyze(questions []QuestionMetaV2, answers []AnswerLogV2, cfg ExamConfigV2) DiagnosticPayloadV2 {
+// answer log, and exam config, and returns the full types.DiagnosticPayloadV2.
+func Analyze(questions []QuestionMetaV2, answers []AnswerLogV2, cfg ExamConfigV2) types.DiagnosticPayloadV2 {
 	answerMap := helper.BuildAnswerMapV2(answers, func(a AnswerLogV2) int {
 		return a.QuestionID
 	})
@@ -282,7 +143,7 @@ func Analyze(questions []QuestionMetaV2, answers []AnswerLogV2, cfg ExamConfigV2
 	// ── Step 7: Half-paper accuracy ─────────────────────────────────
 	firstAcc, secondAcc := computeHalfAccuracy(results)
 
-	return DiagnosticPayloadV2{
+	return types.DiagnosticPayloadV2{
 		Version:            "v2",
 		OverallSQI:         overallSQI,
 		Dimensions:         dims,
@@ -373,8 +234,8 @@ func classifyTime(ratio float64) timeBucket {
 // STEP 2 — EXAM SUMMARY
 // ─────────────────────────────────────────────
 
-func buildExamSummary(results []questionResult, questions []QuestionMetaV2, cfg ExamConfigV2) ExamSummaryV2 {
-	s := ExamSummaryV2{
+func buildExamSummary(results []questionResult, questions []QuestionMetaV2, cfg ExamConfigV2) types.ExamSummaryV2 {
+	s := types.ExamSummaryV2{
 		ExamType:           cfg.ExamType,
 		HasNegativeMarking: cfg.HasNegativeMarking,
 		TotalQuestions:     len(results),
@@ -416,8 +277,8 @@ func buildExamSummary(results []questionResult, questions []QuestionMetaV2, cfg 
 // STEP 3 — ATTEMPT PROFILE
 // ─────────────────────────────────────────────
 
-func buildAttemptProfile(results []questionResult) AttemptProfileV2 {
-	var p AttemptProfileV2
+func buildAttemptProfile(results []questionResult) types.AttemptProfileV2 {
+	var p types.AttemptProfileV2
 	for _, r := range results {
 		switch r.Outcome {
 		case outcomeCorrect:
@@ -449,8 +310,8 @@ func buildAttemptProfile(results []questionResult) AttemptProfileV2 {
 // STEP 4 — SQI DIMENSIONS
 // ─────────────────────────────────────────────
 
-func computeDimensions(results []questionResult, summary ExamSummaryV2, cfg ExamConfigV2) SQIDimensionsV2 {
-	return SQIDimensionsV2{
+func computeDimensions(results []questionResult, summary types.ExamSummaryV2, cfg ExamConfigV2) types.SQIDimensionsV2 {
+	return types.SQIDimensionsV2{
 		Mastery:  helper.Round2V2(computeMastery(results)),
 		Speed:    helper.Round2V2(computeSpeed(results)),
 		Risk:     helper.Round2V2(computeRisk(results, summary, cfg)),
@@ -540,7 +401,7 @@ func computeSpeed(results []questionResult) float64 {
 // Risk — how well the student managed negative marking.
 // Starts at 100, deductions for guessing and bad behavioral patterns,
 // small bonuses for good risk awareness.
-func computeRisk(results []questionResult, summary ExamSummaryV2, cfg ExamConfigV2) float64 {
+func computeRisk(results []questionResult, summary types.ExamSummaryV2, cfg ExamConfigV2) float64 {
 
 	var scoreSum, minSum, maxSum float64
 
@@ -644,8 +505,8 @@ func groupByConcept(results []questionResult, questions []QuestionMetaV2) map[st
 	return concepts
 }
 
-func buildConceptProfiles(concepts map[string]*conceptAggregateV2) []ConceptProfileV2 {
-	profiles := make([]ConceptProfileV2, 0, len(concepts))
+func buildConceptProfiles(concepts map[string]*conceptAggregateV2) []types.ConceptProfileV2 {
+	profiles := make([]types.ConceptProfileV2, 0, len(concepts))
 
 	for tag, agg := range concepts {
 		ev := computeConceptEvidence(agg.Results)
@@ -654,7 +515,7 @@ func buildConceptProfiles(concepts map[string]*conceptAggregateV2) []ConceptProf
 		ev.MasteryScore = helper.Round2V2(computeConceptMastery(agg.Results))
 		ev.PriorityScore = helper.Round2V2(priority)
 
-		profiles = append(profiles, ConceptProfileV2{
+		profiles = append(profiles, types.ConceptProfileV2{
 			ConceptTag: tag,
 			Subject:    agg.Subject,
 			Status:     status,
@@ -673,8 +534,8 @@ func buildConceptProfiles(concepts map[string]*conceptAggregateV2) []ConceptProf
 	return profiles
 }
 
-func computeConceptEvidence(results []questionResult) ConceptEvidenceV2 {
-	ev := ConceptEvidenceV2{TotalQuestions: len(results)}
+func computeConceptEvidence(results []questionResult) types.ConceptEvidenceV2 {
+	ev := types.ConceptEvidenceV2{TotalQuestions: len(results)}
 
 	var timeRatioSum float64
 	var timeRatioCount int
@@ -722,12 +583,12 @@ func computeConceptEvidence(results []questionResult) ConceptEvidenceV2 {
 	return ev
 }
 
-// classifyConceptStatus applies threshold rules to produce a ConceptStatusV2.
+// classifyConceptStatus applies threshold rules to produce a types.ConceptStatusV2.
 // The LLM uses this label to decide what kind of remediation to suggest.
-func classifyConceptStatus(ev ConceptEvidenceV2) ConceptStatusV2 {
+func classifyConceptStatus(ev types.ConceptEvidenceV2) types.ConceptStatusV2 {
 	total := ev.TotalQuestions
 	if total == 0 {
-		return StatusNotStudiedV2
+		return types.StatusNotStudiedV2
 	}
 
 	unseenRatio := float64(ev.Unseen) / float64(total)
@@ -735,53 +596,53 @@ func classifyConceptStatus(ev ConceptEvidenceV2) ConceptStatusV2 {
 
 	// Most questions never reached → time problem, not knowledge problem
 	if unseenRatio >= 0.6 {
-		return StatusNotReachedV2
+		return types.StatusNotReachedV2
 	}
 
 	// Very few attempts → student hasn't studied this
 	if attemptedRatio < 0.3 && ev.GuessCount > ev.GenuineWrong {
-		return StatusNotStudiedV2
+		return types.StatusNotStudiedV2
 	}
 
 	// Attempted enough questions to judge knowledge
 	if ev.Attempted >= 2 {
 		switch {
 		case ev.AccuracyPct >= 80 && ev.AvgTimeRatio <= 1.5:
-			return StatusMasteredV2
+			return types.StatusMasteredV2
 
 		case ev.AccuracyPct >= 80 && ev.AvgTimeRatio > 1.5:
 			// Knows it but too slow — almost there
-			return StatusAlmostThereV2
+			return types.StatusAlmostThereV2
 
 		case ev.AccuracyPct >= 50:
-			return StatusAlmostThereV2
+			return types.StatusAlmostThereV2
 
 		case ev.AccuracyPct < 50 && ev.GenuineWrong > ev.GuessCount:
 			// Tried genuinely but mostly wrong = wrong mental model
-			return StatusConfusedV2
+			return types.StatusConfusedV2
 
 		default:
-			return StatusNotStudiedV2
+			return types.StatusNotStudiedV2
 		}
 	}
 
 	// Too few attempts to classify confidently
 	if ev.AccuracyPct >= 80 {
-		return StatusAlmostThereV2 // don't claim mastered on 1–2 questions
+		return types.StatusAlmostThereV2 // don't claim mastered on 1–2 questions
 	}
-	return StatusConfusedV2
+	return types.StatusConfusedV2
 }
 
 // computeConceptPriority returns a 0–1 composite score.
 // Higher = needs more attention from the LLM and teacher.
-func computeConceptPriority(ev ConceptEvidenceV2, status ConceptStatusV2) float64 {
+func computeConceptPriority(ev types.ConceptEvidenceV2, status types.ConceptStatusV2) float64 {
 	// Status contributes most weight
-	statusScore := map[ConceptStatusV2]float64{
-		StatusConfusedV2:    1.0,
-		StatusNotStudiedV2:  0.9,
-		StatusNotReachedV2:  0.7,
-		StatusAlmostThereV2: 0.5,
-		StatusMasteredV2:    0.1,
+	statusScore := map[types.ConceptStatusV2]float64{
+		types.StatusConfusedV2:    1.0,
+		types.StatusNotStudiedV2:  0.9,
+		types.StatusNotReachedV2:  0.7,
+		types.StatusAlmostThereV2: 0.5,
+		types.StatusMasteredV2:    0.1,
 	}[status]
 
 	// Negative marks cost adds urgency
@@ -813,8 +674,8 @@ func computeConceptMastery(results []questionResult) float64 {
 // STEP 6 — BEHAVIORAL FLAGS
 // ─────────────────────────────────────────────
 
-func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, questions []QuestionMetaV2) BehaviorFlagsV2 {
-	var flags BehaviorFlagsV2
+func detectBehaviorFlags(results []questionResult, profile types.AttemptProfileV2, questions []QuestionMetaV2) types.BehaviorFlagsV2 {
+	var flags types.BehaviorFlagsV2
 	total := len(results)
 	if total == 0 {
 		return flags
@@ -825,7 +686,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 	if profile.CarefullyWrong+profile.GuessedWrong > 0 {
 		guessRatio := float64(profile.GuessedWrong) / float64(profile.CarefullyWrong+profile.GuessedWrong)
 		if guessRatio > 0.3 {
-			flags.PanicGuesser = BehaviorFlagV2{
+			flags.PanicGuesser = types.BehaviorFlagV2{
 				Detected:   true,
 				Confidence: helper.Round2V2(guessRatio),
 				Evidence:   helper.FormatfV2("%d of %d wrong answers were guesses (fast+wrong)", profile.GuessedWrong, profile.GuessedWrong+profile.CarefullyWrong),
@@ -843,7 +704,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 	}
 	if missedImportantEasy >= 3 {
 		conf := math.Min(float64(missedImportantEasy)/10.0, 1.0)
-		flags.TimeMismanager = BehaviorFlagV2{
+		flags.TimeMismanager = types.BehaviorFlagV2{
 			Detected:   true,
 			Confidence: helper.Round2V2(conf),
 			Evidence:   helper.FormatfV2("%d important easy questions never reached due to time", missedImportantEasy),
@@ -859,7 +720,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 		}
 	}
 	if correctToWrong >= 2 {
-		flags.Overconfident = BehaviorFlagV2{
+		flags.Overconfident = types.BehaviorFlagV2{
 			Detected:   true,
 			Confidence: helper.Round2V2(math.Min(float64(correctToWrong)/5.0, 1.0)),
 			Evidence:   helper.FormatfV2("changed correct answers to wrong %d times", correctToWrong),
@@ -880,7 +741,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 	if markedCount >= 3 {
 		revisitRatio := float64(revisitedAfterMark) / float64(markedCount)
 		if revisitRatio < 0.5 {
-			flags.ReviewWasted = BehaviorFlagV2{
+			flags.ReviewWasted = types.BehaviorFlagV2{
 				Detected:   true,
 				Confidence: helper.Round2V2(1 - revisitRatio),
 				Evidence:   helper.FormatfV2("marked %d for review but only revisited %d (%.0f%%)", markedCount, revisitedAfterMark, revisitRatio*100),
@@ -901,7 +762,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 	}
 	if hardWrong >= 2 && easyUnseen >= 2 {
 		conf := math.Min(float64(hardWrong+easyUnseen)/10.0, 1.0)
-		flags.RiskyAttempter = BehaviorFlagV2{
+		flags.RiskyAttempter = types.BehaviorFlagV2{
 			Detected:   true,
 			Confidence: helper.Round2V2(conf),
 			Evidence:   helper.FormatfV2("attempted %d hard questions (wrong) while %d easy questions were left unseen", hardWrong, easyUnseen),
@@ -913,7 +774,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 	drop := firstAcc - secondAcc
 
 	if drop >= 25 && secondAcc < 50 {
-		flags.EarlyExhaustion = BehaviorFlagV2{
+		flags.EarlyExhaustion = types.BehaviorFlagV2{
 			Detected:   true,
 			Confidence: helper.Round2V2(math.Min(drop/50.0, 1.0)),
 			Evidence:   helper.FormatfV2("accuracy dropped from %.0f%% (first half) to %.0f%% (second half)", firstAcc, secondAcc),
@@ -921,7 +782,7 @@ func detectBehaviorFlags(results []questionResult, profile AttemptProfileV2, que
 	}
 
 	if drop >= 20 {
-		flags.StrongStarter = BehaviorFlagV2{
+		flags.StrongStarter = types.BehaviorFlagV2{
 			Detected:   true,
 			Confidence: helper.Round2V2(math.Min(drop/40.0, 1.0)),
 			Evidence:   helper.FormatfV2("first half accuracy %.0f%% vs second half %.0f%%", firstAcc, secondAcc),

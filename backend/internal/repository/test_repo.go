@@ -379,6 +379,21 @@ func (r *TestRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow,
 	return tests, total, nil
 }
 
+func (r *TestRepo) GetSubjectName(testID int) (string, error) {
+	var name string
+	err := r.DB.QueryRow(
+		`SELECT COALESCE(s.name, '') FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id WHERE t.id = $1`,
+		testID,
+	).Scan(&name)
+	return name, err
+}
+
+func (r *TestRepo) GetDuration(testID int) (int, error) {
+	var duration int
+	err := r.DB.QueryRow("SELECT COALESCE(duration, 0) FROM tests WHERE id = $1", testID).Scan(&duration)
+	return duration, err
+}
+
 func (r *TestRepo) CreateSubject(tenantID int, name string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(`INSERT INTO subjects (tenant_id, name) VALUES ($1, $2) RETURNING id`, tenantID, name).Scan(&id)

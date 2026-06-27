@@ -5,6 +5,7 @@ import (
 	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/services"
 	"database/sql"
 	"net/http"
 
@@ -51,11 +52,15 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	assignmentRepo := repository.NewAssignmentRepo(db)
 	attemptRepo := repository.NewAttemptRepo(db)
 
+	// Initialize services
+	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testRepo)
+	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testRepo, coachRepo, userRepo)
+
 	// Initialize handlers
 	authHandler := auth.NewAuthHandler(db)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo)
-	coachHandler := handlers.NewCoachHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testRepo)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
+	coachHandler := handlers.NewCoachHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testRepo, attemptService)
 
 	// auth
 	authRoute := r.Group("/auth")

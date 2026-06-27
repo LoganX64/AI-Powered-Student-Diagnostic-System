@@ -180,6 +180,57 @@ func (r *AttemptRepo) GetUncomputedAttempts(studentID int) ([][2]int, error) {
 	return attempts, nil
 }
 
+type AnswerLogForAnalysis struct {
+	QuestionID        int
+	SelectedAnswer    string
+	CorrectAnswer     string
+	TimeSpent         float64
+	MarkedForReview   bool
+	Revisited         bool
+	ChangedAnswer     bool
+	WasInitiallyWrong bool
+	Seen              bool
+}
+
+func (r *AttemptRepo) GetAnswerLogsForAnalysis(attemptID int) ([]AnswerLogForAnalysis, error) {
+	rows, err := r.DB.Query(`
+		SELECT al.question_id,
+		       COALESCE(al.selected_answer, ''),
+		       COALESCE(q.correct_answer, ''),
+		       COALESCE(al.time_spent, 0),
+		       COALESCE(al.marked_for_review, false),
+		       COALESCE(al.revisited, false),
+		       COALESCE(al.changed_answer, false),
+		       COALESCE(al.was_initially_wrong, false),
+		       COALESCE(al.seen, true)
+		FROM answer_logs al
+		JOIN questions q ON al.question_id = q.id
+		WHERE al.attempt_id = $1
+		ORDER BY q.id
+	`, attemptID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []AnswerLogForAnalysis
+	for rows.Next() {
+		var l AnswerLogForAnalysis
+		if err := rows.Scan(
+			&l.QuestionID, &l.SelectedAnswer, &l.CorrectAnswer,
+			&l.TimeSpent, &l.MarkedForReview, &l.Revisited,
+			&l.ChangedAnswer, &l.WasInitiallyWrong, &l.Seen,
+		); err != nil {
+			return nil, err
+		}
+		logs = append(logs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return logs, nil
+}
+
 func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, analysisJSON []byte, version string) error {
 	_, err := r.DB.Exec(`
 		INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
