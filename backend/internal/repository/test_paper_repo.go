@@ -6,12 +6,12 @@ import (
 	"strings"
 )
 
-type TestRepo struct {
+type TestPaperRepo struct {
 	DB *sql.DB
 }
 
-func NewTestRepo(db *sql.DB) *TestRepo {
-	return &TestRepo{DB: db}
+func NewTestPaperRepo(db *sql.DB) *TestPaperRepo {
+	return &TestPaperRepo{DB: db}
 }
 
 type TestRow struct {
@@ -75,7 +75,7 @@ type SubjectRow struct {
 	Name      string `json:"name"`
 }
 
-func (r *TestRepo) Create(tenantID int, title string, subjectID, coachID, duration int, examDate *string) (int, error) {
+func (r *TestPaperRepo) Create(tenantID int, title string, subjectID, coachID, duration int, examDate *string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(`
 		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration, exam_date)
@@ -84,19 +84,19 @@ func (r *TestRepo) Create(tenantID int, title string, subjectID, coachID, durati
 	return id, err
 }
 
-func (r *TestRepo) Exists(testID, tenantID int) (bool, error) {
+func (r *TestPaperRepo) Exists(testID, tenantID int) (bool, error) {
 	var exists bool
 	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
 	return exists, err
 }
 
-func (r *TestRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool, error) {
+func (r *TestPaperRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool, error) {
 	var exists bool
 	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
 	return exists, err
 }
 
-func (r *TestRepo) List(tenantID int, coachID *int, search string, limit, offset int) ([]TestRow, int, error) {
+func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, offset int) ([]TestRow, int, error) {
 	var tests []TestRow
 	var total int
 
@@ -175,7 +175,7 @@ func (r *TestRepo) List(tenantID int, coachID *int, search string, limit, offset
 	return tests, total, nil
 }
 
-func (r *TestRepo) GetDetail(testID, tenantID int) (*TestDetailRow, error) {
+func (r *TestPaperRepo) GetDetail(testID, tenantID int) (*TestDetailRow, error) {
 	var t TestDetailRow
 	err := r.DB.QueryRow(
 		`SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, t.created_at,
@@ -192,7 +192,7 @@ func (r *TestRepo) GetDetail(testID, tenantID int) (*TestDetailRow, error) {
 	return &t, nil
 }
 
-func (r *TestRepo) ListQuestions(testID int, limit, offset int) ([]QuestionRow, int, error) {
+func (r *TestPaperRepo) ListQuestions(testID int, limit, offset int) ([]QuestionRow, int, error) {
 	var total int
 	err := r.DB.QueryRow("SELECT COUNT(*) FROM questions WHERE test_id=$1", testID).Scan(&total)
 	if err != nil {
@@ -228,7 +228,7 @@ func (r *TestRepo) ListQuestions(testID int, limit, offset int) ([]QuestionRow, 
 	return questions, total, nil
 }
 
-func (r *TestRepo) CreateQuestions(testID int, questions []QuestionRequest) ([]int, error) {
+func (r *TestPaperRepo) CreateQuestions(testID int, questions []QuestionRequest) ([]int, error) {
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return nil, err
@@ -275,7 +275,7 @@ func ValidateQuestionRequest(req QuestionRequest) string {
 	return ""
 }
 
-func (r *TestRepo) Update(testID, tenantID int, title string, subjectID, coachID, duration int, examDate *string) (bool, error) {
+func (r *TestPaperRepo) Update(testID, tenantID int, title string, subjectID, coachID, duration int, examDate *string) (bool, error) {
 	result, err := r.DB.Exec(
 		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4, exam_date=$5 WHERE id=$6 AND tenant_id=$7`,
 		title, subjectID, coachID, duration, examDate, testID, tenantID,
@@ -287,7 +287,7 @@ func (r *TestRepo) Update(testID, tenantID int, title string, subjectID, coachID
 	return rowsAffected > 0, nil
 }
 
-func (r *TestRepo) Delete(testID, tenantID int) (bool, error) {
+func (r *TestPaperRepo) Delete(testID, tenantID int) (bool, error) {
 	result, err := r.DB.Exec("DELETE FROM tests WHERE id=$1 AND tenant_id=$2", testID, tenantID)
 	if err != nil {
 		return false, err
@@ -296,7 +296,7 @@ func (r *TestRepo) Delete(testID, tenantID int) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
-func (r *TestRepo) UpdateQuestion(questionID, testID int, req QuestionRequest) (bool, error) {
+func (r *TestPaperRepo) UpdateQuestion(questionID, testID int, req QuestionRequest) (bool, error) {
 	result, err := r.DB.Exec(
 		`UPDATE questions SET
 			question_text=$1, option_a=$2, option_b=$3, option_c=$4, option_d=$5,
@@ -314,7 +314,7 @@ func (r *TestRepo) UpdateQuestion(questionID, testID int, req QuestionRequest) (
 	return rowsAffected > 0, nil
 }
 
-func (r *TestRepo) DeleteQuestion(questionID, testID int) (bool, error) {
+func (r *TestPaperRepo) DeleteQuestion(questionID, testID int) (bool, error) {
 	result, err := r.DB.Exec(`DELETE FROM questions WHERE id=$1 AND test_id=$2`, questionID, testID)
 	if err != nil {
 		return false, err
@@ -323,19 +323,19 @@ func (r *TestRepo) DeleteQuestion(questionID, testID int) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
-func (r *TestRepo) CoachTenantID(coachID int) (int, error) {
+func (r *TestPaperRepo) CoachTenantID(coachID int) (int, error) {
 	var tenantID int
 	err := r.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", coachID).Scan(&tenantID)
 	return tenantID, err
 }
 
-func (r *TestRepo) CountByCoach(coachID, tenantID int) (int, error) {
+func (r *TestPaperRepo) CountByCoach(coachID, tenantID int) (int, error) {
 	var total int
 	err := r.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE coach_id=$1 AND tenant_id=$2", coachID, tenantID).Scan(&total)
 	return total, err
 }
 
-func (r *TestRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow, int, error) {
+func (r *TestPaperRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow, int, error) {
 	total, err := r.CountByCoach(coachID, tenantID)
 	if err != nil {
 		return nil, 0, err
@@ -366,7 +366,7 @@ func (r *TestRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow,
 	return tests, total, nil
 }
 
-func (r *TestRepo) GetSubjectName(testID int) (string, error) {
+func (r *TestPaperRepo) GetSubjectName(testID int) (string, error) {
 	var name string
 	err := r.DB.QueryRow(
 		`SELECT COALESCE(s.name, '') FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id WHERE t.id = $1`,
@@ -375,13 +375,13 @@ func (r *TestRepo) GetSubjectName(testID int) (string, error) {
 	return name, err
 }
 
-func (r *TestRepo) GetDuration(testID int) (int, error) {
+func (r *TestPaperRepo) GetDuration(testID int) (int, error) {
 	var duration int
 	err := r.DB.QueryRow("SELECT COALESCE(duration, 0) FROM tests WHERE id = $1", testID).Scan(&duration)
 	return duration, err
 }
 
-func (r *TestRepo) CreateSubject(tenantID int, name string) (int, error) {
+func (r *TestPaperRepo) CreateSubject(tenantID int, name string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(`INSERT INTO subjects (tenant_id, name) VALUES ($1, $2) RETURNING id`, tenantID, name).Scan(&id)
 	if err != nil && strings.Contains(err.Error(), "duplicate") {
@@ -390,7 +390,7 @@ func (r *TestRepo) CreateSubject(tenantID int, name string) (int, error) {
 	return id, err
 }
 
-func (r *TestRepo) ListSubjects(tenantID int, search string, limit, offset int) ([]SubjectRow, int, error) {
+func (r *TestPaperRepo) ListSubjects(tenantID int, search string, limit, offset int) ([]SubjectRow, int, error) {
 	countQuery := "SELECT COUNT(*) FROM subjects WHERE tenant_id=$1"
 	dataQuery := "SELECT id, name FROM subjects WHERE tenant_id=$1"
 	args := []interface{}{tenantID}

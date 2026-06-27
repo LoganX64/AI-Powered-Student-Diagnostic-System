@@ -48,20 +48,20 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	userRepo := repository.NewUserRepo(db)
 	studentRepo := repository.NewStudentRepo(db)
 	coachRepo := repository.NewCoachRepo(db)
-	testRepo := repository.NewTestRepo(db)
+	testPaperRepo := repository.NewTestPaperRepo(db)
 	assignmentRepo := repository.NewAssignmentRepo(db)
 	attemptRepo := repository.NewAttemptRepo(db)
 
 	// Initialize services
-	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testRepo)
-	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testRepo, coachRepo, userRepo)
+	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
+	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo)
 	authService := services.NewAuthService(userRepo, coachRepo)
 
 	// Initialize handlers
 	authHandler := auth.NewAuthHandler(authService)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
-	coachHandler := handlers.NewCoachHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testRepo, attemptService)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
+	coachHandler := handlers.NewCoachHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService)
 
 	// auth
 	authRoute := r.Group("/auth")

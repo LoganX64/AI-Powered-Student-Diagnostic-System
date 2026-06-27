@@ -12,15 +12,15 @@ type AttemptService struct {
 	AttemptRepo    *repository.AttemptRepo
 	AssignmentRepo *repository.AssignmentRepo
 	StudentRepo    *repository.StudentRepo
-	TestRepo       *repository.TestRepo
+	TestPaperRepo       *repository.TestPaperRepo
 }
 
-func NewAttemptService(attemptRepo *repository.AttemptRepo, assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testRepo *repository.TestRepo) *AttemptService {
+func NewAttemptService(attemptRepo *repository.AttemptRepo, assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testPaperRepo *repository.TestPaperRepo) *AttemptService {
 	return &AttemptService{
 		AttemptRepo:    attemptRepo,
 		AssignmentRepo: assignmentRepo,
 		StudentRepo:    studentRepo,
-		TestRepo:       testRepo,
+		TestPaperRepo:       testPaperRepo,
 	}
 }
 
@@ -241,12 +241,12 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 }
 
 func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (types.DiagnosticPayloadV2, error) {
-	questionRows, _, err := s.TestRepo.ListQuestions(testID, 1000, 0)
+	questionRows, _, err := s.TestPaperRepo.ListQuestions(testID, 1000, 0)
 	if err != nil {
 		return types.DiagnosticPayloadV2{}, err
 	}
 
-	subjectName, _ := s.TestRepo.GetSubjectName(testID)
+	subjectName, _ := s.TestPaperRepo.GetSubjectName(testID)
 
 	questions := make([]QuestionMetaV2, len(questionRows))
 	hasNegMarks := false
@@ -287,7 +287,7 @@ func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (typ
 		}
 	}
 
-	duration, _ := s.TestRepo.GetDuration(testID)
+	duration, _ := s.TestPaperRepo.GetDuration(testID)
 
 	cfg := ExamConfigV2{
 		ExamType:           "general",

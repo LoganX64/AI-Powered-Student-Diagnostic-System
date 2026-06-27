@@ -7,16 +7,16 @@ import (
 type AssignmentService struct {
 	AssignmentRepo *repository.AssignmentRepo
 	StudentRepo    *repository.StudentRepo
-	TestRepo       *repository.TestRepo
+	TestPaperRepo       *repository.TestPaperRepo
 	CoachRepo      *repository.CoachRepo
 	UserRepo       *repository.UserRepo
 }
 
-func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testRepo *repository.TestRepo, coachRepo *repository.CoachRepo, userRepo *repository.UserRepo) *AssignmentService {
+func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testPaperRepo *repository.TestPaperRepo, coachRepo *repository.CoachRepo, userRepo *repository.UserRepo) *AssignmentService {
 	return &AssignmentService{
 		AssignmentRepo: assignmentRepo,
 		StudentRepo:    studentRepo,
-		TestRepo:       testRepo,
+		TestPaperRepo:       testPaperRepo,
 		CoachRepo:      coachRepo,
 		UserRepo:       userRepo,
 	}
