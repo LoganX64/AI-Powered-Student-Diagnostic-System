@@ -102,6 +102,9 @@ export function CoachDetailPage() {
             {coach.name}
             <Badge variant="outline" className="font-mono">ID: {coach.coach_id}</Badge>
             <Badge variant="outline" className="font-mono">{coach.email}</Badge>
+            {coach.deleted_at && (
+              <Badge variant="destructive">Deactivated</Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -114,6 +117,18 @@ export function CoachDetailPage() {
               <span className="text-muted-foreground">Created: </span>
               <span className="font-medium">{formatDateDDMMYYYY(coach.created_at)}</span>
             </div>
+            {coach.deleted_at && (
+              <div>
+                <span className="text-muted-foreground">Deactivated: </span>
+                <span className="font-medium">{formatDateDDMMYYYY(coach.deleted_at)}</span>
+                {coach.deleted_by_name && (
+                  <>
+                    <span className="text-muted-foreground"> by </span>
+                    <span className="font-medium">{coach.deleted_by_name}</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

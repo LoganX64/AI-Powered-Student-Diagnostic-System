@@ -175,7 +175,7 @@ export function CoachesPage() {
                 setOffset(0);
               }}
             >
-              {includeDeactivated ? "Showing All" : "Show Deactivated"}
+              {includeDeactivated ? "Showing Deactivated" : "Show Deactivated"}
             </Button>
             <Badge variant="secondary">{total}</Badge>
           </div>

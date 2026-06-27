@@ -121,6 +121,10 @@ export type CoachDetail = {
   name: string;
   email: string;
   created_at: string;
+  deleted_at?: string;
+  deleted_by_name?: string;
+  deleted_by_email?: string;
+  deleted_by_role?: string;
 };
 
 export type CoachTest = {
