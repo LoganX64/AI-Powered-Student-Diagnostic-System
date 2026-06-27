@@ -198,11 +198,9 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 	`, tenantID.Int32, req.Email, hashed).Scan(&newUserID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "coach registration failed")
 		return
 	}
-
-	// create corresponding coach record
 	var coachID int
 	err = tx.QueryRow(`
 		INSERT INTO coaches (tenant_id, user_id, name)
