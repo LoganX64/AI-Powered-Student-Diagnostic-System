@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { TrendingUpIcon, TrendingDownIcon, UsersIcon, GraduationCapIcon, AlertCircleIcon, ClipboardCheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,10 +8,9 @@ import {
   CardAction,
   CardFooter,
 } from "@/components/ui/card";
-import { useRole } from "@/hooks/useRole";
-import { getDashboardCounts, getStudents, getStudentSQI, type DashboardCounts } from "@/services/dashboard.service";
+import { useDashboard } from "@/contexts/DashboardContext";
 
-function buildAdminCards(counts: DashboardCounts, atRiskCount: number) {
+function buildAdminCards(counts: { totalCoaches: number; totalStudents: number; testsCreated: number }, atRiskCount: number) {
   return [
     {
       title: "Total Coaches",
@@ -53,7 +51,7 @@ function buildAdminCards(counts: DashboardCounts, atRiskCount: number) {
   ];
 }
 
-function buildCoachCards(counts: DashboardCounts, atRiskCount: number, avgSqi: number) {
+function buildCoachCards(counts: { totalCoaches: number; totalStudents: number; testsCreated: number }, atRiskCount: number, avgSqi: number) {
   return [
     {
       title: "My Students",
@@ -95,49 +93,21 @@ function buildCoachCards(counts: DashboardCounts, atRiskCount: number, avgSqi: n
 }
 
 export function DashboardSectionCards() {
-  const role = useRole();
-  const [counts, setCounts] = useState<DashboardCounts>({ totalCoaches: 0, totalStudents: 0, testsCreated: 0 });
-  const [atRiskCount, setAtRiskCount] = useState(0);
-  const [avgSqi, setAvgSqi] = useState(0);
+  const { counts, studentsWithSQI, role } = useDashboard();
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const c = await getDashboardCounts();
-        if (!cancelled) setCounts(c);
+  let atRiskCount = 0;
+  let totalSqi = 0;
+  let sqiCount = 0;
 
-        const studentsRes = await getStudents({ limit: 100 });
-        const students = studentsRes.data ?? [];
-        let riskCount = 0;
-        let totalSqi = 0;
-        let sqiCount = 0;
-
-        for (const s of students) {
-          try {
-            const sqi = await getStudentSQI(s.student_id, { compute: true });
-            if (sqi.average_sqi > 0 && sqi.average_sqi < 55) riskCount++;
-            if (sqi.average_sqi > 0) {
-              totalSqi += sqi.average_sqi;
-              sqiCount++;
-            }
-          } catch {
-            // skip
-          }
-        }
-
-        if (!cancelled) {
-          setAtRiskCount(riskCount);
-          setAvgSqi(sqiCount > 0 ? totalSqi / sqiCount : 0);
-        }
-      } catch {
-        // keep defaults
-      }
+  for (const s of studentsWithSQI) {
+    if (s.average_sqi > 0 && s.average_sqi < 55) atRiskCount++;
+    if (s.average_sqi > 0) {
+      totalSqi += s.average_sqi;
+      sqiCount++;
     }
-    load();
-    return () => { cancelled = true; };
-  }, []);
+  }
 
+  const avgSqi = sqiCount > 0 ? totalSqi / sqiCount : 0;
   const cards = role === "admin" ? buildAdminCards(counts, atRiskCount) : buildCoachCards(counts, atRiskCount, avgSqi);
 
   return (

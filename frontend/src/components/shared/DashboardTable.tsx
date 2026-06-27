@@ -55,8 +55,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Columns3Icon } from "lucide-react";
-import { useRole } from "@/hooks/useRole";
-import { getStudents, getCoaches, getStudentSQI } from "@/services/dashboard.service";
+import { useDashboard, type StudentWithSQI, type CoachRow } from "@/contexts/DashboardContext";
 
 // ─── Student Types & Data ─────────────────────────────────────────────────────
 
@@ -76,70 +75,16 @@ function getStudentStatus(sqi: number): "Passing" | "At Risk" | "Pending" {
   return "Passing";
 }
 
-async function fetchStudentsWithSQI(): Promise<StudentRow[]> {
-  try {
-    const res = await getStudents({ limit: 100 });
-    const students = res.data ?? [];
-    const rows: StudentRow[] = await Promise.all(
-      students.map(async (s) => {
-        try {
-          const sqi = await getStudentSQI(s.student_id, { compute: true });
-          return {
-            id: s.student_id,
-            name: s.name,
-            email: s.student_code,
-            sqiScore: sqi.average_sqi,
-            status: getStudentStatus(sqi.average_sqi),
-            lastAssessment: sqi.total_tests > 0 ? `${sqi.total_tests} test(s)` : "—",
-            completedQuizzes: sqi.total_tests,
-          };
-        } catch {
-          return {
-            id: s.student_id,
-            name: s.name,
-            email: s.student_code,
-            sqiScore: 0,
-            status: "Pending" as const,
-            lastAssessment: "—",
-            completedQuizzes: 0,
-          };
-        }
-      })
-    );
-    return rows;
-  } catch {
-    return [];
-  }
-}
-
-// ─── Coach Types & Data ───────────────────────────────────────────────────────
-
-export type CoachRow = {
-  id: number;
-  name: string;
-  email: string;
-  studentsCount: number;
-  avgStudentSqi: number;
-  status: "Active" | "Inactive";
-  joinedDate: string;
-};
-
-async function fetchCoachesWithSQI(): Promise<CoachRow[]> {
-  try {
-    const res = await getCoaches({ limit: 100 });
-    const coaches = res.data ?? [];
-    return coaches.map((c) => ({
-      id: c.coach_id,
-      name: c.name,
-      email: c.email,
-      studentsCount: 0,
-      avgStudentSqi: 0,
-      status: c.deleted_at ? "Inactive" as const : "Active" as const,
-      joinedDate: "—",
-    }));
-  } catch {
-    return [];
-  }
+function toStudentRows(students: StudentWithSQI[]): StudentRow[] {
+  return students.map((s) => ({
+    id: s.student_id,
+    name: s.name,
+    email: s.student_code,
+    sqiScore: s.average_sqi,
+    status: getStudentStatus(s.average_sqi),
+    lastAssessment: s.total_tests > 0 ? `${s.total_tests} test(s)` : "—",
+    completedQuizzes: s.total_tests,
+  }));
 }
 
 // ─── Helper Functions ─────────────────────────────────────────────────────────
@@ -516,28 +461,8 @@ function DataTable<T>({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function DashboardTable() {
-  const role = useRole();
-  const [studentData, setStudentData] = React.useState<StudentRow[]>([]);
-  const [coachData, setCoachData] = React.useState<CoachRow[]>([]);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      const [students, coaches] = await Promise.all([
-        fetchStudentsWithSQI(),
-        role === "admin" ? fetchCoachesWithSQI() : Promise.resolve([]),
-      ]);
-      if (!cancelled) {
-        setStudentData(students);
-        setCoachData(coaches);
-        setLoading(false);
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [role]);
+  const { studentsWithSQI, coachRows, loading, role } = useDashboard();
+  const studentData = React.useMemo(() => toStudentRows(studentsWithSQI), [studentsWithSQI]);
 
   if (loading) {
     return (
@@ -569,7 +494,7 @@ export function DashboardTable() {
         </TabsContent>
         <TabsContent value="coaches" className="mt-4">
           <DataTable
-            data={coachData}
+            data={coachRows}
             columns={coachColumns}
             searchPlaceholder="Search coaches..."
           />
