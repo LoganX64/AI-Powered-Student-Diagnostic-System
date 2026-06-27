@@ -85,7 +85,11 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.AssignmentRepo.ExistsByStudent(studentID, tenantID, &coachID)
+		exists, err := h.AssignmentRepo.ExistsByStudent(studentID, tenantID, &coachID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify assignment")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "not assigned to this student"})
 			return
@@ -102,7 +106,11 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	compute := c.Query("compute") == "true"
 
 	if compute {
-		uncomputed, _ := h.AttemptRepo.GetUncomputedAttempts(studentID)
+		uncomputed, err := h.AttemptRepo.GetUncomputedAttempts(studentID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch uncomputed attempts")
+			return
+		}
 		for _, pair := range uncomputed {
 			attemptID, testID := pair[0], pair[1]
 			payload, err := calculateAttemptSQIAnalysis(h.AttemptRepo.DB, attemptID, testID)
@@ -110,12 +118,23 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to calculate sqi"})
 				return
 			}
-			analysisJSON, _ := json.Marshal(payload)
-			_ = h.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version)
+			analysisJSON, err := json.Marshal(payload)
+			if err != nil {
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to marshal analysis")
+				return
+			}
+			if err := h.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version); err != nil {
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to store result")
+				return
+			}
 		}
 	}
 
-	resultRows, _ := h.AttemptRepo.GetResults(studentID, includeAnalysis)
+	resultRows, err := h.AttemptRepo.GetResults(studentID, includeAnalysis)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch results")
+		return
+	}
 
 	var attempts []AttemptResult
 	var total float64
@@ -162,7 +181,11 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.StudentRepo.Exists(studentID, tenantID)
+	exists, err := h.StudentRepo.Exists(studentID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
 		return
@@ -193,8 +216,16 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 
-	sqiScore, analysisJSON, _ := h.AttemptRepo.GetSQIResult(attemptID)
-	answers, _ := h.AttemptRepo.GetAnswerDetails(attemptID)
+	sqiScore, analysisJSON, err := h.AttemptRepo.GetSQIResult(attemptID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch SQI result")
+		return
+	}
+	answers, err := h.AttemptRepo.GetAnswerDetails(attemptID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch answer details")
+		return
+	}
 
 	var analysis interface{}
 	if analysisJSON.Valid && analysisJSON.String != "" {
@@ -254,7 +285,11 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
+		exists, err := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "not assigned to this student"})
 			return
@@ -263,7 +298,11 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 
 	var testID int
 	if testIDParam := c.Query("test_id"); testIDParam != "" {
-		testID, _ = strconv.Atoi(testIDParam)
+		testID, err = strconv.Atoi(testIDParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+			return
+		}
 	}
 
 	// simplified - actual implementation would need subject queries
@@ -325,7 +364,11 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 				return
 			}
 		} else {
-			exists, _ := h.CoachRepo.Exists(req.CoachID, tenantID)
+			exists, err := h.CoachRepo.Exists(req.CoachID, tenantID)
+			if err != nil {
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+				return
+			}
 			if !exists {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
 				return
@@ -411,7 +454,11 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 			return
 		}
 	} else if role == "admin" {
-		exists, _ := h.CoachRepo.Exists(req.CoachID, tenantID)
+		exists, err := h.CoachRepo.Exists(req.CoachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
 			return
@@ -463,13 +510,21 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		exists, err := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
 			return
 		}
 	} else if role == "admin" {
-		exists, _ := h.TestRepo.Exists(testID, tenantID)
+		exists, err := h.TestRepo.Exists(testID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
 			return
@@ -605,7 +660,11 @@ func (h *AdminHandler) GetTest(c *gin.Context) {
 		return
 	}
 
-	testID, _ := strconv.Atoi(c.Param("id"))
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
 	test, err := h.TestRepo.GetDetail(testID, tenantID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
@@ -624,8 +683,16 @@ func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
 	}
 
 	testIDStr := c.Param("id")
-	testIDInt, _ := strconv.Atoi(testIDStr)
-	exists, _ := h.TestRepo.Exists(testIDInt, tenantID)
+	testIDInt, err := strconv.Atoi(testIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+	exists, err := h.TestRepo.Exists(testIDInt, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
 		return
@@ -698,7 +765,11 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.StudentRepo.Exists(studentID, tenantID)
+	exists, err := h.StudentRepo.Exists(studentID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
 		return
@@ -880,7 +951,11 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.CoachRepo.Exists(coachID, tenantID)
+	exists, err := h.CoachRepo.Exists(coachID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
 		return
@@ -910,7 +985,11 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 		return
 	}
 
-	exists, _ := h.CoachRepo.Exists(coachID, tenantID)
+	exists, err := h.CoachRepo.Exists(coachID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+		return
+	}
 	if !exists {
 		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
 		return
@@ -994,13 +1073,21 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		exists, err := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
 			return
 		}
 	} else if role == "admin" {
-		exists, _ := h.TestRepo.Exists(testID, tenantID)
+		exists, err := h.TestRepo.Exists(testID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
 			return
@@ -1010,13 +1097,21 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 		return
 	}
 
-	coachTenantID, _ := h.TestRepo.CoachTenantID(req.CoachID)
+	coachTenantID, err := h.TestRepo.CoachTenantID(req.CoachID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach tenant")
+		return
+	}
 	if coachTenantID != tenantID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id does not belong to your organization"})
 		return
 	}
 
-	found, _ := h.TestRepo.Update(testID, tenantID, req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate)
+	found, err := h.TestRepo.Update(testID, tenantID, req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update test")
+		return
+	}
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
 		return
@@ -1047,15 +1142,23 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		exists, err := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
 			return
 		}
 	} else if role == "admin" {
-		exists, _ := h.TestRepo.Exists(testID, tenantID)
+		exists, err := h.TestRepo.Exists(testID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+			return
+		}
 		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
 			return
 		}
 	} else {
@@ -1063,7 +1166,11 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 		return
 	}
 
-	found, _ := h.TestRepo.Delete(testID, tenantID)
+	found, err := h.TestRepo.Delete(testID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete test")
+		return
+	}
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
 		return
@@ -1111,13 +1218,21 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		exists, err := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
 			return
 		}
 	} else if role == "admin" {
-		exists, _ := h.TestRepo.Exists(testID, tenantID)
+		exists, err := h.TestRepo.Exists(testID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
 			return
@@ -1127,7 +1242,11 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 		return
 	}
 
-	found, _ := h.TestRepo.UpdateQuestion(questionID, testID, req)
+	found, err := h.TestRepo.UpdateQuestion(questionID, testID, req)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update question")
+		return
+	}
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
 		return
@@ -1164,13 +1283,21 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
 			return
 		}
-		exists, _ := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		exists, err := h.TestRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
 			return
 		}
 	} else if role == "admin" {
-		exists, _ := h.TestRepo.Exists(testID, tenantID)
+		exists, err := h.TestRepo.Exists(testID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+			return
+		}
 		if !exists {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
 			return
@@ -1180,7 +1307,11 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 		return
 	}
 
-	found, _ := h.TestRepo.DeleteQuestion(questionID, testID)
+	found, err := h.TestRepo.DeleteQuestion(questionID, testID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete question")
+		return
+	}
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
 		return
