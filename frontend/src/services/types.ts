@@ -19,6 +19,7 @@ export type CreateSubjectPayload = {
 export type CreateTestPayload = {
   title: string;
   subject_id: number;
+  subject_name: string;
   coach_id: number;
   duration: number;
   exam_date?: string;

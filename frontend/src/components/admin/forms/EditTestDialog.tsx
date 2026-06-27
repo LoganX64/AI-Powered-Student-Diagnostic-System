@@ -158,6 +158,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
       await updateTest(test.test_id, {
         title: title.trim(),
         subject_id: selectedSubject.subject_id,
+        subject_name: selectedSubject.name,
         coach_id: selectedCoach.coach_id,
         duration,
         exam_date: examDate || undefined,

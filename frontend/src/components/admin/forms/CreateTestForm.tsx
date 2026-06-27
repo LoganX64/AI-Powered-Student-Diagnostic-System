@@ -137,6 +137,7 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
     const data: CreateTestPayload = {
       title: fd.get("title") as string,
       subject_id: selectedSubject.subject_id,
+      subject_name: selectedSubject.name,
       coach_id: selectedCoach?.coach_id ?? 0,
       duration,
       exam_date: (fd.get("exam_date") as string) || undefined,
