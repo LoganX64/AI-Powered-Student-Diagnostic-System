@@ -75,12 +75,12 @@ type SubjectRow struct {
 	Name      string `json:"name"`
 }
 
-func (r *TestPaperRepo) Create(tenantID int, title string, subjectID, coachID, duration int, examDate *string) (int, error) {
+func (r *TestPaperRepo) Create(tenantID int, title string, subjectID, coachID, duration int, examDate *string, subjectName string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(`
-		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration, exam_date)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
-	`, tenantID, title, subjectID, coachID, duration, examDate).Scan(&id)
+		INSERT INTO tests (tenant_id, title, subject_id, coach_id, duration, exam_date, subject_name)
+		VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id
+	`, tenantID, title, subjectID, coachID, duration, examDate, subjectName).Scan(&id)
 	return id, err
 }
 
@@ -113,8 +113,8 @@ func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, o
 		args = append(args, "%"+search+"%")
 	}
 
-	countQuery := "SELECT COUNT(*) FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
-	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
+	countQuery := "SELECT COUNT(*) FROM tests t WHERE " + where
+	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(t.subject_name, ''), COALESCE(c.name, ''), t.exam_date FROM tests t LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
@@ -150,9 +150,8 @@ func (r *TestPaperRepo) GetDetail(testID, tenantID int) (*TestDetailRow, error) 
 	var t TestDetailRow
 	err := r.DB.QueryRow(
 		`SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, t.created_at,
-		        COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date
+		        COALESCE(t.subject_name, ''), COALESCE(c.name, ''), t.exam_date
 		 FROM tests t
-		 LEFT JOIN subjects s ON t.subject_id = s.id
 		 LEFT JOIN coaches c ON t.coach_id = c.id
 		 WHERE t.id=$1 AND t.tenant_id=$2`,
 		testID, tenantID,
@@ -246,10 +245,10 @@ func ValidateQuestionRequest(req QuestionRequest) string {
 	return ""
 }
 
-func (r *TestPaperRepo) Update(testID, tenantID int, title string, subjectID, coachID, duration int, examDate *string) (bool, error) {
+func (r *TestPaperRepo) Update(testID, tenantID int, title string, subjectID, coachID, duration int, examDate *string, subjectName string) (bool, error) {
 	result, err := r.DB.Exec(
-		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4, exam_date=$5 WHERE id=$6 AND tenant_id=$7`,
-		title, subjectID, coachID, duration, examDate, testID, tenantID,
+		`UPDATE tests SET title=$1, subject_id=$2, coach_id=$3, duration=$4, exam_date=$5, subject_name=$6 WHERE id=$7 AND tenant_id=$8`,
+		title, subjectID, coachID, duration, examDate, subjectName, testID, tenantID,
 	)
 	if err != nil {
 		return false, err
@@ -308,8 +307,8 @@ func (r *TestPaperRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]Tes
 	}
 
 	rows, err := r.DB.Query(`
-		SELECT t.id, t.title, t.subject_id, t.duration, COALESCE(s.name, ''), t.exam_date
-		FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id
+		SELECT t.id, t.title, t.subject_id, t.duration, COALESCE(t.subject_name, ''), t.exam_date
+		FROM tests t
 		WHERE t.coach_id = $1 AND t.tenant_id = $2
 		ORDER BY t.id DESC LIMIT $3 OFFSET $4
 	`, coachID, tenantID, limit, offset)
@@ -363,6 +362,15 @@ func (r *TestPaperRepo) CreateSubject(tenantID int, name string) (int, error) {
 		return 0, err
 	}
 	return id, err
+}
+
+func (r *TestPaperRepo) DeleteSubject(subjectID, tenantID int) (bool, error) {
+	result, err := r.DB.Exec(`DELETE FROM subjects WHERE id=$1 AND tenant_id=$2`, subjectID, tenantID)
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, _ := result.RowsAffected()
+	return rowsAffected > 0, nil
 }
 
 func (r *TestPaperRepo) ListSubjects(tenantID int, search string, limit, offset int) ([]SubjectRow, int, error) {

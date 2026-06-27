@@ -192,7 +192,7 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 		return
 	}
 
-	id, err := h.TestPaperRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate)
+	id, err := h.TestPaperRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate, req.SubjectName)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create test")
 		return

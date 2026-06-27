@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -59,4 +60,30 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": subjects})
+}
+
+func (h *AdminHandler) DeleteSubject(c *gin.Context) {
+	subjectID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject id"})
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	found, err := h.TestPaperRepo.DeleteSubject(subjectID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete subject")
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "subject not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "subject deleted"})
 }

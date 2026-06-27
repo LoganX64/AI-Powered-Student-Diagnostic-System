@@ -11,11 +11,12 @@ import (
 )
 
 type CreateTestRequest struct {
-	Title     string  `json:"title" binding:"required"`
-	SubjectID int     `json:"subject_id" binding:"required"`
-	CoachID   int     `json:"coach_id"`
-	Duration  int     `json:"duration" binding:"required"`
-	ExamDate  *string `json:"exam_date"`
+	Title       string  `json:"title" binding:"required"`
+	SubjectID   int     `json:"subject_id" binding:"required"`
+	SubjectName string  `json:"subject_name" binding:"required"`
+	CoachID     int     `json:"coach_id"`
+	Duration    int     `json:"duration" binding:"required"`
+	ExamDate    *string `json:"exam_date"`
 }
 
 func (h *AdminHandler) CreateTest(c *gin.Context) {
@@ -57,7 +58,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 		return
 	}
 
-	id, err := h.TestPaperRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate)
+	id, err := h.TestPaperRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate, req.SubjectName)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create test")
 		return
@@ -102,7 +103,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 		return
 	}
 
-	found, err := h.TestPaperRepo.Update(testID, tenantID, req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate)
+	found, err := h.TestPaperRepo.Update(testID, tenantID, req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate, req.SubjectName)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update test")
 		return
