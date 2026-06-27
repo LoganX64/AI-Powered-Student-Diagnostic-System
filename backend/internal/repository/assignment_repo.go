@@ -183,3 +183,42 @@ func (r *AssignmentRepo) GetByIDForCoach(assignmentID, studentID, coachID int) (
 	`, assignmentID, studentID, coachID).Scan(&testID, &status, &assignedAt, &testTitle)
 	return testID, status, assignedAt, testTitle, err
 }
+
+type AssignmentOwnerRow struct {
+	OwnerID  int
+	TestID   int
+	Duration int
+}
+
+func (r *AssignmentRepo) GetOwnerAndTest(assignmentID int) (AssignmentOwnerRow, error) {
+	var row AssignmentOwnerRow
+	err := r.DB.QueryRow(`
+		SELECT ass.student_id, ass.test_id, COALESCE(t.duration, 0)
+		FROM assignments ass JOIN tests t ON ass.test_id = t.id
+		WHERE ass.id = $1
+	`, assignmentID).Scan(&row.OwnerID, &row.TestID, &row.Duration)
+	return row, err
+}
+
+type AssignmentStudentDetailRow struct {
+	OwnerID  int
+	TestID   int
+	TestTitle string
+	Duration int
+	ExamDate sql.NullTime
+}
+
+func (r *AssignmentRepo) GetDetailForStudent(assignmentID int) (AssignmentStudentDetailRow, error) {
+	var row AssignmentStudentDetailRow
+	err := r.DB.QueryRow(`
+		SELECT ass.student_id, ass.test_id, t.title, COALESCE(t.duration, 0), t.exam_date
+		FROM assignments ass JOIN tests t ON ass.test_id = t.id
+		WHERE ass.id = $1
+	`, assignmentID).Scan(&row.OwnerID, &row.TestID, &row.TestTitle, &row.Duration, &row.ExamDate)
+	return row, err
+}
+
+func (r *AssignmentRepo) MarkSubmitted(assignmentID int) error {
+	_, err := r.DB.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1", assignmentID)
+	return err
+}

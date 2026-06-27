@@ -155,6 +155,12 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	return students, total, nil
 }
 
+func (r *StudentRepo) GetIDByStudentCode(studentCode string) (int, error) {
+	var id int
+	err := r.DB.QueryRow("SELECT id FROM students WHERE student_code = $1", studentCode).Scan(&id)
+	return id, err
+}
+
 func (r *StudentRepo) GetDetail(studentID, tenantID int, coachID *int) (*StudentDetailRow, error) {
 	query := `
 		SELECT st.id, st.name, st.student_code, st.coach_id, COALESCE(c.name, ''),
