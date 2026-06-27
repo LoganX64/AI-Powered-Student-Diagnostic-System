@@ -14,18 +14,23 @@ func NewCoachRepo(db *sql.DB) *CoachRepo {
 }
 
 type CoachRow struct {
-	CoachID int    `json:"coach_id"`
-	UserID  int    `json:"user_id"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
+	CoachID   int     `json:"coach_id"`
+	UserID    int     `json:"user_id"`
+	Name      string  `json:"name"`
+	Email     string  `json:"email"`
+	DeletedAt *string `json:"deleted_at"`
 }
 
 type CoachDetailRow struct {
-	CoachID   int    `json:"coach_id"`
-	UserID    int    `json:"user_id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	CreatedAt string `json:"created_at"`
+	CoachID       int     `json:"coach_id"`
+	UserID        int     `json:"user_id"`
+	Name          string  `json:"name"`
+	Email         string  `json:"email"`
+	CreatedAt     string  `json:"created_at"`
+	DeletedAt     *string `json:"deleted_at"`
+	DeletedByName *string `json:"deleted_by_name"`
+	DeletedByEmail *string `json:"deleted_by_email"`
+	DeletedByRole *string `json:"deleted_by_role"`
 }
 
 func (r *CoachRepo) GetIDFromUser(userID int) (int, error) {
@@ -42,13 +47,15 @@ func (r *CoachRepo) GetIDAndTenantFromUser(userID int) (int, int, error) {
 
 func (r *CoachRepo) Exists(coachID, tenantID int) (bool, error) {
 	var exists bool
-	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", coachID, tenantID).Scan(&exists)
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE id=$1 AND tenant_id=$2)", coachID, tenantID).Scan(&exists)
 	return exists, err
 }
 
 func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, limit, offset int) ([]CoachRow, int, error) {
 	baseQuery := "FROM coaches c JOIN users u ON c.user_id = u.id WHERE c.tenant_id=$1"
-	if !includeDeactivated {
+	if includeDeactivated {
+		baseQuery += " AND c.deleted_at IS NOT NULL"
+	} else {
 		baseQuery += " AND c.deleted_at IS NULL"
 	}
 
@@ -64,7 +71,7 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 		return nil, 0, err
 	}
 
-	dataQuery := "SELECT c.id, c.user_id, c.name, u.email " + baseQuery + " ORDER BY c.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	dataQuery := "SELECT c.id, c.user_id, c.name, u.email, c.deleted_at " + baseQuery + " ORDER BY c.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
 	args = append(args, limit, offset)
 
 	rows, err := r.DB.Query(dataQuery, args...)
@@ -76,7 +83,7 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 	var coaches []CoachRow
 	for rows.Next() {
 		var c2 CoachRow
-		if err := rows.Scan(&c2.CoachID, &c2.UserID, &c2.Name, &c2.Email); err != nil {
+		if err := rows.Scan(&c2.CoachID, &c2.UserID, &c2.Name, &c2.Email, &c2.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		coaches = append(coaches, c2)
@@ -90,10 +97,17 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 func (r *CoachRepo) GetDetail(coachID, tenantID int) (*CoachDetailRow, error) {
 	var coach CoachDetailRow
 	err := r.DB.QueryRow(`
-		SELECT c.id, c.user_id, c.name, u.email, c.created_at
-		FROM coaches c JOIN users u ON c.user_id = u.id
-		WHERE c.id = $1 AND c.tenant_id = $2 AND c.deleted_at IS NULL
-	`, coachID, tenantID).Scan(&coach.CoachID, &coach.UserID, &coach.Name, &coach.Email, &coach.CreatedAt)
+		SELECT c.id, c.user_id, c.name, u.email, c.created_at,
+		       c.deleted_at, du.email, dc.name, du.role
+		FROM coaches c
+		JOIN users u ON c.user_id = u.id
+		LEFT JOIN users du ON c.deleted_by = du.id
+		LEFT JOIN coaches dc ON dc.user_id = du.id
+		WHERE c.id = $1 AND c.tenant_id = $2
+	`, coachID, tenantID).Scan(
+		&coach.CoachID, &coach.UserID, &coach.Name, &coach.Email, &coach.CreatedAt,
+		&coach.DeletedAt, &coach.DeletedByEmail, &coach.DeletedByName, &coach.DeletedByRole,
+	)
 	if err != nil {
 		return nil, err
 	}

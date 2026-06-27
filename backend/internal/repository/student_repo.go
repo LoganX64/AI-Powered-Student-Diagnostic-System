@@ -96,7 +96,9 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 		where += " AND coach_id=$" + strconv.Itoa(len(args)+1)
 		args = append(args, *coachID)
 	}
-	if !includeDeactivated {
+	if includeDeactivated {
+		where += " AND deleted_at IS NOT NULL"
+	} else {
 		where += " AND deleted_at IS NULL"
 	}
 
