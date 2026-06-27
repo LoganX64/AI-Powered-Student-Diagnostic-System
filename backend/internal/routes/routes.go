@@ -5,14 +5,22 @@ import (
 	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
-
 	"database/sql"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(db *sql.DB) *gin.Engine {
 	r := gin.Default()
+
+	// Global error handlers
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
+	})
+	r.NoMethod(func(c *gin.Context) {
+		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
+	})
 
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
