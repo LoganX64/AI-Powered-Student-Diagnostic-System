@@ -114,7 +114,11 @@ func (h *StudentHandler) SubmitAnswers(c *gin.Context) {
 		return
 	}
 
-	existsAttempt, _ := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	existsAttempt, err := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check assignment status")
+		return
+	}
 	if existsAttempt {
 		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
 		return
@@ -302,7 +306,11 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 
-	existsAttempt, _ := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	existsAttempt, err := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check assignment status")
+		return
+	}
 	if existsAttempt {
 		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
 		return
