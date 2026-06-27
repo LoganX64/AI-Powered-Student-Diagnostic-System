@@ -1,6 +1,9 @@
 package repository
 
-import "database/sql"
+import (
+	"database/sql"
+	"strconv"
+)
 
 type StudentRepo struct {
 	DB *sql.DB
@@ -85,56 +88,31 @@ func (r *StudentRepo) GetCoachIDAndTenantID(studentID int) (int, int, error) {
 	return coachID, tenantID, err
 }
 
-func (r *StudentRepo) GetTestCoachAndTenant(testID int) (int, int, error) {
-	var coachID, tenantID int
-	err := r.DB.QueryRow(
-		"SELECT coach_id, tenant_id FROM tests WHERE id=$1",
-		testID,
-	).Scan(&coachID, &tenantID)
-	return coachID, tenantID, err
-}
-
 func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, limit, offset int) ([]StudentRow, int, error) {
-	var total int
-	var countArgs []interface{}
-	var query string
-	var countQuery string
+	where := "tenant_id=$1"
+	args := []interface{}{tenantID}
 
 	if coachID != nil {
-		if includeDeactivated {
-			countQuery = "SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND coach_id=$2"
-			query = "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE tenant_id=$1 AND coach_id=$2"
-		} else {
-			countQuery = "SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND coach_id=$2 AND deleted_at IS NULL"
-			query = "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE tenant_id=$1 AND coach_id=$2 AND deleted_at IS NULL"
-		}
-		countArgs = []interface{}{tenantID, *coachID}
-	} else {
-		if includeDeactivated {
-			countQuery = "SELECT COUNT(*) FROM students WHERE tenant_id=$1"
-			query = "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE tenant_id=$1"
-		} else {
-			countQuery = "SELECT COUNT(*) FROM students WHERE tenant_id=$1 AND deleted_at IS NULL"
-			query = "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE tenant_id=$1 AND deleted_at IS NULL"
-		}
-		countArgs = []interface{}{tenantID}
+		where += " AND coach_id=$" + strconv.Itoa(len(args)+1)
+		args = append(args, *coachID)
+	}
+	if !includeDeactivated {
+		where += " AND deleted_at IS NULL"
 	}
 
-	err := r.DB.QueryRow(countQuery, countArgs...).Scan(&total)
+	countQuery := "SELECT COUNT(*) FROM students WHERE " + where
+	dataQuery := "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE " + where
+
+	var total int
+	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	query += " ORDER BY id DESC"
-	args := countArgs
-	if coachID != nil {
-		query += " LIMIT $3 OFFSET $4"
-	} else {
-		query += " LIMIT $2 OFFSET $3"
-	}
+	dataQuery += " ORDER BY id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
 	args = append(args, limit, offset)
 
-	rows, err := r.DB.Query(query, args...)
+	rows, err := r.DB.Query(dataQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -300,14 +300,9 @@ func (r *TestPaperRepo) CoachTenantID(coachID int) (int, error) {
 	return tenantID, err
 }
 
-func (r *TestPaperRepo) CountByCoach(coachID, tenantID int) (int, error) {
+func (r *TestPaperRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow, int, error) {
 	var total int
 	err := r.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE coach_id=$1 AND tenant_id=$2", coachID, tenantID).Scan(&total)
-	return total, err
-}
-
-func (r *TestPaperRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow, int, error) {
-	total, err := r.CountByCoach(coachID, tenantID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -344,6 +339,15 @@ func (r *TestPaperRepo) GetSubjectName(testID int) (string, error) {
 		testID,
 	).Scan(&name)
 	return name, err
+}
+
+func (r *TestPaperRepo) GetCoachAndTenant(testID int) (int, int, error) {
+	var coachID, tenantID int
+	err := r.DB.QueryRow(
+		"SELECT coach_id, tenant_id FROM tests WHERE id=$1",
+		testID,
+	).Scan(&coachID, &tenantID)
+	return coachID, tenantID, err
 }
 
 func (r *TestPaperRepo) GetDuration(testID int) (int, error) {

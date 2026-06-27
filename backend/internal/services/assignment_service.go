@@ -68,7 +68,7 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 		return 0, &CreateAssignmentError{Status: 403, Message: "student not found, deactivated, or not in your organization"}
 	}
 
-	testCoachID, testTenantID, err := s.StudentRepo.GetTestCoachAndTenant(input.TestID)
+	testCoachID, testTenantID, err := s.TestPaperRepo.GetCoachAndTenant(input.TestID)
 	if err != nil || testCoachID != coachID || testTenantID != tenantID {
 		return 0, &CreateAssignmentError{Status: 403, Message: "test not found or not in your organization"}
 	}

@@ -1,0 +1,413 @@
+package handlers
+
+import (
+	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/utils"
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+)
+
+type CreateTestRequest struct {
+	Title     string  `json:"title" binding:"required"`
+	SubjectID int     `json:"subject_id" binding:"required"`
+	CoachID   int     `json:"coach_id"`
+	Duration  int     `json:"duration" binding:"required"`
+	ExamDate  *string `json:"exam_date"`
+}
+
+func (h *AdminHandler) CreateTest(c *gin.Context) {
+	var req CreateTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	role := c.GetString("role")
+	userID := c.GetInt("user_id")
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	var coachID int
+	if role == "coach" {
+		coachID, err = h.CoachRepo.GetIDFromUser(userID)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+	} else if role == "admin" {
+		exists, err := h.CoachRepo.Exists(req.CoachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+			return
+		}
+		if !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
+			return
+		}
+		coachID = req.CoachID
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		return
+	}
+
+	id, err := h.TestPaperRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create test")
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"test_id": id})
+}
+
+func (h *AdminHandler) UpdateTest(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	var req CreateTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	role := c.GetString("role")
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, err.Error())
+		return
+	}
+
+	coachTenantID, err := h.TestPaperRepo.CoachTenantID(req.CoachID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach tenant")
+		return
+	}
+	if coachTenantID != tenantID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id does not belong to your organization"})
+		return
+	}
+
+	found, err := h.TestPaperRepo.Update(testID, tenantID, req.Title, req.SubjectID, req.CoachID, req.Duration, req.ExamDate)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update test")
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "test updated successfully"})
+}
+
+func (h *AdminHandler) DeleteTest(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	role := c.GetString("role")
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, err.Error())
+		return
+	}
+
+	found, err := h.TestPaperRepo.Delete(testID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete test")
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "test deleted successfully"})
+}
+
+func (h *AdminHandler) ListTests(c *gin.Context) {
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	role := c.GetString("role")
+	var coachID *int
+	if role == "coach" {
+		cid, err := resolveCoachID(c, h.CoachRepo)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		coachID = &cid
+	}
+
+	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
+	search := c.Query("search")
+
+	tests, total, err := h.TestPaperRepo.List(tenantID, coachID, search, limit, offset)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch tests")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": tests})
+}
+
+func (h *AdminHandler) GetTest(c *gin.Context) {
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+	test, err := h.TestPaperRepo.GetDetail(testID, tenantID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, test)
+}
+
+func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	testIDStr := c.Param("id")
+	testIDInt, err := strconv.Atoi(testIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+	exists, err := h.TestPaperRepo.Exists(testIDInt, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		return
+	}
+
+	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
+	questions, total, err := h.TestPaperRepo.ListQuestions(testIDInt, limit, offset)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch questions")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": questions})
+}
+
+func (h *AdminHandler) CreateQuestion(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		return
+	}
+
+	questions, err := parseQuestionRequests(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		return
+	}
+	if len(questions) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one question is required"})
+		return
+	}
+
+	role := c.GetString("role")
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if role == "coach" {
+		coachID, err := resolveCoachID(c, h.CoachRepo)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			return
+		}
+		exists, err := h.TestPaperRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
+			return
+		}
+		if !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
+			return
+		}
+	} else if role == "admin" {
+		exists, err := h.TestPaperRepo.Exists(testID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
+			return
+		}
+		if !exists {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
+			return
+		}
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		return
+	}
+
+	for i, question := range questions {
+		if validationErr := repository.ValidateQuestionRequest(question); validationErr != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr, "position": i})
+			return
+		}
+	}
+
+	questionIDs, err := h.TestPaperRepo.CreateQuestions(testID, questions)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create questions")
+		return
+	}
+
+	response := gin.H{"question_ids": questionIDs, "count": len(questionIDs), "message": "questions created successfully"}
+	if len(questionIDs) == 1 {
+		response["question_id"] = questionIDs[0]
+	}
+	c.JSON(http.StatusCreated, response)
+}
+
+func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	questionID, err := strconv.Atoi(c.Param("qid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		return
+	}
+
+	var req repository.QuestionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if validationErr := repository.ValidateQuestionRequest(req); validationErr != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": validationErr})
+		return
+	}
+
+	role := c.GetString("role")
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, err.Error())
+		return
+	}
+
+	found, err := h.TestPaperRepo.UpdateQuestion(questionID, testID, req)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update question")
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "question updated successfully"})
+}
+
+func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		return
+	}
+
+	questionID, err := strconv.Atoi(c.Param("qid"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		return
+	}
+
+	role := c.GetString("role")
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		return
+	}
+
+	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, err.Error())
+		return
+	}
+
+	found, err := h.TestPaperRepo.DeleteQuestion(questionID, testID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete question")
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "question deleted successfully"})
+}
+
+func parseQuestionRequests(c *gin.Context) ([]repository.QuestionRequest, error) {
+	body, err := c.GetRawData()
+	if err != nil {
+		return nil, err
+	}
+	var batch []repository.QuestionRequest
+	if err := json.Unmarshal(body, &batch); err == nil {
+		return batch, nil
+	}
+	var single repository.QuestionRequest
+	if err := json.Unmarshal(body, &single); err != nil {
+		return nil, err
+	}
+	return []repository.QuestionRequest{single}, nil
+}

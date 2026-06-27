@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -13,20 +15,23 @@ type StudentHandler struct {
 	StudentRepo    *repository.StudentRepo
 	AssignmentRepo *repository.AssignmentRepo
 	AttemptRepo    *repository.AttemptRepo
-	TestRepo       *repository.TestRepo
+	TestPaperRepo  *repository.TestPaperRepo
+	AttemptService *services.AttemptService
 }
 
 func NewStudentHandler(
 	studentRepo *repository.StudentRepo,
 	assignmentRepo *repository.AssignmentRepo,
 	attemptRepo *repository.AttemptRepo,
-	testRepo *repository.TestRepo,
+	testPaperRepo *repository.TestPaperRepo,
+	attemptService *services.AttemptService,
 ) *StudentHandler {
 	return &StudentHandler{
 		StudentRepo:    studentRepo,
 		AssignmentRepo: assignmentRepo,
 		AttemptRepo:    attemptRepo,
-		TestRepo:       testRepo,
+		TestPaperRepo:  testPaperRepo,
+		AttemptService: attemptService,
 	}
 }
 
@@ -56,19 +61,8 @@ func (h *StudentHandler) StudentLogin(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"access_token": token})
 }
 
-type Answer struct {
-	QuestionID        int     `json:"question_id" binding:"required"`
-	SelectedAnswer    string  `json:"selected_answer"`
-	TimeSpent         float64 `json:"time_spent"`
-	Seen              *bool   `json:"seen"`
-	MarkedForReview   bool    `json:"marked_for_review"`
-	Revisited         bool    `json:"revisited"`
-	ChangedAnswer     bool    `json:"changed_answer"`
-	WasInitiallyWrong bool    `json:"was_initially_wrong"`
-}
-
 type SubmitRequest struct {
-	Answers []Answer `json:"answers" binding:"required"`
+	Answers []services.AnswerInput `json:"answers" binding:"required"`
 }
 
 func (h *StudentHandler) SubmitAnswers(c *gin.Context) {
@@ -84,136 +78,42 @@ func (h *StudentHandler) SubmitAnswers(c *gin.Context) {
 		return
 	}
 
-	studentIDRaw, exists := c.Get("student_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	studentID, ok := studentIDRaw.(int)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
-		return
-	}
-
-	owner, err := h.AssignmentRepo.GetOwnerAndTest(assignmentID)
+	studentID, err := getStudentIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment"})
+		if err.Error() == "unauthorized" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+		}
 		return
 	}
 
-	if owner.OwnerID != studentID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "assignment does not belong to student"})
-		return
-	}
-
-	existsAttempt, err := h.AttemptRepo.ExistsByAssignment(assignmentID)
+	result, err := h.AttemptService.SubmitAnswers(assignmentID, studentID, req.Answers)
 	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check assignment status")
-		return
-	}
-	if existsAttempt {
-		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
-		return
-	}
-
-	correctMap, err := h.AttemptRepo.GetCorrectAnswers(owner.TestID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch questions")
-		return
-	}
-
-	attemptID, err := h.AttemptRepo.CreateAttempt(assignmentID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create attempt")
-		return
-	}
-
-	seenQuestionIDs := make(map[int]bool)
-	var totalTimeSpent float64
-
-	for _, ans := range req.Answers {
-		_, exists := correctMap[ans.QuestionID]
-		if !exists {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		var svcErr *services.SubmitAnswersError
+		if errors.As(err, &svcErr) {
+			c.JSON(svcErr.Status, gin.H{"error": svcErr.Message})
 			return
 		}
-
-		if seenQuestionIDs[ans.QuestionID] {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "duplicate question id"})
-			return
-		}
-		seenQuestionIDs[ans.QuestionID] = true
-
-		if ans.TimeSpent < 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "time_spent cannot be negative"})
-			return
-		}
-
-		answerSeen := ans.SelectedAnswer != ""
-		if ans.Seen != nil {
-			answerSeen = *ans.Seen
-		}
-		if ans.Seen != nil && !*ans.Seen && ans.SelectedAnswer != "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "not seen question cannot have selected_answer"})
-			return
-		}
-		if ans.SelectedAnswer != "" && ans.SelectedAnswer != "A" && ans.SelectedAnswer != "B" && ans.SelectedAnswer != "C" && ans.SelectedAnswer != "D" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "selected_answer must be A/B/C/D"})
-			return
-		}
-
-		if !answerSeen {
-			ans.TimeSpent = 0
-			ans.MarkedForReview = false
-			ans.Revisited = false
-			ans.ChangedAnswer = false
-			ans.WasInitiallyWrong = false
-		}
-
-		totalTimeSpent += ans.TimeSpent
-		if owner.Duration > 0 && totalTimeSpent > float64(owner.Duration) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":            "total time_spent exceeds test duration",
-				"total_time_spent": helperRoundForResponse(totalTimeSpent),
-				"test_duration":    owner.Duration,
-			})
-			return
-		}
-
-		correctAnswer := correctMap[ans.QuestionID]
-		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctAnswer
-
-		err = h.AttemptRepo.InsertAnswerLog(attemptID, ans.QuestionID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
-			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to insert answer")
-			return
-		}
-	}
-
-	if err := h.AssignmentRepo.MarkSubmitted(assignmentID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to mark assignment submitted")
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit answers")
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"attempt_id":       attemptID,
-		"total_time_spent": helperRoundForResponse(totalTimeSpent),
-		"test_duration":    owner.Duration,
+		"attempt_id":       result.AttemptID,
+		"total_time_spent": result.TotalTimeSpent,
+		"test_duration":    result.TestDuration,
 	})
 }
 
 func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {
-	studentIDRaw, exists := c.Get("student_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	studentID, ok := studentIDRaw.(int)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+	studentID, err := getStudentIDFromContext(c)
+	if err != nil {
+		if err.Error() == "unauthorized" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+		}
 		return
 	}
 
@@ -237,15 +137,13 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 
-	studentIDRaw, exists := c.Get("student_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	studentID, ok := studentIDRaw.(int)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+	studentID, err := getStudentIDFromContext(c)
+	if err != nil {
+		if err.Error() == "unauthorized" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+		}
 		return
 	}
 
@@ -270,7 +168,7 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 
-	questions, _, err := h.TestRepo.ListQuestions(detail.TestID, 1000, 0)
+	questions, _, err := h.TestPaperRepo.ListQuestions(detail.TestID, 1000, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
 		return
@@ -317,8 +215,4 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		"exam_date":     examDateStr,
 		"questions":     responseQuestions,
 	})
-}
-
-func helperRoundForResponse(value float64) float64 {
-	return float64(int(value*100+0.5)) / 100
 }

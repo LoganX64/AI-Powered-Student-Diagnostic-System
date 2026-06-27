@@ -138,7 +138,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 		coach.POST("/students", coachHandler.CreateStudent)
 		coach.POST("/tests", coachHandler.CreateTest)
-		coach.POST("/tests/:id/questions", coachHandler.CreateQuestion)
+		coach.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
 		coach.POST("/subjects", adminHandler.CreateSubject)
 
@@ -148,16 +148,16 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 		coach.DELETE("/tests/:id", adminHandler.DeleteTest)
 		coach.DELETE("/tests/:id/questions/:qid", adminHandler.DeleteQuestion)
 
-		coach.GET("/tests", coachHandler.ListTests)
+		coach.GET("/tests", adminHandler.ListTests)
 		coach.GET("/tests/:id/questions", adminHandler.GetTestQuestions)
-		coach.GET("/students", coachHandler.ListStudents)
-		coach.GET("/students/:id", coachHandler.GetStudent)
-		coach.GET("/students/:id/assignments", coachHandler.ListStudentAssignments)
+		coach.GET("/students", adminHandler.ListStudents)
+		coach.GET("/students/:id", adminHandler.GetStudent)
+		coach.GET("/students/:id/assignments", adminHandler.ListStudentAssignments)
 		coach.GET("/students/:id/assignments/:assignmentId", coachHandler.GetAssignmentResults)
-		coach.DELETE("/students/:id", coachHandler.DeleteStudent)
-		coach.PUT("/students/:id/reactivate", coachHandler.ReactivateStudent)
-		coach.GET("/subjects", coachHandler.ListSubjects)
-		coach.GET("/assignments", coachHandler.ListAssignments)
+		coach.DELETE("/students/:id", adminHandler.DeleteStudent)
+		coach.PUT("/students/:id/reactivate", adminHandler.ReactivateStudent)
+		coach.GET("/subjects", adminHandler.ListSubjects)
+		coach.GET("/assignments", adminHandler.ListAssignments)
 
 		coach.PUT("/password", authHandler.UpdatePassword)
 	}

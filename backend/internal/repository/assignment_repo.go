@@ -43,17 +43,6 @@ func (r *AssignmentRepo) Create(studentID, testID, coachID int) (int, error) {
 	return id, err
 }
 
-func (r *AssignmentRepo) ExistsByStudent(studentID, tenantID int, coachID *int) (bool, error) {
-	var exists bool
-	var err error
-	if coachID != nil {
-		err = r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM students WHERE id=$1 AND tenant_id=$2 AND coach_id=$3)", studentID, tenantID, *coachID).Scan(&exists)
-	} else {
-		err = r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM students WHERE id=$1 AND tenant_id=$2)", studentID, tenantID).Scan(&exists)
-	}
-	return exists, err
-}
-
 func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, limit, offset int) ([]AssignmentRow, int, error) {
 	var total int
 	var dataQuery string
@@ -104,43 +93,29 @@ func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, limit, offse
 }
 
 func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, limit, offset int) ([]AssignmentDetailRow, int, error) {
-	var total int
-	var dataQuery string
-	var args []interface{}
+	where := "s.tenant_id=$1 AND s.deleted_at IS NULL"
+	args := []interface{}{tenantID}
 
 	if coachID != nil {
-		baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE s.tenant_id=$1 AND a.coach_id=$2 AND s.deleted_at IS NULL"
-		args = []interface{}{tenantID, *coachID}
-		if testIDStr != "" {
-			baseQuery += " AND a.test_id=$3"
-			args = append(args, testIDStr)
-		}
-
-		err := r.DB.QueryRow("SELECT COUNT(*) "+baseQuery, args[:len(args)]...).Scan(&total)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		args = append(args, limit, offset)
-		dataQuery = `SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at ` + baseQuery
-		dataQuery += " ORDER BY a.id DESC LIMIT $" + strconv.Itoa(len(args)-1) + " OFFSET $" + strconv.Itoa(len(args))
-	} else {
-		baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE s.tenant_id=$1 AND s.deleted_at IS NULL"
-		args = []interface{}{tenantID}
-		if testIDStr != "" {
-			baseQuery += " AND a.test_id=$2"
-			args = append(args, testIDStr)
-		}
-
-		err := r.DB.QueryRow("SELECT COUNT(*) "+baseQuery, args...).Scan(&total)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		args = append(args, limit, offset)
-		dataQuery = `SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at ` + baseQuery
-		dataQuery += " ORDER BY a.id DESC LIMIT $" + strconv.Itoa(len(args)-1) + " OFFSET $" + strconv.Itoa(len(args))
+		where += " AND a.coach_id=$" + strconv.Itoa(len(args)+1)
+		args = append(args, *coachID)
 	}
+	if testIDStr != "" {
+		where += " AND a.test_id=$" + strconv.Itoa(len(args)+1)
+		args = append(args, testIDStr)
+	}
+
+	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE " + where
+
+	var total int
+	err := r.DB.QueryRow("SELECT COUNT(*) "+baseQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	dataQuery := "SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at " + baseQuery
+	dataQuery += " ORDER BY a.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
 
 	rows, err := r.DB.Query(dataQuery, args...)
 	if err != nil {
