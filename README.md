@@ -165,7 +165,8 @@ backend/
 │       └── sqi_engine_v2.go   # Student Quality Index calculations v2
 ├── utils/                     # Shared utilities
 │   ├── jwt.go                 # JWT token handling
-│   └── password.go            # Password hashing and verification
+│   ├── password.go            # Password hashing and verification
+│   └── response.go            # Safe error response handler (env-aware)
 ├── migrations/                # Database migrations
 │   ├── 000001_init.up.sql     # Initial schema (10 tables)
 │   └── 000001_init.down.sql   # Rollback initial schema
@@ -181,6 +182,42 @@ backend/
 | **Gin**        | Web framework         |
 | **PostgreSQL** | Database              |
 | **JWT**        | Authentication tokens |
+
+### Environment Configuration
+
+The backend uses environment variables for configuration. Copy `.env.example` to `.env` and update values:
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `APP_ENV` | `development` (default) | Raw errors returned to client for frontend debugging |
+| `APP_ENV` | `production` | Generic errors returned; real errors logged server-side only |
+| `PORT` | `8080` | Server port |
+| `DB_URL` | `postgres://...` | PostgreSQL connection string |
+| `JWT_SECRET` | string | Secret key for JWT token signing |
+| `JWT_EXPIRY` | `4h` | Token expiration duration |
+
+#### Error Handling by Environment
+
+The backend uses `utils.SafeErrorResponse` to handle errors differently based on environment:
+
+| Environment | Client sees | Server logs |
+|-------------|-------------|-------------|
+| **Development** | Raw `err.Error()` (e.g., `pq: duplicate key value violates constraint`) | Yes |
+| **Production** | Generic message (e.g., `failed to create student`) | Yes |
+
+This allows frontend developers to see exact error details during development while protecting sensitive information in production.
+
+**Production deployment:**
+```bash
+APP_ENV=production go run cmd/api/main.go
+```
+
+Or set in `.env.production` and load with a tool like `godotenv`.
 
 ### Backend Architecture Layers
 
