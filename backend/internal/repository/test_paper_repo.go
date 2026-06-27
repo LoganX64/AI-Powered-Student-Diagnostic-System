@@ -97,79 +97,50 @@ func (r *TestPaperRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool,
 }
 
 func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, offset int) ([]TestRow, int, error) {
-	var tests []TestRow
-	var total int
+	var where string
+	var args []interface{}
 
 	if coachID != nil {
-		countQuery := "SELECT COUNT(*) FROM tests WHERE tenant_id=$1 AND coach_id=$2"
-		dataQuery := "SELECT id, title, subject_id, coach_id, duration, exam_date FROM tests WHERE tenant_id=$1 AND coach_id=$2"
-		args := []interface{}{tenantID, *coachID}
-
-		if search != "" {
-			countQuery += " AND title ILIKE $3"
-			dataQuery += " AND title ILIKE $3"
-			args = append(args, "%"+search+"%")
-		}
-
-		err := r.DB.QueryRow(countQuery, args...).Scan(&total)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		dataQuery += " ORDER BY id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
-		args = append(args, limit, offset)
-
-		rows, err := r.DB.Query(dataQuery, args...)
-		if err != nil {
-			return nil, 0, err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var t TestRow
-			if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.ExamDate); err != nil {
-				return nil, 0, err
-			}
-			tests = append(tests, t)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, 0, err
-		}
+		where = "t.tenant_id=$1 AND t.coach_id=$2"
+		args = []interface{}{tenantID, *coachID}
 	} else {
-		countQuery := "SELECT COUNT(*) FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE t.tenant_id=$1"
-		dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE t.tenant_id=$1"
-		args := []interface{}{tenantID}
+		where = "t.tenant_id=$1"
+		args = []interface{}{tenantID}
+	}
 
-		if search != "" {
-			countQuery += " AND t.title ILIKE $2"
-			dataQuery += " AND t.title ILIKE $2"
-			args = append(args, "%"+search+"%")
-		}
+	if search != "" {
+		where += " AND t.title ILIKE $" + strconv.Itoa(len(args)+1)
+		args = append(args, "%"+search+"%")
+	}
 
-		err := r.DB.QueryRow(countQuery, args...).Scan(&total)
-		if err != nil {
+	countQuery := "SELECT COUNT(*) FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
+	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(s.name, ''), COALESCE(c.name, ''), t.exam_date FROM tests t LEFT JOIN subjects s ON t.subject_id = s.id LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
+
+	var total int
+	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	dataQuery += " ORDER BY t.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
+
+	rows, err := r.DB.Query(dataQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var tests []TestRow
+	for rows.Next() {
+		var t TestRow
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName, &t.ExamDate); err != nil {
 			return nil, 0, err
 		}
-
-		dataQuery += " ORDER BY t.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
-		args = append(args, limit, offset)
-
-		rows, err := r.DB.Query(dataQuery, args...)
-		if err != nil {
-			return nil, 0, err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var t TestRow
-			if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName, &t.ExamDate); err != nil {
-				return nil, 0, err
-			}
-			tests = append(tests, t)
-		}
-		if err := rows.Err(); err != nil {
-			return nil, 0, err
-		}
+		tests = append(tests, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
 	}
 
 	return tests, total, nil
