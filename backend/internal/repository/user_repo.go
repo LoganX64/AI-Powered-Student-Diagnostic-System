@@ -21,3 +21,66 @@ func (r *UserRepo) EmailExists(email string) (bool, error) {
 	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)", email).Scan(&exists)
 	return exists, err
 }
+
+type UserLoginRow struct {
+	UserID   int
+	Password string
+	Role     string
+	TenantID sql.NullInt32
+}
+
+func (r *UserRepo) GetByEmailWithCoachCheck(email string) (*UserLoginRow, error) {
+	var u UserLoginRow
+	err := r.DB.QueryRow(`
+		SELECT u.id, u.password, u.role, u.tenant_id
+		FROM users u
+		WHERE u.email = $1
+		  AND (
+			u.role <> 'coach'
+			OR EXISTS (
+				SELECT 1 FROM coaches c
+				WHERE c.user_id = u.id AND c.deleted_at IS NULL
+			)
+		  )
+	`, email).Scan(&u.UserID, &u.Password, &u.Role, &u.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *UserRepo) GetByEmail(email string) (int, string, sql.NullInt32, error) {
+	var userID int
+	var role string
+	var tenantID sql.NullInt32
+	err := r.DB.QueryRow(
+		"SELECT id, role, tenant_id FROM users WHERE email = $1", email,
+	).Scan(&userID, &role, &tenantID)
+	return userID, role, tenantID, err
+}
+
+func (r *UserRepo) CreateTenant(name string) (int, error) {
+	var id int
+	err := r.DB.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", name).Scan(&id)
+	return id, err
+}
+
+func (r *UserRepo) Create(tenantID int, email, hashedPassword, role string) (int, error) {
+	var id int
+	err := r.DB.QueryRow(
+		"INSERT INTO users (tenant_id, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id",
+		tenantID, email, hashedPassword, role,
+	).Scan(&id)
+	return id, err
+}
+
+func (r *UserRepo) GetPasswordHash(userID int) (string, error) {
+	var hash string
+	err := r.DB.QueryRow("SELECT password FROM users WHERE id = $1", userID).Scan(&hash)
+	return hash, err
+}
+
+func (r *UserRepo) UpdatePassword(userID int, newHash string) error {
+	_, err := r.DB.Exec("UPDATE users SET password = $1 WHERE id = $2", newHash, userID)
+	return err
+}

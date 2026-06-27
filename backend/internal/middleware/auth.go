@@ -3,7 +3,6 @@ package middleware
 import (
 	"ai-student-diagnostic/backend/utils"
 	"database/sql"
-	"log"
 	"net/http"
 	"strings"
 
@@ -12,19 +11,15 @@ import (
 
 func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		log.Printf("[AUTH MIDDLEWARE] Path: %s, Method: %s\n", c.Request.URL.Path, c.Request.Method)
-
 		authHeader := c.GetHeader("Authorization")
 
 		if authHeader == "" {
-			log.Printf("[AUTH MIDDLEWARE] No Authorization header\n")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
 			c.Abort()
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			log.Printf("[AUTH MIDDLEWARE] Invalid Authorization header format\n")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token format"})
 			c.Abort()
 			return
@@ -32,30 +27,22 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenStr == "" {
-			log.Printf("[AUTH MIDDLEWARE] Empty bearer token\n")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
 			c.Abort()
 			return
 		}
 
-		log.Println("[AUTH MIDDLEWARE] Token received")
-
 		claims, err := utils.ValidateToken(tokenStr)
 		if err != nil {
-			log.Printf("[AUTH MIDDLEWARE] Token validation failed: %v\n", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			c.Abort()
 			return
 		}
 
-		log.Printf("[AUTH MIDDLEWARE] Token valid for user %d with role %s\n", claims.UserID, claims.Role)
-
-		// 2. Database Verify (Ensures token is invalidated if user is deleted/DB reset)
 		if claims.Role == "student" {
 			var exists bool
 			err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM students WHERE id = $1)", claims.StudentID).Scan(&exists)
 			if err != nil || !exists {
-				log.Printf("[AUTH MIDDLEWARE] Student does not exist\n")
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "student no longer exists"})
 				c.Abort()
 				return
@@ -65,7 +52,6 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 			var exists bool
 			err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", claims.UserID).Scan(&exists)
 			if err != nil || !exists {
-				log.Printf("[AUTH MIDDLEWARE] User does not exist\n")
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "user no longer exists"})
 				c.Abort()
 				return
@@ -74,7 +60,6 @@ func AuthMiddleware(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.Set("role", claims.Role)
-		log.Printf("[AUTH MIDDLEWARE] Auth passed for user %d\n", claims.UserID)
 		c.Next()
 	}
 }

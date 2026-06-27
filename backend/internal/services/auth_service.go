@@ -10,16 +10,14 @@ import (
 )
 
 type AuthService struct {
-	UserRepo *repository.UserRepo
+	UserRepo  *repository.UserRepo
 	CoachRepo *repository.CoachRepo
-	DB       *sql.DB
 }
 
-func NewAuthService(db *sql.DB) *AuthService {
+func NewAuthService(userRepo *repository.UserRepo, coachRepo *repository.CoachRepo) *AuthService {
 	return &AuthService{
-		UserRepo:  repository.NewUserRepo(db),
-		CoachRepo: repository.NewCoachRepo(db),
-		DB:        db,
+		UserRepo:  userRepo,
+		CoachRepo: coachRepo,
 	}
 }
 
@@ -30,102 +28,60 @@ type LoginResult struct {
 }
 
 func (s *AuthService) UserLogin(email, password string) (*LoginResult, error) {
-	var userID int
-	var hashedPassword string
-	var role string
-	var tenantID sql.NullInt32
-
-	err := s.DB.QueryRow(`
-		SELECT u.id, u.password, u.role, u.tenant_id
-		FROM users u
-		WHERE u.email = $1
-		  AND (
-			u.role <> 'coach'
-			OR EXISTS (
-				SELECT 1
-				FROM coaches c
-				WHERE c.user_id = u.id AND c.deleted_at IS NULL
-			)
-		  )
-	`, email).Scan(&userID, &hashedPassword, &role, &tenantID)
+	u, err := s.UserRepo.GetByEmailWithCoachCheck(email)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := utils.CheckPassword(password, hashedPassword); err != nil {
+	if err := utils.CheckPassword(password, u.Password); err != nil {
 		return nil, err
 	}
 
-	return &LoginResult{UserID: userID, Role: role, TenantID: tenantID.Int32}, nil
+	return &LoginResult{UserID: u.UserID, Role: u.Role, TenantID: u.TenantID.Int32}, nil
 }
 
 func (s *AuthService) RegisterAdmin(email, hashedPassword, orgName string) (int, int, error) {
-	tx, err := s.DB.Begin()
-	if err != nil {
-		return 0, 0, err
-	}
-	defer tx.Rollback()
-
-	var tenantID int
-	err = tx.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", orgName).Scan(&tenantID)
+	tenantID, err := s.UserRepo.CreateTenant(orgName)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	var userID int
-	err = tx.QueryRow(`INSERT INTO users (tenant_id, email, password, role) VALUES ($1, $2, $3, 'admin') RETURNING id`, tenantID, email, hashedPassword).Scan(&userID)
+	userID, err := s.UserRepo.Create(tenantID, email, hashedPassword, "admin")
 	if err != nil {
 		return 0, 0, err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return 0, 0, err
-	}
 	return tenantID, userID, nil
 }
 
 func (s *AuthService) RegisterCoach(adminUserID int, email, hashedPassword, name string) (int, int, error) {
-	var tenantID sql.NullInt32
-	err := s.DB.QueryRow("SELECT tenant_id FROM users WHERE id = $1", adminUserID).Scan(&tenantID)
-	if err != nil || !tenantID.Valid {
-		return 0, 0, err
-	}
-
-	tx, err := s.DB.Begin()
-	if err != nil {
-		return 0, 0, err
-	}
-	defer tx.Rollback()
-
-	var newUserID int
-	err = tx.QueryRow(`INSERT INTO users (tenant_id, email, password, role) VALUES ($1, $2, $3, 'coach') RETURNING id`, tenantID.Int32, email, hashedPassword).Scan(&newUserID)
+	tenantID, err := s.UserRepo.GetTenantID(adminUserID)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	var coachID int
-	err = tx.QueryRow(`INSERT INTO coaches (tenant_id, user_id, name) VALUES ($1, $2, $3) RETURNING id`, tenantID.Int32, newUserID, name).Scan(&coachID)
+	userID, err := s.UserRepo.Create(tenantID, email, hashedPassword, "coach")
 	if err != nil {
 		return 0, 0, err
 	}
 
-	if err := tx.Commit(); err != nil {
+	coachID, err := s.CoachRepo.Create(tenantID, userID, name)
+	if err != nil {
 		return 0, 0, err
 	}
-	return newUserID, coachID, nil
+
+	return userID, coachID, nil
 }
 
 func (s *AuthService) UpdatePassword(userID int, role, currentPassword, newPassword string) error {
 	if role == "coach" {
-		var active bool
-		err := s.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM coaches WHERE user_id = $1 AND deleted_at IS NULL)", userID).Scan(&active)
-		if err != nil || !active {
+		_, err := s.CoachRepo.GetIDFromUser(userID)
+		if err != nil {
 			return err
 		}
 	}
 
-	var currentHash string
-	err := s.DB.QueryRow("SELECT password FROM users WHERE id = $1", userID).Scan(&currentHash)
+	currentHash, err := s.UserRepo.GetPasswordHash(userID)
 	if err != nil {
 		return err
 	}
@@ -139,8 +95,7 @@ func (s *AuthService) UpdatePassword(userID int, role, currentPassword, newPassw
 		return err
 	}
 
-	_, err = s.DB.Exec("UPDATE users SET password = $1 WHERE id = $2", newHash, userID)
-	return err
+	return s.UserRepo.UpdatePassword(userID, newHash)
 }
 
 func (s *AuthService) GoogleLogin(idToken string) (*LoginResult, error) {
@@ -151,11 +106,7 @@ func (s *AuthService) GoogleLogin(idToken string) (*LoginResult, error) {
 
 	email := payload.Claims["email"].(string)
 
-	var userID int
-	var role string
-	var tenantID sql.NullInt32
-
-	err = s.DB.QueryRow(`SELECT id, role, tenant_id FROM users WHERE email = $1`, email).Scan(&userID, &role, &tenantID)
+	userID, role, tenantID, err := s.UserRepo.GetByEmail(email)
 	if err == sql.ErrNoRows {
 		name, _ := payload.Claims["name"].(string)
 		if name == "" {
@@ -164,13 +115,12 @@ func (s *AuthService) GoogleLogin(idToken string) (*LoginResult, error) {
 			name = name + "'s Organization"
 		}
 
-		var newTenantID int
-		err = s.DB.QueryRow(`INSERT INTO tenants (name) VALUES ($1) RETURNING id`, name).Scan(&newTenantID)
+		newTenantID, err := s.UserRepo.CreateTenant(name)
 		if err != nil {
 			return nil, err
 		}
 
-		err = s.DB.QueryRow(`INSERT INTO users (tenant_id, email, role) VALUES ($1, $2, 'admin') RETURNING id`, newTenantID, email).Scan(&userID)
+		userID, err = s.UserRepo.Create(newTenantID, email, "", "admin")
 		if err != nil {
 			return nil, err
 		}

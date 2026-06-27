@@ -112,6 +112,15 @@ func (r *CoachRepo) SoftDelete(coachID, tenantID, deletedBy int) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
+func (r *CoachRepo) Create(tenantID, userID int, name string) (int, error) {
+	var id int
+	err := r.DB.QueryRow(
+		"INSERT INTO coaches (tenant_id, user_id, name) VALUES ($1, $2, $3) RETURNING id",
+		tenantID, userID, name,
+	).Scan(&id)
+	return id, err
+}
+
 func (r *CoachRepo) Reactivate(coachID, tenantID int) (bool, error) {
 	result, err := r.DB.Exec(
 		`UPDATE coaches SET deleted_at = NULL, deleted_by = NULL

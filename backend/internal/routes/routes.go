@@ -55,9 +55,10 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	// Initialize services
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testRepo)
 	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testRepo, coachRepo, userRepo)
+	authService := services.NewAuthService(userRepo, coachRepo)
 
 	// Initialize handlers
-	authHandler := auth.NewAuthHandler(db)
+	authHandler := auth.NewAuthHandler(authService)
 	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
 	coachHandler := handlers.NewCoachHandler(userRepo, studentRepo, coachRepo, testRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testRepo, attemptService)
