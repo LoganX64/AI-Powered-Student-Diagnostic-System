@@ -175,6 +175,10 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 		return
 	}
 
+	if tests == nil {
+		tests = []repository.TestRow{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": tests})
 }
 
@@ -257,33 +261,8 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	if role == "coach" {
-		coachID, err := resolveCoachID(c, h.CoachRepo)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
-			return
-		}
-		exists, err := h.TestPaperRepo.ExistsOwnedByCoach(testID, coachID, tenantID)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test ownership")
-			return
-		}
-		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "test not found or not owned by you"})
-			return
-		}
-	} else if role == "admin" {
-		exists, err := h.TestPaperRepo.Exists(testID, tenantID)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify test")
-			return
-		}
-		if !exists {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id for your organization"})
-			return
-		}
-	} else {
-		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusForbidden, err, err.Error())
 		return
 	}
 

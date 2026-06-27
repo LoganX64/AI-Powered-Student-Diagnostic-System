@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 	"net/http"
 	"strconv"
@@ -133,6 +134,10 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 		return
 	}
 
+	if tests == nil {
+		tests = []repository.TestRow{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": tests})
 }
 
@@ -164,6 +169,10 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch coach students")
 		return
+	}
+
+	if students == nil {
+		students = []repository.StudentRow{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": students})

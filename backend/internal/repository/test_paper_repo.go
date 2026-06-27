@@ -296,7 +296,7 @@ func (r *TestPaperRepo) DeleteQuestion(questionID, testID int) (bool, error) {
 
 func (r *TestPaperRepo) CoachTenantID(coachID int) (int, error) {
 	var tenantID int
-	err := r.DB.QueryRow("SELECT tenant_id FROM users WHERE id=$1", coachID).Scan(&tenantID)
+	err := r.DB.QueryRow("SELECT tenant_id FROM coaches WHERE id=$1", coachID).Scan(&tenantID)
 	return tenantID, err
 }
 

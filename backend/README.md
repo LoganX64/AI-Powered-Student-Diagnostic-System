@@ -138,7 +138,6 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
 | GET | `/admin/subjects` | List subjects (paginated, searchable) |
 | GET | `/admin/assignments` | List assignments (paginated, filterable by `test_id`) |
 | GET | `/admin/students/:id/sqi` | Get student SQI scores (with optional analysis) |
-| GET | `/admin/students/:id/subjects/:subject_id/results` | Get student results for a subject (with SQI analysis) |
 
 ### Coach Routes (`/coach`) - _Requires Coach role_
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"errors"
@@ -70,6 +71,10 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
+	}
+
+	if assignments == nil {
+		assignments = []repository.AssignmentDetailRow{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": assignments})

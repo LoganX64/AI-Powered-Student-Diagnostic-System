@@ -58,7 +58,7 @@ func (h *StudentHandler) StudentLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"access_token": token})
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
 type SubmitRequest struct {

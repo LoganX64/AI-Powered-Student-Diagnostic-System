@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 	"net/http"
 
@@ -51,6 +52,10 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch subjects")
 		return
+	}
+
+	if subjects == nil {
+		subjects = []repository.SubjectRow{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": subjects})

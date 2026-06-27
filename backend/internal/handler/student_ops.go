@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/internal/types"
 	"ai-student-diagnostic/backend/utils"
@@ -155,78 +156,6 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 	})
 }
 
-func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
-	studentID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
-		return
-	}
-
-	subjectID, err := strconv.Atoi(c.Param("subject_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject id"})
-		return
-	}
-
-	role := c.GetString("role")
-
-	if role == "super_admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "super-admin has no access to student scores"})
-		return
-	}
-
-	tenantID, err := resolveTenantID(c, h.UserRepo)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
-		return
-	}
-
-	studentName, err := h.StudentRepo.GetName(studentID, tenantID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
-		return
-	}
-
-	if role == "coach" {
-		coachID, err := resolveCoachID(c, h.CoachRepo)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
-			return
-		}
-		exists, err := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
-			return
-		}
-		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "not assigned to this student"})
-			return
-		}
-	}
-
-	var testID int
-	if testIDParam := c.Query("test_id"); testIDParam != "" {
-		testID, err = strconv.Atoi(testIDParam)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
-			return
-		}
-	}
-
-	response := gin.H{
-		"student_id":     studentID,
-		"student_name":   studentName,
-		"subject_id":     subjectID,
-		"results":        []interface{}{},
-		"average_sqi":    0,
-		"total_attempts": 0,
-	}
-	if testID > 0 {
-		response["filter_test_id"] = testID
-	}
-	c.JSON(http.StatusOK, response)
-}
-
 func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	var req CreateStudentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -308,6 +237,10 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch students")
 		return
+	}
+
+	if students == nil {
+		students = []repository.StudentRow{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": students})
@@ -395,6 +328,10 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
+	}
+
+	if assignments == nil {
+		assignments = []repository.AssignmentRow{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": assignments})
