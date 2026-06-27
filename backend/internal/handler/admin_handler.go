@@ -75,7 +75,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 
 	tenantID, err := h.getTenantID(userID)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
 		return
 	}
 
@@ -238,7 +238,7 @@ func (h *AdminHandler) GetStudentSubjectResults(c *gin.Context) {
 
 	tenantID, err := h.getTenantID(userID)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
 		return
 	}
 
@@ -343,7 +343,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"student_id": id})
+	c.JSON(http.StatusCreated, gin.H{"student_id": id})
 }
 
 func (h *AdminHandler) CreateSubject(c *gin.Context) {
@@ -374,7 +374,7 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"subject_id": id})
+	c.JSON(http.StatusCreated, gin.H{"subject_id": id})
 }
 
 // Test CRUD
@@ -428,7 +428,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"test_id": id})
+	c.JSON(http.StatusCreated, gin.H{"test_id": id})
 }
 
 func (h *AdminHandler) CreateQuestion(c *gin.Context) {
@@ -496,7 +496,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 	if len(questionIDs) == 1 {
 		response["question_id"] = questionIDs[0]
 	}
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusCreated, response)
 }
 
 func parseQuestionRequests(c *gin.Context) ([]repository.QuestionRequest, error) {
@@ -572,7 +572,7 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"assignment_id": id})
+	c.JSON(http.StatusCreated, gin.H{"assignment_id": id})
 }
 
 // List endpoints

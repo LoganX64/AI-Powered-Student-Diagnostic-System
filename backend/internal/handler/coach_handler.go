@@ -202,7 +202,7 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"student_id": id})
+	c.JSON(http.StatusCreated, gin.H{"student_id": id})
 }
 
 type CreateCoachTestRequest struct {
@@ -232,7 +232,7 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"test_id": id})
+	c.JSON(http.StatusCreated, gin.H{"test_id": id})
 }
 
 func (h *CoachHandler) CreateQuestion(c *gin.Context) {
@@ -282,7 +282,7 @@ func (h *CoachHandler) CreateQuestion(c *gin.Context) {
 	if len(questionIDs) == 1 {
 		response["question_id"] = questionIDs[0]
 	}
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusCreated, response)
 }
 
 func (h *CoachHandler) CreateAssignment(c *gin.Context) {
@@ -319,7 +319,7 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"assignment_id": id})
+	c.JSON(http.StatusCreated, gin.H{"assignment_id": id})
 }
 
 func (h *CoachHandler) ListTests(c *gin.Context) {
