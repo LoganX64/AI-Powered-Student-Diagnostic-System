@@ -339,7 +339,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 
 	id, err := h.StudentRepo.Create(tenantID, req.Name, req.StudentCode, coachID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
 	}
 
@@ -424,7 +424,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 	id, err := h.TestRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create test")
 		return
 	}
 
@@ -488,7 +488,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 
 	questionIDs, err := h.TestRepo.CreateQuestions(testID, questions)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "failed to create questions"})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create questions")
 		return
 	}
 
@@ -568,7 +568,7 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 
 	id, err := h.AssignmentRepo.Create(req.StudentID, req.TestID, coachID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create assignment")
 		return
 	}
 
@@ -590,7 +590,7 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 
 	tests, total, err := h.TestRepo.List(tenantID, nil, search, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch tests")
 		return
 	}
 
@@ -634,7 +634,7 @@ func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	questions, total, err := h.TestRepo.ListQuestions(testIDInt, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch questions")
 		return
 	}
 
@@ -654,7 +654,7 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 
 	students, total, err := h.StudentRepo.List(tenantID, nil, includeDeactivated, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch students")
 		return
 	}
 
@@ -707,7 +707,7 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, nil, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
 	}
 
@@ -730,7 +730,7 @@ func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 
 	found, err := h.StudentRepo.SoftDelete(studentID, tenantID, userID, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete student")
 		return
 	}
 	if !found {
@@ -757,7 +757,7 @@ func (h *AdminHandler) ReactivateStudent(c *gin.Context) {
 
 	found, err := h.StudentRepo.Reactivate(studentID, tenantID, nil)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to reactivate student")
 		return
 	}
 	if !found {
@@ -782,7 +782,7 @@ func (h *AdminHandler) ListCoaches(c *gin.Context) {
 
 	coaches, total, err := h.CoachRepo.List(tenantID, search, includeDeactivated, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch coaches")
 		return
 	}
 
@@ -828,7 +828,7 @@ func (h *AdminHandler) DeleteCoach(c *gin.Context) {
 
 	found, err := h.CoachRepo.SoftDelete(coachID, tenantID, userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete coach")
 		return
 	}
 	if !found {
@@ -855,7 +855,7 @@ func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
 
 	found, err := h.CoachRepo.Reactivate(coachID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to reactivate coach")
 		return
 	}
 	if !found {
@@ -889,7 +889,7 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	tests, total, err := h.TestRepo.ListByCoach(coachID, tenantID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch coach tests")
 		return
 	}
 
@@ -919,7 +919,7 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	students, total, err := h.StudentRepo.List(tenantID, &coachID, false, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch coach students")
 		return
 	}
 
@@ -939,7 +939,7 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 
 	subjects, total, err := h.TestRepo.ListSubjects(tenantID, search, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch subjects")
 		return
 	}
 
@@ -959,7 +959,7 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 
 	assignments, total, err := h.AssignmentRepo.ListAll(tenantID, nil, testID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
 	}
 

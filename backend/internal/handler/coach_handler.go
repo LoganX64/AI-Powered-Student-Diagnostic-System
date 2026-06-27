@@ -198,7 +198,7 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 
 	id, err := h.StudentRepo.Create(tenantID, req.Name, req.StudentCode, coachID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
 	}
 
@@ -228,7 +228,7 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 
 	id, err := h.TestRepo.Create(tenantID, req.Title, req.SubjectID, coachID, req.Duration, req.ExamDate)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create test")
 		return
 	}
 
@@ -274,7 +274,7 @@ func (h *CoachHandler) CreateQuestion(c *gin.Context) {
 
 	questionIDs, err := h.TestRepo.CreateQuestions(testID, questions)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error(), "message": "failed to create questions"})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create questions")
 		return
 	}
 
@@ -315,7 +315,7 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 
 	id, err := h.AssignmentRepo.Create(req.StudentID, req.TestID, coachID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create assignment")
 		return
 	}
 
@@ -335,7 +335,7 @@ func (h *CoachHandler) ListTests(c *gin.Context) {
 
 	tests, total, err := h.TestRepo.List(tenantID, &coachID, search, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch tests")
 		return
 	}
 
@@ -355,7 +355,7 @@ func (h *CoachHandler) ListStudents(c *gin.Context) {
 
 	students, total, err := h.StudentRepo.List(tenantID, &coachID, includeDeactivated, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch students")
 		return
 	}
 
@@ -408,7 +408,7 @@ func (h *CoachHandler) ListStudentAssignments(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, &coachID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
 	}
 
@@ -431,7 +431,7 @@ func (h *CoachHandler) DeleteStudent(c *gin.Context) {
 
 	found, err := h.StudentRepo.SoftDelete(studentID, tenantID, userID, &coachID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete student")
 		return
 	}
 	if !found {
@@ -458,7 +458,7 @@ func (h *CoachHandler) ReactivateStudent(c *gin.Context) {
 
 	found, err := h.StudentRepo.Reactivate(studentID, tenantID, &coachID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to reactivate student")
 		return
 	}
 	if !found {
@@ -481,7 +481,7 @@ func (h *CoachHandler) ListSubjects(c *gin.Context) {
 
 	subjects, total, err := h.TestRepo.ListSubjects(tenantID, "", limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch subjects")
 		return
 	}
 
@@ -501,7 +501,7 @@ func (h *CoachHandler) ListAssignments(c *gin.Context) {
 
 	assignments, total, err := h.AssignmentRepo.ListAll(tenantID, &coachID, testID, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
 	}
 
