@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon, SearchIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,10 @@ export function StudentsPage() {
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
 
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+
   // Coach search (admin only)
   const [coachSearch, setCoachSearch] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
@@ -80,6 +84,15 @@ export function StudentsPage() {
   }, [coachSearch, fetchCoaches, isAdmin]);
 
   useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSearch(searchInput);
+      setOffset(0);
+    }, 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchInput]);
+
+  useEffect(() => {
     if (!isAdmin) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -90,9 +103,9 @@ export function StudentsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isAdmin]);
 
-  const fetchStudents = useCallback(async (off: number, deactivated: boolean) => {
+  const fetchStudents = useCallback(async (off: number, deactivated: boolean, searchTerm: string) => {
     try {
-      const res = await getStudents({ limit: PAGE_SIZE, offset: off, include_deactivated: deactivated });
+      const res = await getStudents({ limit: PAGE_SIZE, offset: off, include_deactivated: deactivated, search: searchTerm || undefined });
       setStudents(res.data ?? []);
       setTotal(res.total);
     } catch {
@@ -101,8 +114,8 @@ export function StudentsPage() {
   }, []);
 
   useEffect(() => {
-    fetchStudents(offset, includeDeactivated);
-  }, [offset, includeDeactivated, fetchStudents]);
+    fetchStudents(offset, includeDeactivated, search);
+  }, [offset, includeDeactivated, search, fetchStudents]);
 
   const handleCoachSelect = (coach: Coach) => {
     setSelectedCoach(coach);
@@ -143,7 +156,7 @@ export function StudentsPage() {
       (e.target as HTMLFormElement).reset();
       setCoachSearch("");
       setSelectedCoach(null);
-      fetchStudents(offset, includeDeactivated);
+      fetchStudents(offset, includeDeactivated, search);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -156,7 +169,7 @@ export function StudentsPage() {
       setDeactivatingId(student.student_id);
       await deleteStudent(student.student_id);
       toast.success(`Student "${student.name}" account deactivated`);
-      fetchStudents(offset, includeDeactivated);
+      fetchStudents(offset, includeDeactivated, search);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -169,7 +182,7 @@ export function StudentsPage() {
       setReactivatingId(student.student_id);
       await reactivateStudent(student.student_id);
       toast.success(`Student "${student.name}" account reactivated`);
-      fetchStudents(offset, includeDeactivated);
+      fetchStudents(offset, includeDeactivated, search);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -275,6 +288,15 @@ export function StudentsPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">All Students</h2>
           <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search by name or code..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-9"
+              />
+            </div>
             <Button
               variant={includeDeactivated ? "default" : "outline"}
               size="sm"
