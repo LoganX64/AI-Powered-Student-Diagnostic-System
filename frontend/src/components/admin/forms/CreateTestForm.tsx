@@ -276,24 +276,26 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
             </div>
             )}
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="test-duration">Duration (minutes)</Label>
-            <Input
-              id="test-duration"
-              name="duration"
-              type="number"
-              min={1}
-              placeholder="120"
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="test-exam-date">Exam Date</Label>
-            <Input
-              id="test-exam-date"
-              name="exam_date"
-              type="date"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="test-duration">Duration (minutes)</Label>
+              <Input
+                id="test-duration"
+                name="duration"
+                type="number"
+                min={1}
+                placeholder="120"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="test-exam-date">Exam Date</Label>
+              <Input
+                id="test-exam-date"
+                name="exam_date"
+                type="date"
+              />
+            </div>
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
             {loading ? "Creating…" : "Create Test"}
