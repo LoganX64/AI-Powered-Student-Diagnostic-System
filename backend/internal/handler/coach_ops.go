@@ -165,7 +165,8 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 	}
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
-	students, total, err := h.StudentRepo.List(tenantID, &coachID, false, limit, offset)
+	search := c.Query("search")
+	students, total, err := h.StudentRepo.List(tenantID, &coachID, false, search, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch coach students")
 		return

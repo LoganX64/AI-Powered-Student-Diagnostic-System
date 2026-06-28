@@ -232,8 +232,9 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	includeDeactivated := c.Query("include_deactivated") == "true"
+	search := c.Query("search")
 
-	students, total, err := h.StudentRepo.List(tenantID, coachID, includeDeactivated, limit, offset)
+	students, total, err := h.StudentRepo.List(tenantID, coachID, includeDeactivated, search, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch students")
 		return

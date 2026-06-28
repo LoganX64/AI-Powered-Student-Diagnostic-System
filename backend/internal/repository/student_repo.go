@@ -88,7 +88,7 @@ func (r *StudentRepo) GetCoachIDAndTenantID(studentID int) (int, int, error) {
 	return coachID, tenantID, err
 }
 
-func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, limit, offset int) ([]StudentRow, int, error) {
+func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, search string, limit, offset int) ([]StudentRow, int, error) {
 	where := "tenant_id=$1"
 	args := []interface{}{tenantID}
 
@@ -100,6 +100,10 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 		where += " AND deleted_at IS NOT NULL"
 	} else {
 		where += " AND deleted_at IS NULL"
+	}
+	if search != "" {
+		where += " AND (name ILIKE $" + strconv.Itoa(len(args)+1) + " OR student_code ILIKE $" + strconv.Itoa(len(args)+1) + ")"
+		args = append(args, "%"+search+"%")
 	}
 
 	countQuery := "SELECT COUNT(*) FROM students WHERE " + where
