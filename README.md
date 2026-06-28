@@ -8,12 +8,11 @@ A comprehensive system that provides deep performance analysis, concept-level in
 - [System Architecture](#system-architecture)
 - [Frontend Structure](#frontend-structure)
 - [Backend Structure](#backend-structure)
-- [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
 
 ---
 
-## 🎯 Project Overview
+## Project Overview
 
 The AI-Powered Student Diagnostic System moves beyond raw marks and percentages by providing:
 
@@ -25,7 +24,7 @@ The AI-Powered Student Diagnostic System moves beyond raw marks and percentages 
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```
 ┌────────────────────┐
@@ -54,7 +53,7 @@ The AI-Powered Student Diagnostic System moves beyond raw marks and percentages 
 
 ---
 
-## 💻 Frontend Structure
+## Frontend Structure
 
 The frontend is built with **React 19**, **TypeScript**, **Vite**, **Tailwind CSS**, and **Radix UI**.
 
@@ -62,43 +61,80 @@ The frontend is built with **React 19**, **TypeScript**, **Vite**, **Tailwind CS
 
 ```
 frontend/
-├── index.html                  # Entry HTML file
-├── package.json               # Dependencies and scripts
-├── vite.config.ts             # Vite configuration
-├── tsconfig.json              # TypeScript configuration
-├── eslint.config.js           # ESLint rules
-├── components.json            # Component metadata
+├── index.html                    # Entry HTML file
+├── package.json                  # Dependencies and scripts
+├── vite.config.ts                # Vite configuration
+├── tsconfig.json                 # TypeScript base configuration
+├── tsconfig.app.json             # TypeScript app-specific config
+├── tsconfig.node.json            # TypeScript node-specific config
+├── eslint.config.js              # ESLint rules
+├── components.json               # Component metadata
+├── .env                          # Environment variables
+├── .env.example                  # Environment template
+├── routes/
+│   └── routes.ts                 # Route definitions
 ├── src/
-│   ├── main.tsx               # Application entry point
-│   ├── App.tsx                # Root component
-│   ├── App.css                # Global styles
-│   ├── index.css              # Base styles
-│   ├── assets/                # Static assets (images, fonts, etc.)
-│   ├── components/            # Reusable UI components
-│   │   ├── login-form.tsx     # Login form component
-│   │   ├── signup-form.tsx    # User registration form
-│   │   └── ui/                # UI component library
-│   │       ├── button.tsx     # Button component
-│   │       ├── card.tsx       # Card layout component
-│   │       ├── field.tsx      # Form field wrapper
-│   │       ├── input.tsx      # Input field component
-│   │       ├── label.tsx      # Label component
-│   │       └── separator.tsx  # Divider component
-│   ├── features/              # Feature-specific modules
-│   │   ├── admin/             # Admin dashboard and features
-│   │   ├── auth/              # Authentication pages and logic
-│   │   │   └── AuthPage.tsx   # Auth entry page
-│   │   ├── student/           # Student portal features
-│   │   ├── sqi/               # SQI (Student Quality Index) features
-│   │   └── test/              # Test-related features
-│   ├── services/              # API communication
-│   │   └── auth.service.ts    # Authentication API calls
-│   ├── lib/                   # Utility libraries
-│   │   └── utils.ts           # Helper functions
-│   ├── types/                 # TypeScript type definitions
-│   └── utils/                 # Utility functions
-├── public/                    # Public static files
-└── node_modules/              # Dependencies (generated)
+│   ├── main.tsx                  # Application entry point
+│   ├── index.css                 # Base styles
+│   ├── app/
+│   │   └── dashboard/            # Dashboard application shell
+│   ├── assets/                   # Static assets (images, fonts, etc.)
+│   ├── components/               # Reusable UI components
+│   │   ├── ProtectedRoute.tsx    # Route guard component
+│   │   ├── admin/                # Admin-specific components
+│   │   ├── coach/                # Coach-specific components
+│   │   ├── student/              # Student-specific components
+│   │   ├── shared/               # Shared components across roles
+│   │   └── ui/                   # UI component library
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── chart.tsx
+│   │       ├── dialog.tsx
+│   │       ├── dropdown-menu.tsx
+│   │       ├── field.tsx
+│   │       ├── input.tsx
+│   │       ├── label.tsx
+│   │       ├── progress.tsx
+│   │       ├── select.tsx
+│   │       ├── separator.tsx
+│   │       ├── sidebar.tsx
+│   │       ├── table.tsx
+│   │       ├── tabs.tsx
+│   │       ├── textarea.tsx
+│   │       ├── tooltip.tsx
+│   │       └── ... (29 components total)
+│   ├── contexts/                 # React context providers
+│   │   └── DashboardContext.tsx  # Dashboard state context
+│   ├── features/                 # Feature-specific modules
+│   │   ├── admin/                # Admin auth pages
+│   │   │   ├── AdminSigninPage.tsx
+│   │   │   └── AdminSignupPage.tsx
+│   │   ├── coach/                # Coach auth pages
+│   │   │   └── CoachSigninPage.tsx
+│   │   ├── landing/              # Landing page features
+│   │   ├── shared/               # Shared feature components
+│   │   ├── sqi/                  # SQI (Student Quality Index) features
+│   │   ├── student/              # Student portal features
+│   │   └── test/                 # Test-related features
+│   ├── hooks/                    # Custom React hooks
+│   │   ├── use-mobile.ts        # Mobile detection hook
+│   │   ├── useAnswerTracker.ts  # Answer tracking hook
+│   │   ├── useExamTimer.ts      # Exam timer hook
+│   │   └── useRole.ts           # Role detection hook
+│   ├── lib/                      # Utility libraries
+│   │   ├── api.ts               # API client configuration
+│   │   ├── token.ts             # Token management
+│   │   └── utils.ts             # Helper functions
+│   ├── services/                 # API communication
+│   │   ├── auth.service.ts      # Authentication API calls
+│   │   ├── dashboard.service.ts # Dashboard API calls
+│   │   ├── student.service.ts   # Student API calls
+│   │   └── types.ts             # Service type definitions
+│   ├── types/                    # TypeScript type definitions
+│   │   └── static/              # Static type definitions
+│   └── utils/                    # Utility functions (currently empty)
+├── public/                       # Public static files
+└── dist/                         # Build output (generated)
 ```
 
 ### Frontend Technologies
@@ -124,7 +160,7 @@ npm run preview    # Preview production build locally
 
 ---
 
-## 🔧 Backend Structure
+## Backend Structure
 
 The backend is built with **Go 1.25.1**, **Gin framework**, and **PostgreSQL**.
 
@@ -132,46 +168,65 @@ The backend is built with **Go 1.25.1**, **Gin framework**, and **PostgreSQL**.
 
 ```
 backend/
-├── go.mod                     # Go module definition
+├── go.mod                                    # Go module definition
+├── go.sum                                    # Go module checksums
+├── .env                                      # Environment variables
+├── .env.example                              # Environment template
 ├── cmd/
 │   ├── api/
-│   │   └── main.go            # Application entry point
-│   ├── createsuperadmin/       # CLI to create super admin
-│   ├── createadmin/            # CLI to create admin
-│   ├── check_migrations/       # Migration checker
-│   └── resetdb/                # DB reset utility
-├── internal/                  # Private application code
-│   ├── auth/                  # Authentication logic
-│   ├── config/                # Configuration management
-│   │   └── config.go          # Config parsing and setup
-│   ├── handler/               # HTTP request handlers
-│   │   ├── admin_handler.go   # Admin endpoints
-│   │   ├── auth_handler.go    # Authentication endpoints
-│   │   ├── coach_handler.go   # Coach endpoints
-│   │   └── student_handler.go # Student endpoints
-│   ├── helpers/               # Helper functions
-│   │   ├── weights.go         # SQI weight functions v1
-│   │   └── weights_v2.go      # SQI weight functions v2
-│   ├── middleware/            # HTTP middleware
-│   │   ├── auth.go            # Authentication middleware
-│   │   └── roleMiddleware.go  # Role-based access control
-│   ├── repository/            # Data access layer
-│   │   ├── db.go              # Database operations
-│   │   └── validators.go      # Input validation
-│   ├── routes/                # Route definitions
-│   │   └── routes.go          # API route setup
-│   └── services/              # Business logic
-│       ├── sqi_engine.go      # Student Quality Index calculations v1
-│       └── sqi_engine_v2.go   # Student Quality Index calculations v2
-├── utils/                     # Shared utilities
-│   ├── jwt.go                 # JWT token handling
-│   ├── password.go            # Password hashing and verification
-│   └── response.go            # Safe error response handler (env-aware)
-├── migrations/                # Database migrations
-│   ├── 000001_init.up.sql     # Initial schema (10 tables)
-│   └── 000001_init.down.sql   # Rollback initial schema
+│   │   └── main.go                           # Application entry point
+│   ├── createsuperadmin/                      # CLI to create super admin
+│   ├── createadmin/                           # CLI to create admin
+│   ├── check_migrations/                      # Migration checker
+│   └── resetdb/                               # DB reset utility
+├── internal/                                 # Private application code
+│   ├── auth/
+│   │   └── auth.go                           # Authentication logic
+│   ├── config/
+│   │   └── config.go                         # Config parsing and setup
+│   ├── handler/                              # HTTP request handlers
+│   │   ├── admin_handler.go                  # Admin endpoints
+│   │   ├── assignment_handler.go             # Assignment endpoints
+│   │   ├── coach_handler.go                  # Coach endpoints
+│   │   ├── coach_ops.go                      # Coach operations
+│   │   ├── helpers.go                        # Handler helper functions
+│   │   ├── student_handler.go                # Student endpoints
+│   │   ├── student_ops.go                    # Student operations
+│   │   ├── subject_handler.go                # Subject endpoints
+│   │   └── test_paper_handler.go             # Test paper endpoints
+│   ├── helper/
+│   │   └── weights_v2.go                     # SQI weight functions v2
+│   ├── middleware/                            # HTTP middleware
+│   │   ├── auth.go                           # Authentication middleware
+│   │   └── roleMiddleware.go                 # Role-based access control
+│   ├── repository/                           # Data access layer
+│   │   ├── db.go                             # Database operations
+│   │   └── validators.go                     # Input validation
+│   ├── routes/
+│   │   └── routes.go                         # API route setup
+│   ├── services/                             # Business logic
+│   │   ├── assignment_service.go             # Assignment business logic
+│   │   ├── attempt_service.go                # Attempt business logic
+│   │   ├── auth_service.go                   # Authentication business logic
+│   │   └── sqi_engine_v2.go                  # SQI calculations v2
+│   └── types/
+│       └── diagnostic.go                     # Diagnostic type definitions
+├── utils/                                    # Shared utilities
+│   ├── jwt.go                                # JWT token handling
+│   ├── pagination.go                         # Pagination utilities
+│   ├── password.go                           # Password hashing and verification
+│   └── response.go                           # Safe error response handler (env-aware)
+├── migrations/                               # Database migrations
+│   ├── 000001_init.up.sql                    # Initial schema (10 tables)
+│   ├── 000001_init.down.sql                  # Rollback initial schema
+│   ├── 000002_add_attempt_constraint.*       # Attempt constraint migration
+│   ├── 000003_add_coach_soft_delete.*        # Coach soft-delete migration
+│   ├── 000004_fix_student_code_unique.*      # Student code unique constraint
+│   └── 000006_add_subject_name_to_tests.*    # Subject name in tests
 ├── Ai-student-diagnosis.postman_collection.json  # API documentation
-└── README.md                  # Backend-specific documentation
+├── HANDLER_HELPERS.md                        # Handler helpers documentation
+├── TEST_PAYLOADS.md                          # Test payloads documentation
+└── README.md                                 # Backend-specific documentation
 ```
 
 ### Backend Technologies
@@ -225,16 +280,23 @@ Or set in `.env.production` and load with a tool like `godotenv`.
 
 Handles HTTP requests and responses:
 
-- `auth_handler.go`: Login, signup, Google OAuth, password management
-- `student_handler.go`: Student login and test submission
 - `admin_handler.go`: Admin CRUD for tests, questions, students, coaches, subjects, assignments
+- `assignment_handler.go`: Assignment endpoint handlers
 - `coach_handler.go`: Coach-specific CRUD endpoints
+- `coach_ops.go`: Coach operation helpers
+- `helpers.go`: Handler helper functions
+- `student_handler.go`: Student login and test submission
+- `student_ops.go`: Student operation helpers
+- `subject_handler.go`: Subject endpoint handlers
+- `test_paper_handler.go`: Test paper endpoint handlers
 
 #### 2. **Service Layer** (`internal/services/`)
 
 Contains business logic:
 
-- `sqi_engine.go`: Calculates Student Quality Index metrics (v1)
+- `assignment_service.go`: Assignment business logic
+- `attempt_service.go`: Attempt business logic
+- `auth_service.go`: Authentication business logic
 - `sqi_engine_v2.go`: Enhanced SQI calculations (v2)
 
 #### 3. **Repository Layer** (`internal/repository/`)
@@ -251,23 +313,40 @@ Request interceptors:
 - `auth.go`: Validates JWT tokens
 - `roleMiddleware.go`: Checks user roles and permissions
 
-#### 5. **Utilities** (`utils/`)
+#### 5. **Types** (`internal/types/`)
+
+Type definitions:
+
+- `diagnostic.go`: Diagnostic type definitions
+
+#### 6. **Helper** (`internal/helper/`)
+
+Helper functions:
+
+- `weights_v2.go`: SQI weight functions v2
+
+#### 7. **Utilities** (`utils/`)
 
 Shared functionality:
 
 - `jwt.go`: Token generation and validation
+- `pagination.go`: Pagination utilities
 - `password.go`: Secure password handling
+- `response.go`: Safe error response handler (env-aware)
 
 ---
 
-## 🗄️ Database Schema
+## Database Schema
 
 ### Migrations
 
 The system uses SQL migrations for schema management:
 
-- **000001_init.up.sql**: Creates base tables for tenants, users, coaches, students, subjects, tests, questions, assignments, attempts, answer_logs, and attempt_results
-- **000001_init.down.sql**: Drops all tables
+- **000001_init**: Creates base tables for tenants, users, coaches, students, subjects, tests, questions, assignments, attempts, answer_logs, and attempt_results
+- **000002_add_attempt_constraint**: Adds attempt constraints
+- **000003_add_coach_soft_delete**: Adds soft-delete support for coaches
+- **000004_fix_student_code_unique**: Fixes student code unique constraint
+- **000006_add_subject_name_to_tests**: Adds subject name to tests table
 
 ### Key Tables
 
@@ -285,7 +364,7 @@ The system uses SQL migrations for schema management:
 
 ---
 
-## 🔐 Authentication & Authorization
+## Authentication & Authorization
 
 ### Authentication Flow
 
@@ -302,7 +381,7 @@ The system uses SQL migrations for schema management:
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -340,7 +419,7 @@ psql -U <user> -d <database> -f migrations/000001_init.up.sql
 
 ---
 
-## 📚 API Documentation
+## API Documentation
 
 The backend API is documented in the Postman collection:
 
@@ -356,7 +435,7 @@ The backend API is documented in the Postman collection:
 
 ---
 
-## 🔄 Development Workflow
+## Development Workflow
 
 1. **Frontend**: Modify React components in `frontend/src/`
 2. **Backend**: Update Go files in `backend/internal/`
@@ -365,7 +444,7 @@ The backend API is documented in the Postman collection:
 
 ---
 
-## 📦 Project Features
+## Project Features
 
 ### Implemented
 
@@ -390,15 +469,20 @@ The backend API is documented in the Postman collection:
 
 ---
 
-## 📖 Additional Resources
+## Additional Resources
 
 - **Planning Document**: See `planning.md` for detailed vision and roadmap
+- **Architecture**: See `architecture.md` for system architecture details
 - **Backend README**: See `backend/README.md` for backend-specific details
 - **Frontend README**: See `frontend/README.md` for frontend-specific details
+- **Code Review**: See `code_review.md` for code review guidelines
+- **Error Handling**: See `error_handling.md` for error handling patterns
+- **Observability**: See `observability.md` for monitoring and logging
+- **Backend Features**: See `bkfeatures.md` for backend feature list
 
 ---
 
-## 📝 Notes
+## Notes
 
 - All TypeScript code must pass ESLint checks
 - Go code follows Go conventions and best practices
@@ -408,7 +492,7 @@ The backend API is documented in the Postman collection:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 When contributing to this project:
 
