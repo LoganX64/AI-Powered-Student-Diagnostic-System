@@ -65,7 +65,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 		Compute:         compute,
 	})
 	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, err.Error())
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch student SQI")
 		return
 	}
 
