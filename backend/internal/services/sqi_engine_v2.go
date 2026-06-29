@@ -68,6 +68,11 @@ const (
 
 type timeBucket string
 
+// Time buckets are intentionally defined with finer granularity.
+// At present, only timeFast influences SQI calculations.
+// The remaining buckets are reserved for future analytics,
+// behavioral flags, and reporting without requiring changes
+// to the classification logic.
 const (
 	timeFast     timeBucket = "fast"      // < 0.4× expected
 	timeNormal   timeBucket = "normal"    // 0.4–1.5× expected
@@ -363,9 +368,10 @@ func computeMastery(results []questionResult) float64 {
 	return helper.ClampV2(((scoreSum-minSum)/(maxSum-minSum))*100, 0, 100)
 }
 
-// Speed — quality of time usage on attempted questions.
-// Matrix: outcome × timeBucket → score (0–100)
-// Fast+correct = 100 (fluent), slow+wrong = 15 (wasted time AND marks)
+// Speed measures quality of time usage on attempted questions.
+// It uses the continuous TimeRatio rather than discrete time buckets.
+// Correct answers score highest when TimeRatio is close to the expected time.
+// Wrong answers receive progressively lower scores as more time is spent.
 func computeSpeed(results []questionResult) float64 {
 	var totalScore, totalWeight float64
 

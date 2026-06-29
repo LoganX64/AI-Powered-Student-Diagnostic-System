@@ -117,13 +117,7 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 		return
 	}
 
-	exists, err := h.CoachRepo.Exists(coachID, tenantID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
-		return
-	}
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+	if !verifyCoachExists(c, coachID, tenantID, h.CoachRepo) {
 		return
 	}
 
@@ -154,13 +148,7 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 		return
 	}
 
-	exists, err := h.CoachRepo.Exists(coachID, tenantID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
-		return
-	}
-	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+	if !verifyCoachExists(c, coachID, tenantID, h.CoachRepo) {
 		return
 	}
 

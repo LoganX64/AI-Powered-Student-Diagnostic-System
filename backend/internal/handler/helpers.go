@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/utils"
 	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -44,6 +46,19 @@ func getStudentIDFromContext(c *gin.Context) (int, error) {
 		return 0, fmt.Errorf("invalid token data")
 	}
 	return studentID, nil
+}
+
+func verifyCoachExists(c *gin.Context, coachID int, tenantID int, coachRepo *repository.CoachRepo) bool {
+	exists, err := coachRepo.Exists(coachID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+		return false
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+		return false
+	}
+	return true
 }
 
 func verifyTestAccess(c *gin.Context, testID int, role string, userRepo *repository.UserRepo, coachRepo *repository.CoachRepo, testPaperRepo *repository.TestPaperRepo, tenantID int) error {
