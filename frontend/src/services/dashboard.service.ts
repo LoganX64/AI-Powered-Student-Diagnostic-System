@@ -240,15 +240,15 @@ export type DashboardCounts = {
 export const getDashboardCounts = async (): Promise<DashboardCounts> => {
   const prefix = getPrefix();
 
-  const [coachesRes, studentsRes, testsRes] = await Promise.all([
+  const [coaches, students, tests] = await Promise.allSettled([
     apiFetch<PaginatedResponse<unknown>>(`${prefix}/coaches?limit=1`),
     apiFetch<PaginatedResponse<unknown>>(`${prefix}/students?limit=1`),
     apiFetch<PaginatedResponse<unknown>>(`${prefix}/tests?limit=1`),
   ]);
 
   return {
-    totalCoaches: coachesRes.total,
-    totalStudents: studentsRes.total,
-    testsCreated: testsRes.total,
+    totalCoaches: coaches.status === "fulfilled" ? coaches.value.total : 0,
+    totalStudents: students.status === "fulfilled" ? students.value.total : 0,
+    testsCreated: tests.status === "fulfilled" ? tests.value.total : 0,
   };
 };
