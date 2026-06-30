@@ -33,14 +33,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { apiFetch } from "@/lib/api";
 import {
   getAssignments,
+  getTest,
+  getTestQuestions,
   updateQuestion,
   deleteTest,
   type Assignment,
+  type TestDetail,
+  type TestQuestion,
   type CreateQuestionPayload,
-  type PaginatedResponse,
 } from "@/services/dashboard.service";
 import {
   QuestionFormFields,
@@ -49,35 +51,6 @@ import {
 import { QuestionCard } from "@/components/admin/QuestionCard";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
 import { formatDateDDMMYYYY } from "@/lib/utils";
-
-type TestDetail = {
-  test_id: number;
-  title: string;
-  subject_id: number;
-  coach_id: number;
-  duration: number;
-  created_at: string;
-  subject_name: string;
-  coach_name: string;
-  exam_date?: string;
-};
-
-type Question = {
-  id: number;
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: string;
-  marks: number;
-  neg_marks: number;
-  importance: string;
-  difficulty: string;
-  type: string;
-  expected_time: number;
-  concept_tag: string;
-};
 
 const PAGE_SIZE = 50;
 
@@ -93,25 +66,23 @@ export function TestDetailPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
   const [assignmentOffset, setAssignmentOffset] = useState(0);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<TestQuestion[]>([]);
   const [questionTotal, setQuestionTotal] = useState(0);
   const [questionOffset, setQuestionOffset] = useState(0);
 
   const [editingTest, setEditingTest] = useState(false);
 
-  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null);
   const [questionForm, setQuestionForm] = useState<Partial<CreateQuestionPayload>>({});
   const [savingQuestion, setSavingQuestion] = useState(false);
 
-  const apiPrefix = isAdmin ? "/admin" : "/coach";
-
   useEffect(() => {
     if (!id) return;
-    apiFetch<TestDetail>(`${apiPrefix}/tests/${id}`).then(setTest).catch(() => {});
+    getTest(Number(id)).then(setTest).catch(() => {});
     if (isAdmin && window.location.search.includes("edit=true")) {
       setEditingTest(true);
     }
-  }, [id, apiPrefix, isAdmin]);
+  }, [id, isAdmin]);
 
   const fetchAssignments = useCallback(async (off: number) => {
     if (!id) return;
@@ -127,13 +98,13 @@ export function TestDetailPage() {
   const fetchQuestions = useCallback(async (off: number) => {
     if (!id) return;
     try {
-      const res = await apiFetch<PaginatedResponse<Question>>(`${apiPrefix}/tests/${id}/questions?limit=${PAGE_SIZE}&offset=${off}`);
+      const res = await getTestQuestions(Number(id), { limit: PAGE_SIZE, offset: off });
       setQuestions(res.data ?? []);
       setQuestionTotal(res.total);
     } catch {
       // silently ignore
     }
-  }, [id, apiPrefix]);
+  }, [id]);
 
   useEffect(() => {
     fetchAssignments(assignmentOffset);
@@ -143,7 +114,7 @@ export function TestDetailPage() {
     fetchQuestions(questionOffset);
   }, [questionOffset, fetchQuestions]);
 
-  const openEditDialog = (q: Question) => {
+  const openEditDialog = (q: TestQuestion) => {
     setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,
@@ -486,7 +457,7 @@ export function TestDetailPage() {
           onOpenChange={(open) => {
             if (!open) {
               setEditingTest(false);
-              apiFetch<TestDetail>(`${apiPrefix}/tests/${id}`).then(setTest).catch(() => {});
+              getTest(Number(id)).then(setTest).catch(() => {});
             }
           }}
         />

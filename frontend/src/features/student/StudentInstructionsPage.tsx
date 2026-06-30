@@ -88,7 +88,9 @@ export function StudentInstructionsPage() {
   }, []);
 
   // Clear stale timer so useExamTimer always initializes with the correct duration
-  localStorage.removeItem("exam_timer");
+  useEffect(() => {
+    localStorage.removeItem("exam_timer");
+  }, []);
 
   // Timer does NOT start until the student clicks Accept
   // Backend stores duration in minutes; convert to seconds for useExamTimer

@@ -7,6 +7,8 @@ import type {
   CreateQuestionPayload,
   CreateAssignmentPayload,
   Test,
+  TestDetail,
+  TestQuestion,
   Coach,
   Student,
   Subject,
@@ -30,6 +32,8 @@ export type {
   CreateQuestionPayload,
   CreateAssignmentPayload,
   Test,
+  TestDetail,
+  TestQuestion,
   Coach,
   Student,
   Subject,
@@ -183,6 +187,12 @@ export const deleteTest = (testId: number) =>
 
 export const getTests = (params?: PaginationParams) =>
   apiFetch<PaginatedResponse<Test>>(`${getPrefix()}/tests${buildQuery(params)}`);
+
+export const getTest = (testId: number) =>
+  apiFetch<TestDetail>(`${getPrefix()}/tests/${testId}`);
+
+export const getTestQuestions = (testId: number, params?: PaginationParams) =>
+  apiFetch<PaginatedResponse<TestQuestion>>(`${getPrefix()}/tests/${testId}/questions${buildQuery(params)}`);
 
 // ─── Question endpoints (role-aware) ──────────────────────────────────────────
 

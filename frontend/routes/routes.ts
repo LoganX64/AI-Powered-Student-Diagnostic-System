@@ -33,7 +33,7 @@ import { AssignmentDetailPage } from "../src/features/shared/AssignmentDetailPag
 const router = createBrowserRouter([
   // Public pages
   { path: "/", Component: LandingPage },
-  { path: "about", Component: AboutPage },
+  { path: "/about", Component: AboutPage },
 
 
   // Auth pages — centered layout

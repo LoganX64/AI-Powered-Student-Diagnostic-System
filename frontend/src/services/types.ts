@@ -58,6 +58,7 @@ export type Test = {
   subject_name: string;
   coach_name: string;
   exam_date?: string;
+  created_at?: string;
 };
 
 export type Coach = {
@@ -269,4 +270,35 @@ export type SQIResponse = {
   attempts: SQIAttempt[];
   average_sqi: number;
   total_tests: number;
+};
+
+// ─── Test Detail Types ────────────────────────────────────────────────────────
+
+export type TestDetail = {
+  test_id: number;
+  title: string;
+  subject_id: number;
+  coach_id: number;
+  duration: number;
+  created_at: string;
+  subject_name: string;
+  coach_name: string;
+  exam_date?: string;
+};
+
+export type TestQuestion = {
+  id: number;
+  question_text: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+  marks: number;
+  neg_marks: number;
+  importance: string;
+  difficulty: string;
+  type: string;
+  expected_time: number;
+  concept_tag: string;
 };
