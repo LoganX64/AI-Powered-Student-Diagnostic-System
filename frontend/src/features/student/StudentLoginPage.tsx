@@ -13,13 +13,9 @@ export function StudentLoginPage() {
       setError("");
       setLoading(true);
       const result = await loginStudent(data);
-      localStorage.setItem("student_token", result.access_token);
-      localStorage.setItem("student_role", "student");
+      localStorage.setItem("student_token", result.token);
       localStorage.setItem("student_code", data.student_code);
-
-      // Resume: if exam was already started, go straight to quiz
-      const examInProgress = localStorage.getItem("exam_started") === "true";
-      navigate(examInProgress ? "/quiz" : "/dashboard");
+      navigate("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

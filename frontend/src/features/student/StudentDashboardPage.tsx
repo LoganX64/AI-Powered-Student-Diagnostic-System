@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, Clock, FileText, LogOut, Mail, Phone } from "lucide-react";
+import { AlertTriangle, BarChart3, Clock, FileText, LogOut, Mail, Phone } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { getStudentAssignments } from "../../services/student.service";
 import type { Assignment } from "../../services/student.service";
@@ -21,6 +21,9 @@ export function StudentDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [examInProgress] = useState(
+    () => localStorage.getItem("exam_started") === "true" && !!localStorage.getItem("assignment_id")
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +44,10 @@ export function StudentDashboardPage() {
 
   const handleStartExam = (assignmentId: number) => {
     localStorage.setItem("assignment_id", String(assignmentId));
+    navigate("/instructions");
+  };
+
+  const handleResumeExam = () => {
     navigate("/instructions");
   };
 
@@ -73,6 +80,21 @@ export function StudentDashboardPage() {
           Logout
         </Button>
       </div>
+
+      {/* Resume exam banner */}
+      {examInProgress && (
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-yellow-300 bg-yellow-50 px-5 py-3 dark:border-yellow-700 dark:bg-yellow-950">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+            <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+              You have an exam in progress. Your previous answers are saved.
+            </span>
+          </div>
+          <Button size="sm" onClick={handleResumeExam}>
+            Resume Exam
+          </Button>
+        </div>
+      )}
 
       {/* Content */}
       <div className="mt-6 flex flex-1 flex-col rounded-2xl border border-border bg-card shadow-sm">

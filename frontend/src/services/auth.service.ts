@@ -29,7 +29,7 @@ export interface StudentLoginPayload {
 }
 
 export interface StudentLoginResponse {
-  access_token: string;
+  token: string;
 }
 
 export const login = (data: LoginPayload) =>
