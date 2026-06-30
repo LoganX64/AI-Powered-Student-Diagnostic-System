@@ -458,8 +458,8 @@ flowchart TD
 |---|---|---|---|---|
 | FE-1 | JWT tokens in `localStorage` (XSS-accessible) | High | Large | **TODO** |
 | FE-2 | `useRole` unreliable role detection | High | Small | **TODO** |
-| FE-3 | `student_role` key written but never read | Medium | Small | **TODO** |
-| FE-4 | `exam_started` localStorage flag injectable | Medium | Medium | **TODO** |
+| FE-3 | ~~`student_role` key written but never read~~ | Medium | Small | **DONE** |
+| FE-4 | ~~`exam_started` localStorage flag injectable~~ | Medium | Medium | **DONE** |
 | FE-5 | Multiple pages render static mock data | Medium | Large | **TODO** |
 | FE-6 | `SettingsPage` save handlers are no-ops | Medium | Medium | **TODO** |
 | FE-7 | `getPrefix()` reads stale role | Medium | Medium | **TODO** |
