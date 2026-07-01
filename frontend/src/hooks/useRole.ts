@@ -1,15 +1,28 @@
 import { useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { getTokenPayload } from "@/lib/token";
 
 export type Role = "admin" | "coach" | "student";
 
-export function useRole(): Role {
-  const { pathname } = useLocation();
-  return useMemo(() => {
-    const storedRole = localStorage.getItem("admin_role") as Role | null;
-    if (pathname.startsWith("/admin")) {
-      return storedRole === "admin" ? "admin" : "coach";
+function readTokenRole(): Role | null {
+  const token = localStorage.getItem("admin_token");
+  if (token) {
+    const payload = getTokenPayload(token);
+    if (payload && (payload.role === "admin" || payload.role === "coach")) {
+      return payload.role;
     }
-    return storedRole === "coach" ? "coach" : "admin";
-  }, [pathname]);
+  }
+
+  const studentToken = localStorage.getItem("student_token");
+  if (studentToken) {
+    const payload = getTokenPayload(studentToken);
+    if (payload && payload.role === "student") {
+      return "student";
+    }
+  }
+
+  return null;
+}
+
+export function useRole(): Role {
+  return useMemo(() => readTokenRole() ?? "admin", []);
 }

@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { isTokenExpired } from "@/lib/token";
+import { getTokenPayload, isTokenExpired } from "@/lib/token";
 
 type Role = "admin" | "coach" | "student";
 
@@ -9,16 +9,26 @@ const REDIRECT_MAP: Record<Role, string> = {
   student: "/student-login",
 };
 
-function detectRole(pathname: string): Role | null {
+function detectRoleFromPath(pathname: string): Role | null {
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/coach")) return "coach";
-  // Student-protected routes
   if (["/dashboard", "/instructions", "/quiz", "/submitted"].includes(pathname)) return "student";
   return null;
 }
 
-function clearExpiredToken(role: Role) {
-  if (role === "student") {
+function getRoleFromToken(tokenKey: string): Role | null {
+  const token = localStorage.getItem(tokenKey);
+  if (!token) return null;
+  const payload = getTokenPayload(token);
+  if (!payload) return null;
+  if (payload.role === "admin" || payload.role === "coach" || payload.role === "student") {
+    return payload.role;
+  }
+  return null;
+}
+
+function clearExpiredToken(tokenKey: string) {
+  if (tokenKey === "student_token") {
     localStorage.removeItem("student_token");
     localStorage.removeItem("student_code");
   } else {
@@ -29,31 +39,25 @@ function clearExpiredToken(role: Role) {
 
 function isAuthenticated(role: Role): boolean {
   switch (role) {
-    case "admin": {
-      const token = localStorage.getItem("admin_token");
-      const roleValue = localStorage.getItem("admin_role");
-      if (!token || roleValue !== "admin") return false;
-      if (isTokenExpired(token)) {
-        clearExpiredToken(role);
-        return false;
-      }
-      return true;
-    }
+    case "admin":
     case "coach": {
-      const token = localStorage.getItem("admin_token");
-      const roleValue = localStorage.getItem("admin_role");
-      if (!token || roleValue !== "coach") return false;
+      const tokenKey = "admin_token";
+      const token = localStorage.getItem(tokenKey);
+      if (!token) return false;
+      const tokenRole = getRoleFromToken(tokenKey);
+      if (tokenRole !== role) return false;
       if (isTokenExpired(token)) {
-        clearExpiredToken(role);
+        clearExpiredToken(tokenKey);
         return false;
       }
       return true;
     }
     case "student": {
-      const token = localStorage.getItem("student_token");
+      const tokenKey = "student_token";
+      const token = localStorage.getItem(tokenKey);
       if (!token) return false;
       if (isTokenExpired(token)) {
-        clearExpiredToken(role);
+        clearExpiredToken(tokenKey);
         return false;
       }
       return true;
@@ -65,9 +69,9 @@ function isAuthenticated(role: Role): boolean {
 
 export function ProtectedRoute() {
   const { pathname } = useLocation();
-  const role = detectRole(pathname);
+  const requiredRole = detectRoleFromPath(pathname);
 
-  if (!role) return <Navigate to="/" replace />;
-  if (isAuthenticated(role)) return <Outlet />;
-  return <Navigate to={REDIRECT_MAP[role]} replace />;
+  if (!requiredRole) return <Navigate to="/" replace />;
+  if (isAuthenticated(requiredRole)) return <Outlet />;
+  return <Navigate to={REDIRECT_MAP[requiredRole]} replace />;
 }
