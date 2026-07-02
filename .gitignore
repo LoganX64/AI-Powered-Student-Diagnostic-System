@@ -1,8 +1,4 @@
-planning.md
-code_review.md
-TEST_PAYLOADS.md
-backend/TEST_PAYLOADS.md
-tracker.md
+
 
 # environment variables
 .env
@@ -36,9 +32,9 @@ dist-ssr
 *.sw?
 sqi_engine_v2.go
 weights_v2.go
-bkfeatures.md
-code_review.md
-planning.md
+
+
+bkfeatures.md   
 plan.md
 duplicate_issues.md
 architecture.md
@@ -46,3 +42,7 @@ error_handling.md
 observability.md
 HANDLER_HELPERS.md
 delete.md
+planning.md
+code_review.md
+TEST_PAYLOADS.md
+tracker.md
