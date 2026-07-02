@@ -127,20 +127,20 @@ frontend/
 
 ## 🛠️ Tech Stack
 
-| Technology | Purpose |
-|---|---|
-| **React 19** | UI framework |
-| **TypeScript** | Type-safe JavaScript |
-| **Vite** | Fast build tool and dev server |
-| **Tailwind CSS 4** | Utility-first styling |
-| **Shadcn/ui** | Accessible component primitives (Radix UI) |
-| **React Router 7** | Client-side routing |
-| **TanStack React Table** | Table state and rendering |
-| **Recharts** | Chart components |
-| **Zod** | Schema validation |
-| **Lucide React** | Icon library |
-| **Sonner** | Toast notifications |
-| **Vaul** | Drawer component |
+| Technology               | Purpose                                    |
+| ------------------------ | ------------------------------------------ |
+| **React 19**             | UI framework                               |
+| **TypeScript**           | Type-safe JavaScript                       |
+| **Vite**                 | Fast build tool and dev server             |
+| **Tailwind CSS 4**       | Utility-first styling                      |
+| **Shadcn/ui**            | Accessible component primitives (Radix UI) |
+| **React Router 7**       | Client-side routing                        |
+| **TanStack React Table** | Table state and rendering                  |
+| **Recharts**             | Chart components                           |
+| **Zod**                  | Schema validation                          |
+| **Lucide React**         | Icon library                               |
+| **Sonner**               | Toast notifications                        |
+| **Vaul**                 | Drawer component                           |
 
 ## 🚀 Getting Started
 
@@ -158,6 +158,14 @@ frontend/
    ```
 
 2. Install dependencies:
+
+   Recommended (pnpm):
+
+   ```bash
+   pnpm install
+   ```
+
+   Or using npm:
 
    ```bash
    npm install
@@ -182,15 +190,38 @@ frontend/
    npm run build
    ```
 
+### Quick Start (development)
+
+From repository root — copy `.env`, install, and run:
+
+```bash
+# frontend
+cd frontend
+cp .env.example .env
+pnpm install    # or `npm install`
+pnpm dev        # or `npm run dev`
+
+# backend (see ../backend)
+cd ../backend
+cp .env.example .env
+go mod download
+go run ./cmd/api/main.go
+```
+
+Notes:
+
+- `pnpm` is recommended for faster installs and deterministic lockfiles (repo includes `pnpm-lock.yaml`).
+- Ensure `VITE_BACKEND_URL` in `frontend/.env` points to your running backend (default: `http://localhost:8080`).
+
 ## 🔐 Authentication & Roles
 
 The application supports three user roles with separate login flows:
 
-| Role | Login Page | Token Storage | Dashboard |
-|---|---|---|---|
-| **Admin** | `/admin-signin` | `admin_token` + `admin_role` in localStorage | `/admin/*` |
-| **Coach** | `/coach-signin` | `admin_token` + `admin_role` in localStorage | `/coach/*` |
-| **Student** | `/student-login` | `student_token` in localStorage | N/A (exam flow) |
+| Role        | Login Page       | Token Storage                                | Dashboard       |
+| ----------- | ---------------- | -------------------------------------------- | --------------- |
+| **Admin**   | `/admin-signin`  | `admin_token` + `admin_role` in localStorage | `/admin/*`      |
+| **Coach**   | `/coach-signin`  | `admin_token` + `admin_role` in localStorage | `/coach/*`      |
+| **Student** | `/student-login` | `student_token` in localStorage              | N/A (exam flow) |
 
 - **ProtectedRoute** component guards all dashboard routes, redirecting unauthenticated users to the correct login page based on URL path.
 - Admin and Coach dashboards share the same page components via `dashboard.service.ts`, which dynamically switches the API prefix based on role.
@@ -199,66 +230,66 @@ The application supports three user roles with separate login flows:
 
 ### Public Routes
 
-| Path | Page |
-|---|---|
-| `/` | Landing Page |
-| `/about` | About Page |
+| Path     | Page         |
+| -------- | ------------ |
+| `/`      | Landing Page |
+| `/about` | About Page   |
 
 ### Auth Routes
 
-| Path | Page |
-|---|---|
-| `/student-login` | Student Login |
-| `/admin-signin` | Admin Sign-in |
-| `/admin-signup` | Admin Registration |
-| `/coach-signin` | Coach Sign-in |
+| Path             | Page               |
+| ---------------- | ------------------ |
+| `/student-login` | Student Login      |
+| `/admin-signin`  | Admin Sign-in      |
+| `/admin-signup`  | Admin Registration |
+| `/coach-signin`  | Coach Sign-in      |
 
 ### Admin Dashboard (`/admin/*`)
 
-| Path | Page |
-|---|---|
-| `/admin/dashboard` | Dashboard (charts, stats, table) |
-| `/admin/coaches` | Coaches List |
-| `/admin/coaches/:id` | Coach Detail |
-| `/admin/students` | Students List |
-| `/admin/students/:id` | Student Detail |
-| `/admin/students/:id/sqi` | Student SQI Analysis |
-| `/admin/subjects` | Subjects List |
-| `/admin/tests` | Tests List |
-| `/admin/all-tests` | All Tests (cross-coach) |
-| `/admin/tests/:id` | Test Detail |
-| `/admin/tests/:id/questions` | Questions Management |
-| `/admin/settings` | Settings |
-| `/admin/help` | Help |
-| `/admin/accounts` | Accounts |
-| `/admin/billing` | Billing |
-| `/admin/notifications` | Notifications |
+| Path                         | Page                             |
+| ---------------------------- | -------------------------------- |
+| `/admin/dashboard`           | Dashboard (charts, stats, table) |
+| `/admin/coaches`             | Coaches List                     |
+| `/admin/coaches/:id`         | Coach Detail                     |
+| `/admin/students`            | Students List                    |
+| `/admin/students/:id`        | Student Detail                   |
+| `/admin/students/:id/sqi`    | Student SQI Analysis             |
+| `/admin/subjects`            | Subjects List                    |
+| `/admin/tests`               | Tests List                       |
+| `/admin/all-tests`           | All Tests (cross-coach)          |
+| `/admin/tests/:id`           | Test Detail                      |
+| `/admin/tests/:id/questions` | Questions Management             |
+| `/admin/settings`            | Settings                         |
+| `/admin/help`                | Help                             |
+| `/admin/accounts`            | Accounts                         |
+| `/admin/billing`             | Billing                          |
+| `/admin/notifications`       | Notifications                    |
 
 ### Coach Dashboard (`/coach/*`)
 
-| Path | Page |
-|---|---|
-| `/coach/dashboard` | Dashboard |
-| `/coach/students` | Students List |
-| `/coach/students/:id` | Student Detail |
-| `/coach/students/:id/sqi` | Student SQI Analysis |
-| `/coach/subjects` | Subjects List |
-| `/coach/tests` | Tests List |
-| `/coach/all-tests` | All Tests |
-| `/coach/tests/:id` | Test Detail |
+| Path                         | Page                 |
+| ---------------------------- | -------------------- |
+| `/coach/dashboard`           | Dashboard            |
+| `/coach/students`            | Students List        |
+| `/coach/students/:id`        | Student Detail       |
+| `/coach/students/:id/sqi`    | Student SQI Analysis |
+| `/coach/subjects`            | Subjects List        |
+| `/coach/tests`               | Tests List           |
+| `/coach/all-tests`           | All Tests            |
+| `/coach/tests/:id`           | Test Detail          |
 | `/coach/tests/:id/questions` | Questions Management |
-| `/coach/settings` | Settings |
-| `/coach/help` | Help |
-| `/coach/accounts` | Accounts |
-| `/coach/notifications` | Notifications |
+| `/coach/settings`            | Settings             |
+| `/coach/help`                | Help                 |
+| `/coach/accounts`            | Accounts             |
+| `/coach/notifications`       | Notifications        |
 
 ### Student Flow
 
-| Path | Page |
-|---|---|
-| `/instructions` | Pre-exam Instructions |
-| `/quiz` | Quiz/Exam (with countdown timer) |
-| `/submitted` | Post-submission Confirmation |
+| Path            | Page                             |
+| --------------- | -------------------------------- |
+| `/instructions` | Pre-exam Instructions            |
+| `/quiz`         | Quiz/Exam (with countdown timer) |
+| `/submitted`    | Post-submission Confirmation     |
 
 ## 🧩 Architecture Highlights
 

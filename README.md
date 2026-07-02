@@ -247,27 +247,28 @@ cd backend
 cp .env.example .env
 ```
 
-| Variable | Values | Description |
-|----------|--------|-------------|
-| `APP_ENV` | `development` (default) | Raw errors returned to client for frontend debugging |
-| `APP_ENV` | `production` | Generic errors returned; real errors logged server-side only |
-| `PORT` | `8080` | Server port |
-| `DB_URL` | `postgres://...` | PostgreSQL connection string |
-| `JWT_SECRET` | string | Secret key for JWT token signing |
-| `JWT_EXPIRY` | `4h` | Token expiration duration |
+| Variable     | Values                  | Description                                                  |
+| ------------ | ----------------------- | ------------------------------------------------------------ |
+| `APP_ENV`    | `development` (default) | Raw errors returned to client for frontend debugging         |
+| `APP_ENV`    | `production`            | Generic errors returned; real errors logged server-side only |
+| `PORT`       | `8080`                  | Server port                                                  |
+| `DB_URL`     | `postgres://...`        | PostgreSQL connection string                                 |
+| `JWT_SECRET` | string                  | Secret key for JWT token signing                             |
+| `JWT_EXPIRY` | `4h`                    | Token expiration duration                                    |
 
 #### Error Handling by Environment
 
 The backend uses `utils.SafeErrorResponse` to handle errors differently based on environment:
 
-| Environment | Client sees | Server logs |
-|-------------|-------------|-------------|
-| **Development** | Raw `err.Error()` (e.g., `pq: duplicate key value violates constraint`) | Yes |
-| **Production** | Generic message (e.g., `failed to create student`) | Yes |
+| Environment     | Client sees                                                             | Server logs |
+| --------------- | ----------------------------------------------------------------------- | ----------- |
+| **Development** | Raw `err.Error()` (e.g., `pq: duplicate key value violates constraint`) | Yes         |
+| **Production**  | Generic message (e.g., `failed to create student`)                      | Yes         |
 
 This allows frontend developers to see exact error details during development while protecting sensitive information in production.
 
 **Production deployment:**
+
 ```bash
 APP_ENV=production go run cmd/api/main.go
 ```
@@ -390,14 +391,47 @@ The system uses SQL migrations for schema management:
 - **PostgreSQL** 12+ (Database)
 - **npm** or **yarn** (Package manager)
 
-### Frontend Setup
+### Quick Start (development)
+
+Prerequisites above are required. The repository contains `pnpm-lock.yaml` and `pnpm-workspace.yaml`; `pnpm` is recommended for installs, though `npm` also works.
+
+Backend (development):
+
+```bash
+# from repo root
+cd backend
+cp .env.example .env
+go mod download
+go run ./cmd/api/main.go
+# server should start on http://localhost:8080
+# migrations are applied automatically on startup by default (see cmd/api/main.go)
+```
+
+If you prefer manual migrations with the `migrate` CLI:
+
+```bash
+cd backend
+migrate -path migrations -database "<DB_URL>" up
+```
+
+Frontend (development):
 
 ```bash
 cd frontend
+# recommended
+pnpm install
+pnpm dev
+
+# or using npm
 npm install
-npm run dev       # Development server (http://localhost:5173)
-npm run build     # Production build
+npm run dev
 ```
+
+Notes:
+
+- Copy `.env.example` in `backend` and `frontend` to `.env` before running services.
+- Confirm migration behavior in `cmd/api/main.go` if you need strict manual control over schema changes.
+- Use Node.js 18+; install `pnpm` if you want the recommended workflow: `npm install -g pnpm`.
 
 ### Backend Setup
 

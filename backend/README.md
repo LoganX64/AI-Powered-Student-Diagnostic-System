@@ -93,6 +93,22 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
    go run ./cmd/createsuperadmin -email "super@example.com" -password "ChangeThisStrongPassword"
    ```
 
+### Quick Start (development)
+
+From repository root, copy `.env`, install modules, and run the API:
+
+```bash
+cd backend
+cp .env.example .env
+go mod download
+go run ./cmd/api/main.go
+# server: http://localhost:8080 (migrations apply automatically at startup)
+```
+
+Notes:
+- If you prefer manual migrations, use the `migrate` CLI as documented below.
+- Use `go run ./cmd/createsuperadmin` to create the initial system `super_admin` account.
+
 ## 📡 API Endpoints
 
 ### Authentication Routes (`/auth`)
