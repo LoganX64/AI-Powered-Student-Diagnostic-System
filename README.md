@@ -77,32 +77,16 @@ frontend/
 │   ├── main.tsx                  # Application entry point
 │   ├── index.css                 # Base styles
 │   ├── app/
-│   │   └── dashboard/            # Dashboard application shell
+│   │   └── dashboard/
+│   │       └── data.json         # Dashboard mock data
 │   ├── assets/                   # Static assets (images, fonts, etc.)
 │   ├── components/               # Reusable UI components
 │   │   ├── ProtectedRoute.tsx    # Route guard component
 │   │   ├── admin/                # Admin-specific components
-│   │   ├── coach/                # Coach-specific components
+│   │   ├── coach/                # Coach-specific components (currently empty)
 │   │   ├── student/              # Student-specific components
 │   │   ├── shared/               # Shared components across roles
-│   │   └── ui/                   # UI component library
-│   │       ├── button.tsx
-│   │       ├── card.tsx
-│   │       ├── chart.tsx
-│   │       ├── dialog.tsx
-│   │       ├── dropdown-menu.tsx
-│   │       ├── field.tsx
-│   │       ├── input.tsx
-│   │       ├── label.tsx
-│   │       ├── progress.tsx
-│   │       ├── select.tsx
-│   │       ├── separator.tsx
-│   │       ├── sidebar.tsx
-│   │       ├── table.tsx
-│   │       ├── tabs.tsx
-│   │       ├── textarea.tsx
-│   │       ├── tooltip.tsx
-│   │       └── ... (29 components total)
+│   │   └── ui/                   # UI component library (29 components)
 │   ├── contexts/                 # React context providers
 │   │   └── DashboardContext.tsx  # Dashboard state context
 │   ├── features/                 # Feature-specific modules
@@ -112,10 +96,10 @@ frontend/
 │   │   ├── coach/                # Coach auth pages
 │   │   │   └── CoachSigninPage.tsx
 │   │   ├── landing/              # Landing page features
-│   │   ├── shared/               # Shared feature components
-│   │   ├── sqi/                  # SQI (Student Quality Index) features
+│   │   ├── shared/               # Shared feature components (18 pages)
+│   │   ├── sqi/                  # Empty (SQI view is in shared/)
 │   │   ├── student/              # Student portal features
-│   │   └── test/                 # Test-related features
+│   │   └── test/                 # Empty (test pages are in shared/)
 │   ├── hooks/                    # Custom React hooks
 │   │   ├── use-mobile.ts        # Mobile detection hook
 │   │   ├── useAnswerTracker.ts  # Answer tracking hook
@@ -176,22 +160,22 @@ backend/
 │   ├── api/
 │   │   └── main.go                           # Application entry point
 │   ├── createsuperadmin/                      # CLI to create super admin
-│   ├── createadmin/                           # CLI to create admin
 │   ├── check_migrations/                      # Migration checker
 │   └── resetdb/                               # DB reset utility
 ├── internal/                                 # Private application code
 │   ├── auth/
-│   │   └── auth.go                           # Authentication logic
+│   │   ├── auth.go                           # Authentication logic
+│   │   └── google_auth.go                    # Google OAuth token verification
 │   ├── config/
 │   │   └── config.go                         # Config parsing and setup
 │   ├── handler/                              # HTTP request handlers
 │   │   ├── admin_handler.go                  # Admin endpoints
 │   │   ├── assignment_handler.go             # Assignment endpoints
 │   │   ├── coach_handler.go                  # Coach endpoints
-│   │   ├── coach_ops.go                      # Coach operations
+│   │   ├── coach_ops.go                      # Coach operation helpers
 │   │   ├── helpers.go                        # Handler helper functions
 │   │   ├── student_handler.go                # Student endpoints
-│   │   ├── student_ops.go                    # Student operations
+│   │   ├── student_ops.go                    # Student operation helpers
 │   │   ├── subject_handler.go                # Subject endpoints
 │   │   └── test_paper_handler.go             # Test paper endpoints
 │   ├── helper/
@@ -201,13 +185,19 @@ backend/
 │   │   └── roleMiddleware.go                 # Role-based access control
 │   ├── repository/                           # Data access layer
 │   │   ├── db.go                             # Database operations
-│   │   └── validators.go                     # Input validation
+│   │   ├── user_repo.go                      # User/tenant queries
+│   │   ├── student_repo.go                   # Student CRUD queries
+│   │   ├── coach_repo.go                     # Coach CRUD queries
+│   │   ├── test_paper_repo.go                # Test/question/subject CRUD queries
+│   │   ├── assignment_repo.go                # Assignment CRUD queries
+│   │   └── attempt_repo.go                   # Attempt lifecycle queries
 │   ├── routes/
 │   │   └── routes.go                         # API route setup
 │   ├── services/                             # Business logic
 │   │   ├── assignment_service.go             # Assignment business logic
 │   │   ├── attempt_service.go                # Attempt business logic
 │   │   ├── auth_service.go                   # Authentication business logic
+│   │   ├── google_auth_service.go            # Google OAuth token verification
 │   │   └── sqi_engine_v2.go                  # SQI calculations v2
 │   └── types/
 │       └── diagnostic.go                     # Diagnostic type definitions
@@ -298,14 +288,20 @@ Contains business logic:
 - `assignment_service.go`: Assignment business logic
 - `attempt_service.go`: Attempt business logic
 - `auth_service.go`: Authentication business logic
+- `google_auth_service.go`: Google OAuth token verification
 - `sqi_engine_v2.go`: Enhanced SQI calculations (v2)
 
 #### 3. **Repository Layer** (`internal/repository/`)
 
 Data access and database operations:
 
-- `db.go`: Database queries and operations
-- `validators.go`: Input validation rules
+- `db.go`: Database initialization
+- `user_repo.go`: User/tenant queries
+- `student_repo.go`: Student CRUD queries
+- `coach_repo.go`: Coach CRUD queries
+- `test_paper_repo.go`: Test/question/subject CRUD queries (includes validation)
+- `assignment_repo.go`: Assignment CRUD queries
+- `attempt_repo.go`: Attempt lifecycle queries
 
 #### 4. **Middleware** (`internal/middleware/`)
 
@@ -496,10 +492,13 @@ The backend API is documented in the Postman collection:
 
 ### In Development
 
-- 🔄 SQI calculation engine (v1 and v2)
-- 🔄 AI-powered insights and recommendations
+- 🔄 SQI calculation engine (v2 implemented, business logic extraction pending)
+- 🔄 Service layer extraction (student, coach, test business logic still in handlers)
+- 🔄 AI-powered insights and recommendations (not yet implemented)
 - 🔄 Advanced analytics dashboards
 - 🔄 Super admin system monitoring
+- 🔄 API request logging and observability
+- 🔄 Automated testing
 
 ---
 

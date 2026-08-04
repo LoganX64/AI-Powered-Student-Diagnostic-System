@@ -24,7 +24,7 @@ frontend/
     │
     ├── components/
     │   ├── ProtectedRoute.tsx    # Auth guard (admin/coach/student role detection)
-    │   ├── ui/                   # Shadcn/ui core components (28 files)
+    │   ├── ui/                   # Shadcn/ui core components (29 files)
     │   │   ├── button.tsx
     │   │   ├── card.tsx
     │   │   ├── dialog.tsx
@@ -46,7 +46,8 @@ frontend/
     │   │       ├── CreateTestForm.tsx
     │   │       ├── EditTestDialog.tsx
     │   │       └── QuestionFormFields.tsx
-    │   ├── shared/               # Shared dashboard/layout components
+    │   ├── shared/               # Shared dashboard/layout components (11 files)
+    │   │   ├── AnalysisDashboard.tsx
     │   │   ├── DashboardChart.tsx
     │   │   ├── DashboardHeader.tsx
     │   │   ├── DashboardLayout.tsx
@@ -62,7 +63,7 @@ frontend/
     │       └── student-login-form.tsx
     │
     ├── contexts/
-    │   └── RoleContext.tsx        # React context for role ("admin" | "coach")
+    │   └── DashboardContext.tsx   # Dashboard state context (counts, students, coaches)
     │
     ├── features/
     │   ├── landing/
@@ -75,12 +76,14 @@ frontend/
     │   │   └── CoachSigninPage.tsx
     │   ├── student/
     │   │   ├── StudentLoginPage.tsx
+    │   │   ├── StudentDashboardPage.tsx
     │   │   ├── StudentInstructionsPage.tsx
     │   │   ├── StudentQuizPage.tsx
     │   │   └── StudentSubmittedPage.tsx
-    │   └── shared/               # Dashboard pages (used by both admin & coach)
+    │   └── shared/               # Dashboard pages (used by both admin & coach, 18 files)
     │       ├── AccountsPage.tsx
     │       ├── AllTestsPage.tsx
+    │       ├── AssignmentDetailPage.tsx
     │       ├── BillingPage.tsx
     │       ├── CoachDetailPage.tsx
     │       ├── CoachesPage.tsx
@@ -99,22 +102,22 @@ frontend/
     │
     ├── hooks/
     │   ├── use-mobile.ts         # useIsMobile() - responsive breakpoint hook
+    │   ├── useAnswerTracker.ts   # Track answers + time_spent per question
     │   ├── useExamTimer.ts       # useExamTimer() - countdown timer with sessionStorage
     │   └── useRole.ts            # useRole() - derives role from URL path
     │
     ├── lib/
     │   ├── api.ts                # apiFetch<T>() - shared fetch wrapper with JWT auth
+    │   ├── token.ts              # Token management helpers
     │   └── utils.ts              # cn() (tailwind-merge), formatDateDDMMYYYY()
     │
     ├── services/
     │   ├── auth.service.ts       # login(), register() - admin auth endpoints
-    │   ├── admin.service.ts      # Full admin CRUD
-    │   ├── coach.service.ts      # Coach-scoped CRUD (mirrors admin under /coach)
+    │   ├── dashboard.service.ts  # Role-aware service (auto-selects /admin or /coach)
     │   ├── student.service.ts    # loginStudent() - student login
-    │   └── dashboard.service.ts  # Role-aware service (auto-selects /admin or /coach)
+    │   └── types.ts              # Shared TypeScript types
     │
     └── types/
-        ├── student.ts            # Placeholder
         └── static/               # Typed UI text for all pages (i18n-ready)
             ├── index.ts
             ├── about.ts
@@ -246,47 +249,50 @@ The application supports three user roles with separate login flows:
 
 ### Admin Dashboard (`/admin/*`)
 
-| Path                         | Page                             |
-| ---------------------------- | -------------------------------- |
-| `/admin/dashboard`           | Dashboard (charts, stats, table) |
-| `/admin/coaches`             | Coaches List                     |
-| `/admin/coaches/:id`         | Coach Detail                     |
-| `/admin/students`            | Students List                    |
-| `/admin/students/:id`        | Student Detail                   |
-| `/admin/students/:id/sqi`    | Student SQI Analysis             |
-| `/admin/subjects`            | Subjects List                    |
-| `/admin/tests`               | Tests List                       |
-| `/admin/all-tests`           | All Tests (cross-coach)          |
-| `/admin/tests/:id`           | Test Detail                      |
-| `/admin/tests/:id/questions` | Questions Management             |
-| `/admin/settings`            | Settings                         |
-| `/admin/help`                | Help                             |
-| `/admin/accounts`            | Accounts                         |
-| `/admin/billing`             | Billing                          |
-| `/admin/notifications`       | Notifications                    |
+| Path                                          | Page                             |
+| --------------------------------------------- | -------------------------------- |
+| `/admin/dashboard`                            | Dashboard (charts, stats, table) |
+| `/admin/coaches`                              | Coaches List                     |
+| `/admin/coaches/:id`                          | Coach Detail                     |
+| `/admin/students`                             | Students List                    |
+| `/admin/students/:id`                         | Student Detail                   |
+| `/admin/students/:id/sqi`                     | Student SQI Analysis             |
+| `/admin/students/:id/assignments/:assignmentId` | Assignment Detail              |
+| `/admin/subjects`                             | Subjects List                    |
+| `/admin/tests`                                | Tests List                       |
+| `/admin/all-tests`                            | All Tests (cross-coach)          |
+| `/admin/tests/:id`                            | Test Detail                      |
+| `/admin/tests/:id/questions`                  | Questions Management             |
+| `/admin/settings`                             | Settings                         |
+| `/admin/help`                                 | Help                             |
+| `/admin/accounts`                             | Accounts                         |
+| `/admin/billing`                              | Billing                          |
+| `/admin/notifications`                        | Notifications                    |
 
 ### Coach Dashboard (`/coach/*`)
 
-| Path                         | Page                 |
-| ---------------------------- | -------------------- |
-| `/coach/dashboard`           | Dashboard            |
-| `/coach/students`            | Students List        |
-| `/coach/students/:id`        | Student Detail       |
-| `/coach/students/:id/sqi`    | Student SQI Analysis |
-| `/coach/subjects`            | Subjects List        |
-| `/coach/tests`               | Tests List           |
-| `/coach/all-tests`           | All Tests            |
-| `/coach/tests/:id`           | Test Detail          |
-| `/coach/tests/:id/questions` | Questions Management |
-| `/coach/settings`            | Settings             |
-| `/coach/help`                | Help                 |
-| `/coach/accounts`            | Accounts             |
-| `/coach/notifications`       | Notifications        |
+| Path                                          | Page                 |
+| --------------------------------------------- | -------------------- |
+| `/coach/dashboard`                            | Dashboard            |
+| `/coach/students`                             | Students List        |
+| `/coach/students/:id`                         | Student Detail       |
+| `/coach/students/:id/sqi`                     | Student SQI Analysis |
+| `/coach/students/:id/assignments/:assignmentId` | Assignment Detail  |
+| `/coach/subjects`                             | Subjects List        |
+| `/coach/tests`                                | Tests List           |
+| `/coach/all-tests`                            | All Tests            |
+| `/coach/tests/:id`                            | Test Detail          |
+| `/coach/tests/:id/questions`                  | Questions Management |
+| `/coach/settings`                             | Settings             |
+| `/coach/help`                                 | Help                 |
+| `/coach/accounts`                             | Accounts             |
+| `/coach/notifications`                        | Notifications        |
 
 ### Student Flow
 
 | Path            | Page                             |
 | --------------- | -------------------------------- |
+| `/dashboard`    | Student Dashboard                |
 | `/instructions` | Pre-exam Instructions            |
 | `/quiz`         | Quiz/Exam (with countdown timer) |
 | `/submitted`    | Post-submission Confirmation     |
@@ -296,7 +302,7 @@ The application supports three user roles with separate login flows:
 - **Shared Dashboard Pages**: Admin and Coach dashboards reuse the same page components from `features/shared/`. The `dashboard.service.ts` dynamically switches API prefixes based on role.
 - **Static Text / i18n System**: All UI strings are centralized in `types/static/` with typed interfaces, ready for future internationalization.
 - **Exam Timer**: `useExamTimer()` hook manages countdown with `sessionStorage` persistence, supporting delayed start and expiry callbacks.
-- **Role Detection**: `useRole()` hook derives role from URL path; `RoleContext` provides a React context alternative.
+- **Role Detection**: `useRole()` hook derives role from URL path; `DashboardContext` provides dashboard state management.
 
 ## 📦 Build Scripts
 
