@@ -22,7 +22,7 @@ type CreateTestRequest struct {
 func (h *AdminHandler) CreateTest(c *gin.Context) {
 	var req CreateTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
@@ -31,7 +31,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -39,7 +39,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	if role == "coach" {
 		coachID, err = h.CoachRepo.GetIDFromUser(userID)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 	} else if role == "admin" {
@@ -49,12 +49,12 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 			return
 		}
 		if !exists {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
+			utils.BadRequest(c, "invalid coach_id for your organization")
 			return
 		}
 		coachID = req.CoachID
 	} else {
-		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		utils.Forbidden(c, "unauthorized role")
 		return
 	}
 
@@ -70,13 +70,13 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 func (h *AdminHandler) UpdateTest(c *gin.Context) {
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		utils.BadRequest(c, "invalid test id")
 		return
 	}
 
 	var req CreateTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -99,7 +99,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 		return
 	}
 	if coachTenantID != tenantID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id does not belong to your organization"})
+		utils.BadRequest(c, "coach_id does not belong to your organization")
 		return
 	}
 
@@ -109,7 +109,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		utils.NotFound(c, "test not found")
 		return
 	}
 
@@ -119,7 +119,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 func (h *AdminHandler) DeleteTest(c *gin.Context) {
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		utils.BadRequest(c, "invalid test id")
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -142,7 +142,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		utils.NotFound(c, "test not found")
 		return
 	}
 
@@ -152,7 +152,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 func (h *AdminHandler) ListTests(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -161,7 +161,7 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid
@@ -186,18 +186,18 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 func (h *AdminHandler) GetTest(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		utils.BadRequest(c, "invalid test id")
 		return
 	}
 	test, err := h.TestPaperRepo.GetDetail(testID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		utils.NotFound(c, "test not found")
 		return
 	}
 
@@ -207,14 +207,14 @@ func (h *AdminHandler) GetTest(c *gin.Context) {
 func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
 	testIDStr := c.Param("id")
 	testIDInt, err := strconv.Atoi(testIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		utils.BadRequest(c, "invalid test id")
 		return
 	}
 	exists, err := h.TestPaperRepo.Exists(testIDInt, tenantID)
@@ -223,7 +223,7 @@ func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
 		return
 	}
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "test not found"})
+		utils.NotFound(c, "test not found")
 		return
 	}
 
@@ -240,17 +240,17 @@ func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
 func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test_id"})
+		utils.BadRequest(c, "invalid test_id")
 		return
 	}
 
 	questions, err := parseQuestionRequests(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 	if len(questions) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one question is required"})
+		utils.BadRequest(c, "at least one question is required")
 		return
 	}
 
@@ -258,7 +258,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -290,24 +290,24 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		utils.BadRequest(c, "invalid test id")
 		return
 	}
 
 	questionID, err := strconv.Atoi(c.Param("qid"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		utils.BadRequest(c, "invalid question id")
 		return
 	}
 
 	var req repository.QuestionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	if validationErr := repository.ValidateQuestionRequest(req); validationErr != "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": validationErr})
+		utils.BadRequest(c, validationErr)
 		return
 	}
 
@@ -315,7 +315,7 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -330,7 +330,7 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+		utils.NotFound(c, "question not found")
 		return
 	}
 
@@ -340,13 +340,13 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 	testID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid test id"})
+		utils.BadRequest(c, "invalid test id")
 		return
 	}
 
 	questionID, err := strconv.Atoi(c.Param("qid"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid question id"})
+		utils.BadRequest(c, "invalid question id")
 		return
 	}
 
@@ -354,7 +354,7 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -369,7 +369,7 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+		utils.NotFound(c, "question not found")
 		return
 	}
 

@@ -57,7 +57,7 @@ func verifyCoachExists(c *gin.Context, coachID int, tenantID int, coachRepo *rep
 		return false
 	}
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+		utils.NotFound(c, "coach not found")
 		return false
 	}
 	return true

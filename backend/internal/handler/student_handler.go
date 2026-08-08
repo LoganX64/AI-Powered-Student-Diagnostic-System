@@ -42,19 +42,19 @@ type StudentLoginRequest struct {
 func (h *StudentHandler) StudentLogin(c *gin.Context) {
 	var req StudentLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	studentID, err := h.StudentRepo.GetIDByStudentCode(req.StudentCode)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid student code"})
+		utils.Unauthorized(c, "invalid student code")
 		return
 	}
 
 	token, err := utils.GenerateToken(0, "student", studentID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "token generation failed"})
+		utils.InternalError(c, err, "token generation failed")
 		return
 	}
 
@@ -68,22 +68,22 @@ type SubmitRequest struct {
 func (h *StudentHandler) SubmitAnswers(c *gin.Context) {
 	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment_id"})
+		utils.BadRequest(c, "invalid assignment_id")
 		return
 	}
 
 	var req SubmitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	studentID, err := getStudentIDFromContext(c)
 	if err != nil {
 		if err.Error() == "unauthorized" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			utils.Unauthorized(c, "unauthorized")
 		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+			utils.Unauthorized(c, "invalid token data")
 		}
 		return
 	}
@@ -110,16 +110,16 @@ func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {
 	studentID, err := getStudentIDFromContext(c)
 	if err != nil {
 		if err.Error() == "unauthorized" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			utils.Unauthorized(c, "unauthorized")
 		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+			utils.Unauthorized(c, "invalid token data")
 		}
 		return
 	}
 
 	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, nil, 100, 0)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch assignments"})
+		utils.InternalError(c, err, "failed to fetch assignments")
 		return
 	}
 
@@ -133,28 +133,28 @@ func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {
 func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment_id"})
+		utils.BadRequest(c, "invalid assignment_id")
 		return
 	}
 
 	studentID, err := getStudentIDFromContext(c)
 	if err != nil {
 		if err.Error() == "unauthorized" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			utils.Unauthorized(c, "unauthorized")
 		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token data"})
+			utils.Unauthorized(c, "invalid token data")
 		}
 		return
 	}
 
 	detail, err := h.AssignmentRepo.GetDetailForStudent(assignmentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		utils.NotFound(c, "assignment not found")
 		return
 	}
 
 	if detail.OwnerID != studentID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "assignment does not belong to student"})
+		utils.Forbidden(c, "assignment does not belong to student")
 		return
 	}
 
@@ -164,13 +164,13 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 	if existsAttempt {
-		c.JSON(http.StatusConflict, gin.H{"error": "assignment already submitted"})
+		utils.Conflict(c, "assignment already submitted")
 		return
 	}
 
 	questions, _, err := h.TestPaperRepo.ListQuestions(detail.TestID, 1000, 0)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch questions"})
+		utils.InternalError(c, err, "failed to fetch questions")
 		return
 	}
 

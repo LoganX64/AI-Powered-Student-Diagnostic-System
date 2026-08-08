@@ -19,27 +19,27 @@ type CreateStudentRequest struct {
 func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	role := c.GetString("role")
 
 	if role == "super_admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "super-admin has no access to student scores"})
+		utils.Forbidden(c, "super-admin has no access to student scores")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
 	if role == "coach" {
 		coachID, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		exists, err := h.StudentRepo.ExistsActive(studentID, tenantID, coachID)
@@ -48,7 +48,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 			return
 		}
 		if !exists {
-			c.JSON(http.StatusForbidden, gin.H{"error": "student not found or not assigned to this coach"})
+			utils.Forbidden(c, "student not found or not assigned to this coach")
 			return
 		}
 	}
@@ -73,19 +73,19 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	assignmentID, err := strconv.Atoi(c.Param("assignmentId"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment id"})
+		utils.BadRequest(c, "invalid assignment id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -95,19 +95,19 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		utils.NotFound(c, "student not found")
 		return
 	}
 
 	_, testID, status, assignedAt, testTitle, err := h.AssignmentRepo.GetByID(assignmentID, studentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		utils.NotFound(c, "assignment not found")
 		return
 	}
 
 	studentName, studentCode, err := h.StudentRepo.GetNameCode(studentID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		utils.NotFound(c, "student not found")
 		return
 	}
 
@@ -126,7 +126,7 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	var req CreateStudentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -143,14 +143,14 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	if role == "coach" {
 		coachID, err = h.CoachRepo.GetIDFromUser(userID)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 	} else if role == "admin" {
 		if req.CoachID == 0 {
 			coachID, err = h.CoachRepo.GetIDFromUser(userID)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "coach_id is required, or you must create a coach profile for yourself first"})
+				utils.BadRequest(c, "coach_id is required, or you must create a coach profile for yourself first")
 				return
 			}
 		} else {
@@ -160,13 +160,13 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 				return
 			}
 			if !exists {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach_id for your organization"})
+				utils.BadRequest(c, "invalid coach_id for your organization")
 				return
 			}
 			coachID = req.CoachID
 		}
 	} else {
-		c.JSON(http.StatusForbidden, gin.H{"error": "unauthorized role"})
+		utils.Forbidden(c, "unauthorized role")
 		return
 	}
 
@@ -182,7 +182,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 func (h *AdminHandler) ListStudents(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -191,7 +191,7 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid
@@ -217,13 +217,13 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 func (h *AdminHandler) GetStudent(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -232,7 +232,7 @@ func (h *AdminHandler) GetStudent(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid
@@ -240,7 +240,7 @@ func (h *AdminHandler) GetStudent(c *gin.Context) {
 
 	student, err := h.StudentRepo.GetDetail(studentID, tenantID, coachID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		utils.NotFound(c, "student not found")
 		return
 	}
 
@@ -250,13 +250,13 @@ func (h *AdminHandler) GetStudent(c *gin.Context) {
 func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -265,7 +265,7 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid
@@ -276,7 +276,7 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 			return
 		}
 		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+			utils.NotFound(c, "student not found")
 			return
 		}
 	} else {
@@ -286,7 +286,7 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 			return
 		}
 		if !exists {
-			c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+			utils.NotFound(c, "student not found")
 			return
 		}
 	}
@@ -308,14 +308,14 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	userID := c.GetInt("user_id")
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -324,7 +324,7 @@ func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid
@@ -336,7 +336,7 @@ func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found or already deactivated"})
+		utils.NotFound(c, "student not found or already deactivated")
 		return
 	}
 
@@ -346,13 +346,13 @@ func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 func (h *AdminHandler) ReactivateStudent(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -361,7 +361,7 @@ func (h *AdminHandler) ReactivateStudent(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid
@@ -373,7 +373,7 @@ func (h *AdminHandler) ReactivateStudent(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found or already active"})
+		utils.NotFound(c, "student not found or already active")
 		return
 	}
 

@@ -12,7 +12,7 @@ import (
 func (h *AdminHandler) ListCoaches(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -32,19 +32,19 @@ func (h *AdminHandler) ListCoaches(c *gin.Context) {
 func (h *AdminHandler) GetCoach(c *gin.Context) {
 	coachID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		utils.BadRequest(c, "invalid coach id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
 	coach, err := h.CoachRepo.GetDetail(coachID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found"})
+		utils.NotFound(c, "coach not found")
 		return
 	}
 
@@ -54,14 +54,14 @@ func (h *AdminHandler) GetCoach(c *gin.Context) {
 func (h *AdminHandler) DeleteCoach(c *gin.Context) {
 	coachID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		utils.BadRequest(c, "invalid coach id")
 		return
 	}
 
 	userID := c.GetInt("user_id")
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *AdminHandler) DeleteCoach(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found or already deactivated"})
+		utils.NotFound(c, "coach not found or already deactivated")
 		return
 	}
 
@@ -81,13 +81,13 @@ func (h *AdminHandler) DeleteCoach(c *gin.Context) {
 func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
 	coachID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		utils.BadRequest(c, "invalid coach id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -97,7 +97,7 @@ func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "coach not found or already active"})
+		utils.NotFound(c, "coach not found or already active")
 		return
 	}
 
@@ -107,13 +107,13 @@ func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
 func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 	coachID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		utils.BadRequest(c, "invalid coach id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -138,13 +138,13 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 	coachID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid coach id"})
+		utils.BadRequest(c, "invalid coach id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 

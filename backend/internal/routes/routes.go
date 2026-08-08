@@ -6,6 +6,7 @@ import (
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
+	"ai-student-diagnostic/backend/utils"
 	"database/sql"
 	"net/http"
 
@@ -17,7 +18,7 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 	// Global error handlers
 	r.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
+		utils.NotFound(c, "route not found")
 	})
 	r.NoMethod(func(c *gin.Context) {
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})

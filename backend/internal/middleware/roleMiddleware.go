@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"net/http"
+	"ai-student-diagnostic/backend/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,14 +11,14 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 		roleVal, exists := c.Get("role")
 
 		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "role missing"})
+			utils.Unauthorized(c, "role missing")
 			c.Abort()
 			return
 		}
 
 		role, ok := roleVal.(string)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user role"})
+			utils.Unauthorized(c, "invalid user role")
 			c.Abort()
 			return
 		}
@@ -30,9 +30,7 @@ func RoleMiddleware(allowedRoles ...string) gin.HandlerFunc {
 			}
 		}
 
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "access denied",
-		})
+		utils.Forbidden(c, "access denied")
 		c.Abort()
 	}
 }

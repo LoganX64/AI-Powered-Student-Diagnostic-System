@@ -30,19 +30,19 @@ type RegisterAdminRequest struct {
 func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
 	var req RegisterAdminRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	hashed, err := utils.HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "hashing failed"})
+		utils.InternalError(c, err, "hashing failed")
 		return
 	}
 
 	tenantID, userID, err := h.AuthService.RegisterAdmin(req.Email, hashed, req.OrgName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "email already exists"})
+		utils.BadRequest(c, "email already exists")
 		return
 	}
 
@@ -57,19 +57,19 @@ func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
 func (h *AuthHandler) UserLogin(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	result, err := h.AuthService.UserLogin(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		utils.Unauthorized(c, "invalid credentials")
 		return
 	}
 
 	token, err := utils.GenerateToken(result.UserID, result.Role, 0)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "token error"})
+		utils.InternalError(c, err, "token error")
 		return
 	}
 
@@ -89,7 +89,7 @@ type RegisterCoachRequest struct {
 func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 	var req RegisterCoachRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
@@ -97,13 +97,13 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 
 	hashed, err := utils.HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "hashing failed"})
+		utils.InternalError(c, err, "hashing failed")
 		return
 	}
 
 	newUserID, coachID, err := h.AuthService.RegisterCoach(userID, req.Email, hashed, req.Name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "coach registration failed"})
+		utils.InternalError(c, err, "coach registration failed")
 		return
 	}
 
@@ -127,12 +127,12 @@ func (h *AuthHandler) UpdatePassword(c *gin.Context) {
 
 	var req UpdatePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	if err := h.AuthService.UpdatePassword(userID, role, req.CurrentPassword, req.NewPassword); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		utils.Unauthorized(c, "invalid credentials")
 		return
 	}
 

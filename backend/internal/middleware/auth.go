@@ -3,7 +3,6 @@ package middleware
 import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
-	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -14,27 +13,27 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 		authHeader := c.GetHeader("Authorization")
 
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			utils.Unauthorized(c, "missing token")
 			c.Abort()
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token format"})
+			utils.Unauthorized(c, "invalid token format")
 			c.Abort()
 			return
 		}
 
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenStr == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+			utils.Unauthorized(c, "missing token")
 			c.Abort()
 			return
 		}
 
 		claims, err := utils.ValidateToken(tokenStr)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			utils.Unauthorized(c, "invalid token")
 			c.Abort()
 			return
 		}
@@ -42,7 +41,7 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 		if claims.Role == "student" {
 			exists, err := studentRepo.ExistsByID(claims.StudentID)
 			if err != nil || !exists {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "student no longer exists"})
+				utils.Unauthorized(c, "student no longer exists")
 				c.Abort()
 				return
 			}
@@ -50,7 +49,7 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 		} else {
 			exists, err := userRepo.ExistsByID(claims.UserID)
 			if err != nil || !exists {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "user no longer exists"})
+				utils.Unauthorized(c, "user no longer exists")
 				c.Abort()
 				return
 			}

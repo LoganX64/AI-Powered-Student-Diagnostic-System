@@ -19,7 +19,7 @@ type CreateAssignmentRequest struct {
 func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 	var req CreateAssignmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
@@ -49,7 +49,7 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -58,7 +58,7 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	if role == "coach" {
 		cid, err := resolveCoachID(c, h.CoachRepo)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+			utils.Unauthorized(c, "coach not found")
 			return
 		}
 		coachID = &cid

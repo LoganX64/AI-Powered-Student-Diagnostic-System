@@ -14,25 +14,25 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 		Name string `json:"name" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	role := c.GetString("role")
 	if role != "admin" && role != "coach" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only admin or coach can create subjects"})
+		utils.Forbidden(c, "only admin or coach can create subjects")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
 	id, err := h.TestPaperRepo.CreateSubject(tenantID, req.Name)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "subject already exists in your organization"})
+		utils.BadRequest(c, "subject already exists in your organization")
 		return
 	}
 
@@ -42,7 +42,7 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 func (h *AdminHandler) ListSubjects(c *gin.Context) {
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -65,13 +65,13 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 func (h *AdminHandler) DeleteSubject(c *gin.Context) {
 	subjectID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid subject id"})
+		utils.BadRequest(c, "invalid subject id")
 		return
 	}
 
 	tenantID, err := resolveTenantID(c, h.UserRepo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch tenant info"})
+		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
 	}
 
@@ -81,7 +81,7 @@ func (h *AdminHandler) DeleteSubject(c *gin.Context) {
 		return
 	}
 	if !found {
-		c.JSON(http.StatusNotFound, gin.H{"error": "subject not found"})
+		utils.NotFound(c, "subject not found")
 		return
 	}
 

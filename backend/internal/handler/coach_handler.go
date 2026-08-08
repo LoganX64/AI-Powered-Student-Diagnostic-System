@@ -44,13 +44,13 @@ func NewCoachHandler(
 func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	_, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		utils.Unauthorized(c, "coach not found")
 		return
 	}
 
@@ -74,19 +74,19 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 func (h *CoachHandler) GetAssignmentResults(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid student id"})
+		utils.BadRequest(c, "invalid student id")
 		return
 	}
 
 	assignmentID, err := strconv.Atoi(c.Param("assignmentId"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment id"})
+		utils.BadRequest(c, "invalid assignment id")
 		return
 	}
 
 	coachID, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		utils.Unauthorized(c, "coach not found")
 		return
 	}
 
@@ -96,19 +96,19 @@ func (h *CoachHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 	if !exists {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		utils.NotFound(c, "student not found")
 		return
 	}
 
 	testID, status, assignedAt, testTitle, err := h.AssignmentRepo.GetByIDForCoach(assignmentID, studentID, coachID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "assignment not found"})
+		utils.NotFound(c, "assignment not found")
 		return
 	}
 
 	studentName, studentCode, err := h.StudentRepo.GetNameCode(studentID, tenantID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "student not found"})
+		utils.NotFound(c, "student not found")
 		return
 	}
 
@@ -127,13 +127,13 @@ func (h *CoachHandler) GetAssignmentResults(c *gin.Context) {
 func (h *CoachHandler) CreateStudent(c *gin.Context) {
 	var req CreateStudentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	coachID, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		utils.Unauthorized(c, "coach not found")
 		return
 	}
 
@@ -149,13 +149,13 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 func (h *CoachHandler) CreateTest(c *gin.Context) {
 	var req CreateTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
 	coachID, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "coach not found"})
+		utils.Unauthorized(c, "coach not found")
 		return
 	}
 
@@ -171,7 +171,7 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 	var req CreateAssignmentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+		utils.BadRequest(c, "invalid payload")
 		return
 	}
 
