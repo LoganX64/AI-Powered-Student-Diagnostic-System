@@ -27,9 +27,9 @@ const emptyQuestion = (): QuestionDraft => ({
   correct_answer: "A",
   marks: 1,
   neg_marks: 0.25,
-  importance: "A",
+  importance: "high",
   difficulty: "E",
-  type: "Theory",
+  type: "mcq",
   expected_time: 1,
   concept_tag: "",
 });
@@ -225,9 +225,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          <SelectItem value="A">A (High)</SelectItem>
-                          <SelectItem value="B">B (Medium)</SelectItem>
-                          <SelectItem value="C">C (Low)</SelectItem>
+                          <SelectItem value="high">high</SelectItem>
+                          <SelectItem value="medium">medium</SelectItem>
+                          <SelectItem value="low">low</SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
@@ -261,8 +261,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          <SelectItem value="Theory">Theory</SelectItem>
-                          <SelectItem value="Practical">Practical</SelectItem>
+                          <SelectItem value="mcq">mcq</SelectItem>
+                          <SelectItem value="multi">multi</SelectItem>
+                          <SelectItem value="integer">integer</SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>

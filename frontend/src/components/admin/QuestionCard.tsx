@@ -112,11 +112,11 @@ export function QuestionCard({ index, question: q, onEdit, onDelete }: QuestionC
         </Badge>
         <Badge
           variant={
-            q.importance === "A" ? "default" : q.importance === "B" ? "secondary" : "outline"
+            q.importance === "high" ? "default" : q.importance === "medium" ? "secondary" : "outline"
           }
           className="text-xs"
         >
-          {q.importance === "A" ? "High" : q.importance === "B" ? "Medium" : "Low"}
+          {q.importance === "high" ? "High" : q.importance === "medium" ? "Medium" : "Low"}
         </Badge>
         <Badge variant="secondary" className="text-xs">
           {q.type}
