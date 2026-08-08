@@ -2,6 +2,9 @@ package services
 
 import (
 	"ai-student-diagnostic/backend/internal/repository"
+	"errors"
+
+	"github.com/lib/pq"
 )
 
 type AssignmentService struct {
@@ -75,6 +78,10 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 
 	id, err := s.AssignmentRepo.Create(input.StudentID, input.TestID, coachID)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return 0, &CreateAssignmentError{Status: 409, Message: "student is already assigned to this test"}
+		}
 		return 0, &CreateAssignmentError{Status: 500, Message: "failed to create assignment"}
 	}
 
