@@ -3,9 +3,7 @@ package handlers
 import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
-	"ai-student-diagnostic/backend/internal/types"
 	"ai-student-diagnostic/backend/utils"
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -113,47 +111,16 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 		return
 	}
 
-	attemptID, submittedAt, err := h.AttemptRepo.GetByAssignment(assignmentID)
+	resp, err := buildAssignmentResultsResponse(
+		h.AttemptRepo, studentID, assignmentID,
+		studentName, studentCode,
+		testID, testTitle, status, assignedAt,
+	)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
-			"test":       gin.H{"id": testID, "title": testTitle},
-			"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
-			"attempt":    nil,
-			"sqi_score":  nil,
-			"answers":    []interface{}{},
-		})
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch results")
 		return
 	}
-
-	sqiScore, analysisJSON, err := h.AttemptRepo.GetSQIResult(attemptID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch SQI result")
-		return
-	}
-	answers, err := h.AttemptRepo.GetAnswerDetails(attemptID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch answer details")
-		return
-	}
-
-	var analysis interface{}
-	if analysisJSON.Valid && analysisJSON.String != "" {
-		var payload types.DiagnosticPayloadV2
-		if err := json.Unmarshal([]byte(analysisJSON.String), &payload); err == nil {
-			analysis = payload
-		}
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
-		"test":       gin.H{"id": testID, "title": testTitle},
-		"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
-		"attempt":    gin.H{"id": attemptID, "submitted_at": submittedAt.Time},
-		"sqi_score":  sqiScore.Float64,
-		"analysis":   analysis,
-		"answers":    answers,
-	})
+	c.JSON(http.StatusOK, resp)
 }
 
 func (h *AdminHandler) CreateStudent(c *gin.Context) {

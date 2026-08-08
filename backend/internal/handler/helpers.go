@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/types"
 	"ai-student-diagnostic/backend/utils"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -87,4 +89,50 @@ func verifyTestAccess(c *gin.Context, testID int, role string, userRepo *reposit
 		return fmt.Errorf("unauthorized role")
 	}
 	return nil
+}
+
+func buildAssignmentResultsResponse(
+	attemptRepo *repository.AttemptRepo,
+	studentID, assignmentID int,
+	studentName, studentCode string,
+	testID int, testTitle, status, assignedAt string,
+) (gin.H, error) {
+	attemptID, submittedAt, err := attemptRepo.GetByAssignment(assignmentID)
+	if err != nil {
+		return gin.H{
+			"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
+			"test":       gin.H{"id": testID, "title": testTitle},
+			"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
+			"attempt":    nil,
+			"sqi_score":  nil,
+			"answers":    []interface{}{},
+		}, nil
+	}
+
+	sqiScore, analysisJSON, err := attemptRepo.GetSQIResult(attemptID)
+	if err != nil {
+		return nil, err
+	}
+	answers, err := attemptRepo.GetAnswerDetails(attemptID)
+	if err != nil {
+		return nil, err
+	}
+
+	var analysis interface{}
+	if analysisJSON.Valid && analysisJSON.String != "" {
+		var payload types.DiagnosticPayloadV2
+		if err := json.Unmarshal([]byte(analysisJSON.String), &payload); err == nil {
+			analysis = payload
+		}
+	}
+
+	return gin.H{
+		"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
+		"test":       gin.H{"id": testID, "title": testTitle},
+		"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
+		"attempt":    gin.H{"id": attemptID, "submitted_at": submittedAt.Time},
+		"sqi_score":  sqiScore.Float64,
+		"analysis":   analysis,
+		"answers":    answers,
+	}, nil
 }
