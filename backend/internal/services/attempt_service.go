@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/helper"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/types"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -66,94 +67,76 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 		return nil, &SubmitAnswersError{Status: 403, Message: "assignment does not belong to student"}
 	}
 
-	tx, err := s.AttemptRepo.DB.Begin()
-	if err != nil {
-		return nil, &SubmitAnswersError{Status: 500, Message: "failed to start transaction"}
-	}
-	defer tx.Rollback()
-
-	attemptID, err := s.AttemptRepo.CreateAttemptTx(tx, assignmentID)
-	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-			return nil, &SubmitAnswersError{Status: 409, Message: "assignment already submitted"}
-		}
-		return nil, &SubmitAnswersError{Status: 500, Message: "failed to create attempt"}
-	}
-
 	correctMap, err := s.AttemptRepo.GetCorrectAnswers(owner.TestID)
 	if err != nil {
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to fetch questions"}
 	}
 
-	seenQuestionIDs := make(map[int]bool)
-	var totalTimeSpent float64
-
-	for _, ans := range answers {
-		_, exists := correctMap[ans.QuestionID]
-		if !exists {
-			return nil, &SubmitAnswersError{Status: 400, Message: "invalid question id"}
-		}
-
-		if seenQuestionIDs[ans.QuestionID] {
-			return nil, &SubmitAnswersError{Status: 400, Message: "duplicate question id"}
-		}
-		seenQuestionIDs[ans.QuestionID] = true
-
-		if ans.TimeSpent < 0 {
-			return nil, &SubmitAnswersError{Status: 400, Message: "time_spent cannot be negative"}
-		}
-
-		answerSeen := ans.SelectedAnswer != ""
-		if ans.Seen != nil {
-			answerSeen = *ans.Seen
-		}
-		if ans.Seen != nil && !*ans.Seen && ans.SelectedAnswer != "" {
-			return nil, &SubmitAnswersError{Status: 400, Message: "not seen question cannot have selected_answer"}
-		}
-		if ans.SelectedAnswer != "" && ans.SelectedAnswer != "A" && ans.SelectedAnswer != "B" && ans.SelectedAnswer != "C" && ans.SelectedAnswer != "D" {
-			return nil, &SubmitAnswersError{Status: 400, Message: "selected_answer must be A/B/C/D"}
-		}
-
-		if !answerSeen {
-			ans.TimeSpent = 0
-			ans.MarkedForReview = false
-			ans.Revisited = false
-			ans.ChangedAnswer = false
-			ans.WasInitiallyWrong = false
-		}
-
-		totalTimeSpent += ans.TimeSpent
-		if owner.Duration > 0 && totalTimeSpent > float64(owner.Duration) {
-			return nil, &SubmitAnswersError{
-				Status:  400,
-				Message: "total time_spent exceeds test duration",
-			}
-		}
-
-		correctAnswer := correctMap[ans.QuestionID]
-		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctAnswer
-
-		err = s.AttemptRepo.InsertAnswerLogTx(tx, attemptID, ans.QuestionID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
-			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen)
-		if err != nil {
-			return nil, &SubmitAnswersError{Status: 500, Message: "failed to insert answer"}
-		}
+	if err := validateAnswers(answers, correctMap, owner.Duration); err != nil {
+		return nil, err
 	}
 
-	if err := s.AssignmentRepo.MarkSubmittedTx(tx, assignmentID); err != nil {
-		return nil, &SubmitAnswersError{Status: 500, Message: "failed to mark assignment submitted"}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, &SubmitAnswersError{Status: 500, Message: "failed to commit transaction"}
+	result, err := s.AttemptRepo.SubmitAnswersTx(assignmentID, correctMap, toRepoAnswers(answers), func(tx *sql.Tx) error {
+		return s.AssignmentRepo.MarkSubmittedTx(tx, assignmentID)
+	})
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return nil, &SubmitAnswersError{Status: 409, Message: "assignment already submitted"}
+		}
+		return nil, &SubmitAnswersError{Status: 500, Message: "failed to submit answers"}
 	}
 
 	return &SubmitAnswersResult{
-		AttemptID:      attemptID,
-		TotalTimeSpent: helper.Round2V2(totalTimeSpent),
+		AttemptID:      result.AttemptID,
+		TotalTimeSpent: helper.Round2V2(result.TotalTimeSpent),
 		TestDuration:   owner.Duration,
 	}, nil
+}
+
+func validateAnswers(answers []AnswerInput, correctMap map[int]string, duration int) error {
+	seen := make(map[int]bool)
+	var totalTime float64
+	for _, ans := range answers {
+		if _, ok := correctMap[ans.QuestionID]; !ok {
+			return &SubmitAnswersError{Status: 400, Message: "invalid question id"}
+		}
+		if seen[ans.QuestionID] {
+			return &SubmitAnswersError{Status: 400, Message: "duplicate question id"}
+		}
+		seen[ans.QuestionID] = true
+		if ans.TimeSpent < 0 {
+			return &SubmitAnswersError{Status: 400, Message: "time_spent cannot be negative"}
+		}
+		if ans.Seen != nil && !*ans.Seen && ans.SelectedAnswer != "" {
+			return &SubmitAnswersError{Status: 400, Message: "not seen question cannot have selected_answer"}
+		}
+		if ans.SelectedAnswer != "" && ans.SelectedAnswer != "A" && ans.SelectedAnswer != "B" && ans.SelectedAnswer != "C" && ans.SelectedAnswer != "D" {
+			return &SubmitAnswersError{Status: 400, Message: "selected_answer must be A/B/C/D"}
+		}
+		totalTime += ans.TimeSpent
+		if duration > 0 && totalTime > float64(duration) {
+			return &SubmitAnswersError{Status: 400, Message: "total time_spent exceeds test duration"}
+		}
+	}
+	return nil
+}
+
+func toRepoAnswers(answers []AnswerInput) []repository.AnswerInput {
+	out := make([]repository.AnswerInput, len(answers))
+	for i, a := range answers {
+		out[i] = repository.AnswerInput{
+			QuestionID:        a.QuestionID,
+			SelectedAnswer:    a.SelectedAnswer,
+			TimeSpent:         a.TimeSpent,
+			Seen:              a.Seen,
+			MarkedForReview:   a.MarkedForReview,
+			Revisited:         a.Revisited,
+			ChangedAnswer:     a.ChangedAnswer,
+			WasInitiallyWrong: a.WasInitiallyWrong,
+		}
+	}
+	return out
 }
 
 // ─────────────────────────────────────────────

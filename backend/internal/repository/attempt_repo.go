@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"fmt"
 )
 
 type AttemptRepo struct {
@@ -38,10 +39,97 @@ type AttemptResultRow struct {
 	Analysis  sql.NullString
 }
 
-func (r *AttemptRepo) CreateAttemptTx(tx *sql.Tx, assignmentID int) (int, error) {
-	var id int
-	err := tx.QueryRow("INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id", assignmentID).Scan(&id)
-	return id, err
+type AnswerInput struct {
+	QuestionID        int
+	SelectedAnswer    string
+	TimeSpent         float64
+	Seen              *bool
+	MarkedForReview   bool
+	Revisited         bool
+	ChangedAnswer     bool
+	WasInitiallyWrong bool
+}
+
+type SubmitAnswersResult struct {
+	AttemptID      int
+	TotalTimeSpent float64
+}
+
+func (r *AttemptRepo) SubmitAnswersTx(
+	assignmentID int,
+	correctMap map[int]string,
+	answers []AnswerInput,
+	onCommit func(tx *sql.Tx) error,
+) (*SubmitAnswersResult, error) {
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	var attemptID int
+	err = tx.QueryRow(
+		"INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id",
+		assignmentID,
+	).Scan(&attemptID)
+	if err != nil {
+		return nil, err
+	}
+
+	seenQuestionIDs := make(map[int]bool)
+	var totalTimeSpent float64
+
+	for _, ans := range answers {
+		if _, exists := correctMap[ans.QuestionID]; !exists {
+			return nil, fmt.Errorf("invalid question id")
+		}
+		if seenQuestionIDs[ans.QuestionID] {
+			return nil, fmt.Errorf("duplicate question id")
+		}
+		seenQuestionIDs[ans.QuestionID] = true
+
+		answerSeen := ans.SelectedAnswer != ""
+		if ans.Seen != nil {
+			answerSeen = *ans.Seen
+		}
+		if !answerSeen {
+			ans.TimeSpent = 0
+			ans.MarkedForReview = false
+			ans.Revisited = false
+			ans.ChangedAnswer = false
+			ans.WasInitiallyWrong = false
+		}
+
+		totalTimeSpent += ans.TimeSpent
+
+		correctAnswer := correctMap[ans.QuestionID]
+		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctAnswer
+
+		_, err = tx.Exec(`
+			INSERT INTO answer_logs
+			(question_id, attempt_id, selected_answer, is_correct, time_spent,
+			 marked_for_review, revisited, changed_answer, was_initially_wrong, seen)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			ans.QuestionID, attemptID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
+			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := onCommit(tx); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return &SubmitAnswersResult{
+		AttemptID:      attemptID,
+		TotalTimeSpent: totalTimeSpent,
+	}, nil
 }
 
 func (r *AttemptRepo) GetCorrectAnswers(testID int) (map[int]string, error) {
@@ -64,15 +152,6 @@ func (r *AttemptRepo) GetCorrectAnswers(testID int) (map[int]string, error) {
 		return nil, err
 	}
 	return correctMap, nil
-}
-
-func (r *AttemptRepo) InsertAnswerLogTx(tx *sql.Tx, attemptID, questionID int, selectedAnswer string, isCorrect bool, timeSpent float64, markedForReview, revisited, changedAnswer, wasInitiallyWrong, seen bool) error {
-	_, err := tx.Exec(`
-		INSERT INTO answer_logs 
-		(question_id, attempt_id, selected_answer, is_correct, time_spent, marked_for_review, revisited, changed_answer, was_initially_wrong, seen)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`, questionID, attemptID, selectedAnswer, isCorrect, timeSpent, markedForReview, revisited, changedAnswer, wasInitiallyWrong, seen)
-	return err
 }
 
 func (r *AttemptRepo) GetByAssignment(assignmentID int) (int, sql.NullTime, error) {
