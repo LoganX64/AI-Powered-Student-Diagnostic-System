@@ -6,6 +6,8 @@ import (
 	"ai-student-diagnostic/backend/internal/types"
 	"encoding/json"
 	"errors"
+
+	"github.com/lib/pq"
 )
 
 type AttemptService struct {
@@ -64,19 +66,6 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 		return nil, &SubmitAnswersError{Status: 403, Message: "assignment does not belong to student"}
 	}
 
-	existsAttempt, err := s.AttemptRepo.ExistsByAssignment(assignmentID)
-	if err != nil {
-		return nil, &SubmitAnswersError{Status: 500, Message: "failed to check assignment status"}
-	}
-	if existsAttempt {
-		return nil, &SubmitAnswersError{Status: 409, Message: "assignment already submitted"}
-	}
-
-	correctMap, err := s.AttemptRepo.GetCorrectAnswers(owner.TestID)
-	if err != nil {
-		return nil, &SubmitAnswersError{Status: 500, Message: "failed to fetch questions"}
-	}
-
 	tx, err := s.AttemptRepo.DB.Begin()
 	if err != nil {
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to start transaction"}
@@ -85,7 +74,16 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 
 	attemptID, err := s.AttemptRepo.CreateAttemptTx(tx, assignmentID)
 	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return nil, &SubmitAnswersError{Status: 409, Message: "assignment already submitted"}
+		}
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to create attempt"}
+	}
+
+	correctMap, err := s.AttemptRepo.GetCorrectAnswers(owner.TestID)
+	if err != nil {
+		return nil, &SubmitAnswersError{Status: 500, Message: "failed to fetch questions"}
 	}
 
 	seenQuestionIDs := make(map[int]bool)

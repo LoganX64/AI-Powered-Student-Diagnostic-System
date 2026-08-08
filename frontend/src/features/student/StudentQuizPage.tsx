@@ -188,8 +188,13 @@ export function StudentQuizPage() {
       const result: SubmitResponse = await submitAnswers(assignmentId, payload);
       clearExamStorage();
       navigate("/submitted", { replace: true, state: { submitResult: result } });
-    } catch {
-      // Queue for retry — store in localStorage
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("already submitted")) {
+        clearExamStorage();
+        navigate("/submitted", { replace: true });
+        return;
+      }
       localStorage.setItem(
         "pending_submission",
         JSON.stringify({

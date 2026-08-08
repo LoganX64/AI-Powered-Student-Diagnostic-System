@@ -56,8 +56,14 @@ export function StudentSubmittedPage() {
       localStorage.removeItem("pending_submission");
       setPending(null);
       setRetrySuccess(true);
-    } catch {
-      // Still failed, user can try again.
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("already submitted")) {
+        localStorage.removeItem("pending_submission");
+        setPending(null);
+        setRetrySuccess(true);
+        return;
+      }
     } finally {
       setRetrying(false);
     }
