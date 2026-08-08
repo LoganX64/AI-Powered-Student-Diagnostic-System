@@ -51,10 +51,8 @@ export type AnswerPayload = {
 
 export type SubmitResponse = {
   attempt_id: number;
-  sqi_score: number;
   total_time_spent: number;
   test_duration: number;
-  analysis: Record<string, unknown>;
 };
 
 // ---------------------------------------------------------------------------

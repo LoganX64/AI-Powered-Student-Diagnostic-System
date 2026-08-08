@@ -91,6 +91,9 @@ func (r *AttemptRepo) ExistsByAssignment(assignmentID int) (bool, error) {
 		"SELECT id FROM attempts WHERE assignment_id = $1",
 		assignmentID,
 	).Scan(&existingAttemptID)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
 	return err == nil, err
 }
 
