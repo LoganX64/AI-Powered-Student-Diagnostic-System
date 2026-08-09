@@ -3,6 +3,7 @@ package handlers
 import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -30,8 +31,16 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 		return
 	}
 
-	id, err := h.TestPaperRepo.CreateSubject(tenantID, req.Name)
+	id, deactivatedID, err := h.TestPaperRepo.CreateSubject(tenantID, req.Name)
 	if err != nil {
+		if errors.Is(err, repository.ErrSubjectDeactivated) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error":            "Subject '" + req.Name + "' already exists but is deactivated. Would you like to reactivate it?",
+				"deactivated_id":   deactivatedID,
+				"deactivated_name": req.Name,
+			})
+			return
+		}
 		utils.BadRequest(c, "subject already exists in your organization")
 		return
 	}
@@ -75,9 +84,11 @@ func (h *AdminHandler) DeleteSubject(c *gin.Context) {
 		return
 	}
 
-	found, err := h.TestPaperRepo.DeleteSubject(subjectID, tenantID)
+	userID := c.GetInt("user_id")
+
+	found, err := h.TestPaperRepo.DeleteSubject(subjectID, tenantID, userID)
 	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete subject")
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to deactivate subject")
 		return
 	}
 	if !found {
@@ -85,5 +96,31 @@ func (h *AdminHandler) DeleteSubject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "subject deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "subject deactivated"})
+}
+
+func (h *AdminHandler) ReactivateSubject(c *gin.Context) {
+	subjectID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid subject id")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	found, err := h.TestPaperRepo.ReactivateSubject(subjectID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to reactivate subject")
+		return
+	}
+	if !found {
+		utils.NotFound(c, "subject not found or already active")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "subject reactivated"})
 }

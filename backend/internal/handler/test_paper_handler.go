@@ -136,9 +136,11 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 		return
 	}
 
-	found, err := h.TestPaperRepo.Delete(testID, tenantID)
+	userID := c.GetInt("user_id")
+
+	found, err := h.TestPaperRepo.Delete(testID, tenantID, userID)
 	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete test")
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to deactivate test")
 		return
 	}
 	if !found {
@@ -146,7 +148,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "test deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "test deactivated"})
 }
 
 func (h *AdminHandler) ListTests(c *gin.Context) {

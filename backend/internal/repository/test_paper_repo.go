@@ -2,9 +2,12 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"strconv"
 	"strings"
 )
+
+var ErrSubjectDeactivated = errors.New("subject already exists but is deactivated")
 
 type TestPaperRepo struct {
 	DB *sql.DB
@@ -86,13 +89,13 @@ func (r *TestPaperRepo) Create(tenantID int, title string, subjectID, coachID, d
 
 func (r *TestPaperRepo) Exists(testID, tenantID int) (bool, error) {
 	var exists bool
-	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL)", testID, tenantID).Scan(&exists)
 	return exists, err
 }
 
 func (r *TestPaperRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool, error) {
 	var exists bool
-	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3 AND deleted_at IS NULL)", testID, coachID, tenantID).Scan(&exists)
 	return exists, err
 }
 
@@ -101,10 +104,10 @@ func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, o
 	var args []interface{}
 
 	if coachID != nil {
-		where = "t.tenant_id=$1 AND t.coach_id=$2"
+		where = "t.tenant_id=$1 AND t.coach_id=$2 AND t.deleted_at IS NULL"
 		args = []interface{}{tenantID, *coachID}
 	} else {
-		where = "t.tenant_id=$1"
+		where = "t.tenant_id=$1 AND t.deleted_at IS NULL"
 		args = []interface{}{tenantID}
 	}
 
@@ -257,8 +260,8 @@ func (r *TestPaperRepo) Update(testID, tenantID int, title string, subjectID, co
 	return rowsAffected > 0, nil
 }
 
-func (r *TestPaperRepo) Delete(testID, tenantID int) (bool, error) {
-	result, err := r.DB.Exec("DELETE FROM tests WHERE id=$1 AND tenant_id=$2", testID, tenantID)
+func (r *TestPaperRepo) Delete(testID, tenantID, deletedBy int) (bool, error) {
+	result, err := r.DB.Exec("UPDATE tests SET deleted_at=NOW(), deleted_by=$3 WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL", testID, tenantID, deletedBy)
 	if err != nil {
 		return false, err
 	}
@@ -301,7 +304,7 @@ func (r *TestPaperRepo) CoachTenantID(coachID int) (int, error) {
 
 func (r *TestPaperRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]TestRow, int, error) {
 	var total int
-	err := r.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE coach_id=$1 AND tenant_id=$2", coachID, tenantID).Scan(&total)
+	err := r.DB.QueryRow("SELECT COUNT(*) FROM tests WHERE coach_id=$1 AND tenant_id=$2 AND deleted_at IS NULL", coachID, tenantID).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -309,7 +312,7 @@ func (r *TestPaperRepo) ListByCoach(coachID, tenantID, limit, offset int) ([]Tes
 	rows, err := r.DB.Query(`
 		SELECT t.id, t.title, t.subject_id, t.duration, COALESCE(t.subject_name, ''), t.exam_date
 		FROM tests t
-		WHERE t.coach_id = $1 AND t.tenant_id = $2
+		WHERE t.coach_id = $1 AND t.tenant_id = $2 AND t.deleted_at IS NULL
 		ORDER BY t.id DESC LIMIT $3 OFFSET $4
 	`, coachID, tenantID, limit, offset)
 	if err != nil {
@@ -355,17 +358,45 @@ func (r *TestPaperRepo) GetDuration(testID int) (int, error) {
 	return duration, err
 }
 
-func (r *TestPaperRepo) CreateSubject(tenantID int, name string) (int, error) {
-	var id int
-	err := r.DB.QueryRow(`INSERT INTO subjects (tenant_id, name) VALUES ($1, $2) RETURNING id`, tenantID, name).Scan(&id)
-	if err != nil && strings.Contains(err.Error(), "duplicate") {
-		return 0, err
+func (r *TestPaperRepo) CreateSubject(tenantID int, name string) (int, int, error) {
+	// Check for a soft-deleted subject with the same name
+	var deactivatedID int
+	err := r.DB.QueryRow(
+		"SELECT id FROM subjects WHERE tenant_id=$1 AND name=$2 AND deleted_at IS NOT NULL",
+		tenantID, name,
+	).Scan(&deactivatedID)
+	if err == nil {
+		return 0, deactivatedID, ErrSubjectDeactivated
 	}
-	return id, err
+	if err != sql.ErrNoRows {
+		return 0, 0, err
+	}
+
+	var id int
+	err = r.DB.QueryRow(`INSERT INTO subjects (tenant_id, name) VALUES ($1, $2) RETURNING id`, tenantID, name).Scan(&id)
+	if err != nil && strings.Contains(err.Error(), "duplicate") {
+		return 0, 0, err
+	}
+	return id, 0, err
 }
 
-func (r *TestPaperRepo) DeleteSubject(subjectID, tenantID int) (bool, error) {
-	result, err := r.DB.Exec(`DELETE FROM subjects WHERE id=$1 AND tenant_id=$2`, subjectID, tenantID)
+func (r *TestPaperRepo) DeleteSubject(subjectID, tenantID, deletedBy int) (bool, error) {
+	result, err := r.DB.Exec(
+		`UPDATE subjects SET deleted_at=NOW(), deleted_by=$3 WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL`,
+		subjectID, tenantID, deletedBy,
+	)
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, _ := result.RowsAffected()
+	return rowsAffected > 0, nil
+}
+
+func (r *TestPaperRepo) ReactivateSubject(subjectID, tenantID int) (bool, error) {
+	result, err := r.DB.Exec(
+		`UPDATE subjects SET deleted_at=NULL, deleted_by=NULL WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NOT NULL`,
+		subjectID, tenantID,
+	)
 	if err != nil {
 		return false, err
 	}
@@ -374,8 +405,8 @@ func (r *TestPaperRepo) DeleteSubject(subjectID, tenantID int) (bool, error) {
 }
 
 func (r *TestPaperRepo) ListSubjects(tenantID int, search string, limit, offset int) ([]SubjectRow, int, error) {
-	countQuery := "SELECT COUNT(*) FROM subjects WHERE tenant_id=$1"
-	dataQuery := "SELECT id, name FROM subjects WHERE tenant_id=$1"
+	countQuery := "SELECT COUNT(*) FROM subjects WHERE tenant_id=$1 AND deleted_at IS NULL"
+	dataQuery := "SELECT id, name FROM subjects WHERE tenant_id=$1 AND deleted_at IS NULL"
 	args := []interface{}{tenantID}
 
 	if search != "" {

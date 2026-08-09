@@ -1,0 +1,7 @@
+ALTER TABLE subjects
+  ADD COLUMN deleted_at TIMESTAMP NULL,
+  ADD COLUMN deleted_by INT NULL REFERENCES users(id);
+
+ALTER TABLE tests
+  ADD COLUMN deleted_at TIMESTAMP NULL,
+  ADD COLUMN deleted_by INT NULL REFERENCES users(id);
