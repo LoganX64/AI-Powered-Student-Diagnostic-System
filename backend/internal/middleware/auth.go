@@ -40,7 +40,12 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 
 		if claims.Role == "student" {
 			exists, err := studentRepo.ExistsByID(claims.StudentID)
-			if err != nil || !exists {
+			if err != nil {
+				utils.InternalError(c, err, "service temporarily unavailable")
+				c.Abort()
+				return
+			}
+			if !exists {
 				utils.Unauthorized(c, "student no longer exists")
 				c.Abort()
 				return
@@ -48,7 +53,12 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 			c.Set("student_id", claims.StudentID)
 		} else {
 			exists, err := userRepo.ExistsByID(claims.UserID)
-			if err != nil || !exists {
+			if err != nil {
+				utils.InternalError(c, err, "service temporarily unavailable")
+				c.Abort()
+				return
+			}
+			if !exists {
 				utils.Unauthorized(c, "user no longer exists")
 				c.Abort()
 				return
