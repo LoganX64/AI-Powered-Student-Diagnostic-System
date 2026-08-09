@@ -8,6 +8,7 @@ import (
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"database/sql"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -39,7 +40,8 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 	// health check
 	r.GET("/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {
-			c.JSON(503, gin.H{"status": "unhealthy", "error": err.Error()})
+			log.Printf("[HEALTH] DB ping failed: %v", err)
+			c.JSON(503, gin.H{"status": "unhealthy", "error": "database unreachable"})
 			return
 		}
 		c.JSON(200, gin.H{"status": "healthy"})
