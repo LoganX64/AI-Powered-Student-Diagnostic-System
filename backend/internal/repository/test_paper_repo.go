@@ -256,7 +256,10 @@ func (r *TestPaperRepo) Update(testID, tenantID int, title string, subjectID, co
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -265,7 +268,10 @@ func (r *TestPaperRepo) Delete(testID, tenantID, deletedBy int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -283,7 +289,10 @@ func (r *TestPaperRepo) UpdateQuestion(questionID, testID int, req QuestionReque
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -292,7 +301,10 @@ func (r *TestPaperRepo) DeleteQuestion(questionID, testID int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -388,7 +400,10 @@ func (r *TestPaperRepo) DeleteSubject(subjectID, tenantID, deletedBy int) (bool,
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -400,7 +415,10 @@ func (r *TestPaperRepo) ReactivateSubject(subjectID, tenantID int) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 

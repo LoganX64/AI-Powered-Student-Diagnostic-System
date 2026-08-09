@@ -122,7 +122,10 @@ func (r *CoachRepo) SoftDelete(coachID, tenantID, deletedBy int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -144,6 +147,9 @@ func (r *CoachRepo) Reactivate(coachID, tenantID int) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }

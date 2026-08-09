@@ -191,7 +191,10 @@ func (r *StudentRepo) SoftDelete(studentID, tenantID, deletedBy int, coachID *in
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
 
@@ -208,6 +211,9 @@ func (r *StudentRepo) Reactivate(studentID, tenantID int, coachID *int) (bool, e
 	if err != nil {
 		return false, err
 	}
-	rowsAffected, _ := result.RowsAffected()
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
 	return rowsAffected > 0, nil
 }
