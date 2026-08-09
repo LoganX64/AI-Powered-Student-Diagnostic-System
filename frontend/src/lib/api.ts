@@ -29,7 +29,9 @@ export async function apiFetch<T = unknown>(
       typeof payload === "object" && payload !== null && "error" in payload
         ? (payload as { error: string }).error
         : `Request failed with status ${res.status}`;
-    throw new Error(message);
+    const err = new Error(message);
+    (err as Error & { payload?: unknown }).payload = payload;
+    throw err;
   }
 
   return payload as T;

@@ -163,6 +163,11 @@ export const deleteSubject = (subjectId: number) =>
     method: "DELETE",
   });
 
+export const reactivateSubject = (subjectId: number) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/subjects/${subjectId}/reactivate`, {
+    method: "PUT",
+  });
+
 export const getSubjects = (params?: PaginationParams) =>
   apiFetch<PaginatedResponse<Subject>>(`${getPrefix()}/subjects${buildQuery(params)}`);
 

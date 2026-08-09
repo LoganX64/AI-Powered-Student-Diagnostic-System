@@ -48,7 +48,7 @@ export function TestsPage() {
     try {
       const deleteFn = isCoach ? coachDeleteTest : adminDeleteTest;
       await deleteFn(createdTestId);
-      toast.success("Empty test deleted");
+      toast.success("Empty test deactivated");
     } catch {
       // silently ignore — test may already be gone
     } finally {

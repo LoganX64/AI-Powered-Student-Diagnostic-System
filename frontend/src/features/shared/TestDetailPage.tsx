@@ -151,7 +151,7 @@ export function TestDetailPage() {
   const handleDeleteTest = async () => {
     try {
       await deleteTest(testId);
-      toast.success(`Test "${test.title}" deleted`);
+      toast.success(`Test "${test.title}" deactivated`);
       navigate(`${prefix}/all-tests`);
     } catch (err) {
       toast.error((err as Error).message);
@@ -216,10 +216,9 @@ export function TestDetailPage() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete Test</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Are you sure you want to delete{" "}
+                        Are you sure you want to deactivate{" "}
                         <span className="font-semibold">{test.title}</span>?
-                        This will also delete all related questions and assignments.
-                        This action cannot be undone.
+                        This test will be deactivated. Students who attempted it will keep their data.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

@@ -27,7 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createSubject, deleteSubject, getSubjects, type Subject } from "@/services/dashboard.service";
+import { createSubject, deleteSubject, getSubjects, reactivateSubject, type Subject } from "@/services/dashboard.service";
 
 const PAGE_SIZE = 50;
 
@@ -37,6 +37,7 @@ export function SubjectsPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+  const [reactivateTarget, setReactivateTarget] = useState<{ id: number; name: string } | null>(null);
 
   const fetchSubjects = useCallback(async (off: number) => {
     try {
@@ -64,9 +65,26 @@ export function SubjectsPage() {
       (e.target as HTMLFormElement).reset();
       fetchSubjects(offset);
     } catch (err) {
-      toast.error((err as Error).message);
+      const e = err as Error & { payload?: { deactivated_id?: number; deactivated_name?: string } };
+      if (e.payload?.deactivated_id) {
+        setReactivateTarget({ id: e.payload.deactivated_id, name: e.payload.deactivated_name ?? "" });
+      } else {
+        toast.error(e.message);
+      }
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!reactivateTarget) return;
+    try {
+      await reactivateSubject(reactivateTarget.id);
+      toast.success(`Subject "${reactivateTarget.name}" reactivated`);
+      setReactivateTarget(null);
+      fetchSubjects(offset);
+    } catch (err) {
+      toast.error((err as Error).message);
     }
   };
 
@@ -74,7 +92,7 @@ export function SubjectsPage() {
     try {
       setDeletingId(subject.subject_id);
       await deleteSubject(subject.subject_id);
-      toast.success(`Subject "${subject.name}" deleted`);
+      toast.success(`Subject "${subject.name}" deactivated`);
       fetchSubjects(offset);
     } catch (err) {
       toast.error((err as Error).message);
@@ -165,9 +183,9 @@ export function SubjectsPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Subject</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete{" "}
+                              Are you sure you want to deactivate{" "}
                               <span className="font-semibold">{subject.name}</span>?
-                              This action cannot be undone.
+                              This subject will be deactivated. It can be reactivated later.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -176,7 +194,7 @@ export function SubjectsPage() {
                               onClick={() => handleDelete(subject)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              Delete
+                              Deactivate
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
@@ -216,6 +234,25 @@ export function SubjectsPage() {
           </div>
         )}
       </div>
+
+      {/* Reactivation prompt */}
+      <AlertDialog open={reactivateTarget !== null} onOpenChange={(open) => { if (!open) setReactivateTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reactivate Subject</AlertDialogTitle>
+            <AlertDialogDescription>
+              Subject <span className="font-semibold">"{reactivateTarget?.name}"</span> already exists but is deactivated.
+              Would you like to reactivate it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setReactivateTarget(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReactivate}>
+              Reactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
