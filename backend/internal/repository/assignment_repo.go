@@ -101,8 +101,12 @@ func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, l
 		args = append(args, *coachID)
 	}
 	if testIDStr != "" {
+		testID, err := strconv.Atoi(testIDStr)
+		if err != nil {
+			return nil, 0, err
+		}
 		where += " AND a.test_id=$" + strconv.Itoa(len(args)+1)
-		args = append(args, testIDStr)
+		args = append(args, testID)
 	}
 
 	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE " + where
