@@ -9,15 +9,15 @@ import (
 )
 
 // SafeErrorResponse logs the real error and returns a safe response.
-// In production: returns generic message.
-// In development: returns raw error for frontend debugging.
+// In DEBUG mode: returns raw error for frontend debugging.
+// Otherwise: returns generic message.
 func SafeErrorResponse(c *gin.Context, status int, err error, message string) {
 	log.Printf("[ERROR] %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 
-	if os.Getenv("APP_ENV") == "production" {
-		c.JSON(status, gin.H{"error": message})
-	} else {
+	if os.Getenv("DEBUG") == "true" {
 		c.JSON(status, gin.H{"error": err.Error()})
+	} else {
+		c.JSON(status, gin.H{"error": message})
 	}
 }
 
@@ -48,5 +48,10 @@ func Conflict(c *gin.Context, msg string) {
 
 func InternalError(c *gin.Context, err error, msg string) {
 	log.Printf("[500] %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
-	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+
+	if os.Getenv("DEBUG") == "true" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+	}
 }
