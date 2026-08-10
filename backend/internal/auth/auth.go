@@ -67,7 +67,7 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(result.UserID, result.Role, 0)
+	token, err := utils.GenerateToken(result.UserID, result.Role, 0, int(result.TenantID))
 	if err != nil {
 		utils.InternalError(c, err, "token error")
 		return

@@ -67,6 +67,7 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 		}
 
 		c.Set("role", claims.Role)
+		c.Set("tenant_id", claims.TenantID)
 		c.Next()
 	}
 }

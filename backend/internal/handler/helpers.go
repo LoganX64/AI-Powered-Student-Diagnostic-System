@@ -12,12 +12,7 @@ import (
 )
 
 func resolveTenantID(c *gin.Context, userRepo *repository.UserRepo) (int, error) {
-	userID := c.GetInt("user_id")
-	tenantID, err := userRepo.GetTenantID(userID)
-	if err != nil {
-		return 0, err
-	}
-	return tenantID, nil
+	return c.GetInt("tenant_id"), nil
 }
 
 func resolveCoachID(c *gin.Context, coachRepo *repository.CoachRepo) (int, error) {

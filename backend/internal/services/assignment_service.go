@@ -32,6 +32,7 @@ func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo
 type CreateAssignmentInput struct {
 	CallerRole string // "admin" or "coach"
 	CallerID   int    // user_id from JWT
+	TenantID   int    // tenant_id from JWT
 	StudentID  int
 	TestID     int
 	CoachID    int // used when CallerRole == "admin"
@@ -58,10 +59,7 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 		}
 	} else if input.CallerRole == "admin" {
 		coachID = input.CoachID
-		tenantID, err = s.UserRepo.GetTenantID(input.CallerID)
-		if err != nil {
-			return 0, &CreateAssignmentError{Status: 500, Message: "failed to fetch tenant info"}
-		}
+		tenantID = input.TenantID
 	} else {
 		return 0, &CreateAssignmentError{Status: 403, Message: "only admin or coach can assign tests"}
 	}

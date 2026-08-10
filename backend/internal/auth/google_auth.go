@@ -24,7 +24,7 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := utils.GenerateToken(result.UserID, result.Role, 0)
+	token, err := utils.GenerateToken(result.UserID, result.Role, 0, int(result.TenantID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "token error"})
 		return

@@ -37,16 +37,18 @@ type Claims struct {
 	UserID    int    `json:"user_id"`
 	Role      string `json:"role"`       // admin | coach | student
 	StudentID int    `json:"student_id"` // only for students
+	TenantID  int    `json:"tenant_id"`
 
 	jwt.RegisteredClaims
 }
 
-func GenerateToken(userID int, role string, studentID int) (string, error) {
+func GenerateToken(userID int, role string, studentID int, tenantID int) (string, error) {
 	expiry := jwtExpiry()
 	claims := Claims{
 		UserID:    userID,
 		Role:      role,
 		StudentID: studentID,
+		TenantID:  tenantID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -77,7 +79,7 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 		return nil, jwt.ErrTokenNotValidYet
 	}
 
-	log.Printf("[JWT] Token valid: %v, Claims: UserID=%d, Role=%s\n", token.Valid, claims.UserID, claims.Role)
+	log.Printf("[JWT] Token valid: %v, Claims: UserID=%d, Role=%s, TenantID=%d\n", token.Valid, claims.UserID, claims.Role, claims.TenantID)
 
 	if !token.Valid {
 		log.Printf("[JWT] Token marked as invalid\n")

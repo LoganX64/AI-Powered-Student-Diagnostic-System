@@ -29,6 +29,7 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 	id, err := h.AssignmentService.CreateAssignment(services.CreateAssignmentInput{
 		CallerRole: role,
 		CallerID:   userID,
+		TenantID:   c.GetInt("tenant_id"),
 		StudentID:  req.StudentID,
 		TestID:     req.TestID,
 		CoachID:    req.CoachID,

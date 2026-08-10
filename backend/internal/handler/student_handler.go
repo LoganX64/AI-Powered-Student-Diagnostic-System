@@ -46,13 +46,13 @@ func (h *StudentHandler) StudentLogin(c *gin.Context) {
 		return
 	}
 
-	studentID, err := h.StudentRepo.GetIDByStudentCode(req.StudentCode)
+	studentID, tenantID, err := h.StudentRepo.GetIDByStudentCode(req.StudentCode)
 	if err != nil {
 		utils.Unauthorized(c, "invalid student code")
 		return
 	}
 
-	token, err := utils.GenerateToken(0, "student", studentID)
+	token, err := utils.GenerateToken(0, "student", studentID, tenantID)
 	if err != nil {
 		utils.InternalError(c, err, "token generation failed")
 		return

@@ -139,10 +139,10 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	return students, total, nil
 }
 
-func (r *StudentRepo) GetIDByStudentCode(studentCode string) (int, error) {
-	var id int
-	err := r.DB.QueryRow("SELECT id FROM students WHERE student_code = $1 AND deleted_at IS NULL", studentCode).Scan(&id)
-	return id, err
+func (r *StudentRepo) GetIDByStudentCode(studentCode string) (int, int, error) {
+	var id, tenantID int
+	err := r.DB.QueryRow("SELECT id, tenant_id FROM students WHERE student_code = $1 AND deleted_at IS NULL", studentCode).Scan(&id, &tenantID)
+	return id, tenantID, err
 }
 
 func (r *StudentRepo) ExistsByID(studentID int) (bool, error) {
