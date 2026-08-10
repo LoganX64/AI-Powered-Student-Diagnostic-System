@@ -14,7 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(db *sql.DB) *gin.Engine {
+func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 	r := gin.Default()
 
 	// Global error handlers
@@ -27,7 +27,13 @@ func SetupRouter(db *sql.DB) *gin.Engine {
 
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+		for _, o := range allowedOrigins {
+			if o == origin {
+				c.Header("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
 		if c.Request.Method == "OPTIONS" {

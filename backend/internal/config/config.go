@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -17,6 +18,7 @@ type Config struct {
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
 	DBConnMaxLifetime time.Duration
+	AllowedOrigins    []string
 }
 
 func LoadConfig() *Config {
@@ -72,6 +74,16 @@ func LoadConfig() *Config {
 		}
 	}
 
+	var allowedOrigins []string
+	if originsStr := os.Getenv("ALLOWED_ORIGINS"); originsStr != "" {
+		for _, o := range strings.Split(originsStr, ",") {
+			trimmed := strings.TrimSpace(o)
+			if trimmed != "" {
+				allowedOrigins = append(allowedOrigins, trimmed)
+			}
+		}
+	}
+
 	return &Config{
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
@@ -80,5 +92,6 @@ func LoadConfig() *Config {
 		DBMaxOpenConns:    maxOpen,
 		DBMaxIdleConns:    maxIdle,
 		DBConnMaxLifetime: maxLifetime,
+		AllowedOrigins:    allowedOrigins,
 	}
 }

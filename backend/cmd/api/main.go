@@ -46,7 +46,7 @@ func main() {
 
 	conn := repository.InitDB(cfg)
 
-	r := routes.SetupRouter(conn)
+	r := routes.SetupRouter(conn, cfg.AllowedOrigins)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
