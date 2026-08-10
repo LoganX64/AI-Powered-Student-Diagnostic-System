@@ -40,7 +40,7 @@ func runMigrations(dbURL string) {
 
 func main() {
 	cfg := config.LoadConfig()
-	utils.InitJWTConfig(cfg.JWTSecret, cfg.JWTExpiry)
+	utils.InitJWTConfig(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTIssuer)
 
 	runMigrations(cfg.DBURL)
 

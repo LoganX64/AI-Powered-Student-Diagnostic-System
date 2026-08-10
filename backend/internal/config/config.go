@@ -14,6 +14,7 @@ type Config struct {
 	DBURL             string
 	JWTSecret         string
 	JWTExpiry         string
+	JWTIssuer         string
 	Port              string
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
@@ -53,6 +54,11 @@ func LoadConfig() *Config {
 		log.Fatal("JWT_EXPIRY is not set")
 	}
 
+	jwtIssuer := os.Getenv("JWT_ISSUER")
+	if jwtIssuer == "" {
+		log.Fatal("JWT_ISSUER is not set")
+	}
+
 	// Defaults (only if not provided)
 	maxOpen := 25
 	maxIdle := 25
@@ -88,6 +94,7 @@ func LoadConfig() *Config {
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
 		JWTExpiry:         jwtExpiry,
+		JWTIssuer:         jwtIssuer,
 		Port:              port,
 		DBMaxOpenConns:    maxOpen,
 		DBMaxIdleConns:    maxIdle,

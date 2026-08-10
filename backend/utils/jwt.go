@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -8,13 +9,15 @@ import (
 )
 
 var (
-	jwtSecret string
+	jwtSecret   string
 	jwtExpiryStr string
+	jwtIssuer   string
 )
 
-func InitJWTConfig(secret, expiry string) {
+func InitJWTConfig(secret, expiry, issuer string) {
 	jwtSecret = secret
 	jwtExpiryStr = expiry
+	jwtIssuer = issuer
 }
 
 func jwtKey() []byte {
@@ -50,6 +53,8 @@ func GenerateToken(userID int, role string, studentID int, tenantID int) (string
 		StudentID: studentID,
 		TenantID:  tenantID,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Audience:  jwt.ClaimStrings{jwtIssuer},
+			Issuer:    jwtIssuer,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
@@ -84,6 +89,22 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 	if !token.Valid {
 		log.Printf("[JWT] Token marked as invalid\n")
 		return nil, jwt.ErrTokenNotValidYet
+	}
+
+	if claims.Issuer != jwtIssuer {
+		log.Printf("[JWT] Invalid issuer: %s\n", claims.Issuer)
+		return nil, fmt.Errorf("invalid issuer")
+	}
+	audValid := false
+	for _, a := range claims.Audience {
+		if a == jwtIssuer {
+			audValid = true
+			break
+		}
+	}
+	if !audValid {
+		log.Printf("[JWT] Invalid audience: %v\n", claims.Audience)
+		return nil, fmt.Errorf("invalid audience")
 	}
 
 	return claims, nil
