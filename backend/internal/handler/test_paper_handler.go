@@ -3,7 +3,6 @@ package handlers
 import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -246,8 +245,8 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 		return
 	}
 
-	questions, err := parseQuestionRequests(c)
-	if err != nil {
+	var questions []repository.QuestionRequest
+	if err := c.ShouldBindJSON(&questions); err != nil {
 		utils.BadRequest(c, "invalid payload")
 		return
 	}
@@ -378,18 +377,4 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "question deleted successfully"})
 }
 
-func parseQuestionRequests(c *gin.Context) ([]repository.QuestionRequest, error) {
-	body, err := c.GetRawData()
-	if err != nil {
-		return nil, err
-	}
-	var batch []repository.QuestionRequest
-	if err := json.Unmarshal(body, &batch); err == nil {
-		return batch, nil
-	}
-	var single repository.QuestionRequest
-	if err := json.Unmarshal(body, &single); err != nil {
-		return nil, err
-	}
-	return []repository.QuestionRequest{single}, nil
-}
+
