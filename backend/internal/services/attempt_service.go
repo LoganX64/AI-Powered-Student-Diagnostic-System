@@ -227,7 +227,10 @@ func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (typ
 		return types.DiagnosticPayloadV2{}, err
 	}
 
-	subjectName, _ := s.TestPaperRepo.GetSubjectName(testID)
+	subjectName, err := s.TestPaperRepo.GetSubjectName(testID)
+	if err != nil {
+		return types.DiagnosticPayloadV2{}, err
+	}
 
 	questions := make([]QuestionMetaV2, len(questionRows))
 	hasNegMarks := false
@@ -268,7 +271,10 @@ func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (typ
 		}
 	}
 
-	duration, _ := s.TestPaperRepo.GetDuration(testID)
+	duration, err := s.TestPaperRepo.GetDuration(testID)
+	if err != nil {
+		return types.DiagnosticPayloadV2{}, err
+	}
 
 	cfg := ExamConfigV2{
 		ExamType:           "general",
