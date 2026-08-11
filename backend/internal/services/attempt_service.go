@@ -151,9 +151,10 @@ type GetStudentSQIInput struct {
 }
 
 type AttemptResultItem struct {
-	AttemptID int     `json:"attempt_id"`
-	TestID    int     `json:"test_id"`
-	SQI       float64 `json:"sqi_score"`
+	AttemptID int             `json:"attempt_id"`
+	TestID    int             `json:"test_id"`
+	SQI       float64         `json:"sqi_score"`
+	Analysis  json.RawMessage `json:"analysis,omitempty"`
 }
 
 type StudentSQIResponse struct {
@@ -198,11 +199,15 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 
 	var attempts []AttemptResultItem
 	for _, r := range resultRows {
-		attempts = append(attempts, AttemptResultItem{
+		item := AttemptResultItem{
 			AttemptID: r.AttemptID,
 			TestID:    r.TestID,
 			SQI:       r.SQI,
-		})
+		}
+		if r.Analysis.Valid {
+			item.Analysis = json.RawMessage(r.Analysis.String)
+		}
+		attempts = append(attempts, item)
 	}
 
 	avgSQI, err := s.AttemptRepo.GetAverageSQI(input.StudentID)
