@@ -15,27 +15,38 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getAssignmentDetail, type AssignmentDetail } from "@/services/dashboard.service";
-import { formatDateDDMMYYYY } from "@/lib/utils";
+import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 export function AssignmentDetailPage() {
   const { id, assignmentId } = useParams<{ id: string; assignmentId: string }>();
   const navigate = useNavigate();
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
-  const studentId = Number(id);
+  const studentId = parseRouteId(id);
+  const parsedAssignmentId = parseRouteId(assignmentId);
 
   const [data, setData] = useState<AssignmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id || !assignmentId) return;
+    if (studentId === null || parsedAssignmentId === null) return;
     setLoading(true);
-    getAssignmentDetail(studentId, Number(assignmentId))
+    getAssignmentDetail(studentId, parsedAssignmentId)
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
-  }, [id, assignmentId, studentId]);
+  }, [studentId, parsedAssignmentId]);
+
+  if (studentId === null || parsedAssignmentId === null) {
+    return (
+      <DashboardLayout title="Assignment Not Found">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground">Invalid assignment ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (loading) {
     return (

@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getStudent, getStudentAssignments, type StudentDetail, type StudentAssignment } from "@/services/dashboard.service";
-import { formatDateDDMMYYYY } from "@/lib/utils";
+import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
@@ -24,7 +24,7 @@ export function StudentDetailPage() {
   const navigate = useNavigate();
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
-  const studentId = Number(id);
+  const studentId = parseRouteId(id);
 
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
@@ -32,12 +32,12 @@ export function StudentDetailPage() {
   const [assignmentOffset, setAssignmentOffset] = useState(0);
 
   useEffect(() => {
-    if (!id) return;
+    if (studentId === null) return;
     getStudent(studentId).then(setStudent).catch(() => {});
-  }, [id, studentId]);
+  }, [studentId]);
 
   const fetchAssignments = useCallback(async (off: number) => {
-    if (!id) return;
+    if (studentId === null) return;
     try {
       const res = await getStudentAssignments(studentId);
       setAssignments(res.data ?? []);
@@ -45,11 +45,21 @@ export function StudentDetailPage() {
     } catch {
       // silently ignore
     }
-  }, [id, studentId]);
+  }, [studentId]);
 
   useEffect(() => {
     fetchAssignments(assignmentOffset);
   }, [assignmentOffset, fetchAssignments]);
+
+  if (studentId === null) {
+    return (
+      <DashboardLayout title="Student Not Found">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground">Invalid student ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!student) {
     return (

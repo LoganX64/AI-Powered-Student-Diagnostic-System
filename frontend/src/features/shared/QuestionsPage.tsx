@@ -49,7 +49,7 @@ import {
   type PaginatedResponse,
 } from "@/services/dashboard.service";
 import { apiFetch } from "@/lib/api";
-import { formatDateDDMMYYYY } from "@/lib/utils";
+import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 type TestDetail = {
   test_id: number;
@@ -88,7 +88,7 @@ export function QuestionsPage() {
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
   const isAdmin = role === "admin";
-  const testId = Number(id);
+  const testId = parseRouteId(id);
   const apiPrefix = isAdmin ? "/admin" : "/coach";
 
   const [test, setTest] = useState<TestDetail | null>(null);
@@ -105,17 +105,17 @@ export function QuestionsPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!id) return;
-    apiFetch<TestDetail>(`${apiPrefix}/tests/${id}`)
+    if (testId === null) return;
+    apiFetch<TestDetail>(`${apiPrefix}/tests/${testId}`)
       .then(setTest)
       .catch(() => setTestNotFound(true));
-  }, [id, apiPrefix]);
+  }, [testId, apiPrefix]);
 
   const fetchQuestions = useCallback(async (off: number) => {
-    if (!id) return;
+    if (testId === null) return;
     try {
       const res = await apiFetch<PaginatedResponse<Question>>(
-        `${apiPrefix}/tests/${id}/questions?limit=${PAGE_SIZE}&offset=${off}`
+        `${apiPrefix}/tests/${testId}/questions?limit=${PAGE_SIZE}&offset=${off}`
       );
       setQuestions(res.data ?? []);
       setQuestionTotal(res.total);
@@ -125,7 +125,7 @@ export function QuestionsPage() {
       setFetchError(message);
       toast.error(message);
     }
-  }, [id, apiPrefix]);
+  }, [testId, apiPrefix]);
 
   useEffect(() => {
     fetchQuestions(questionOffset);
@@ -151,7 +151,7 @@ export function QuestionsPage() {
   };
 
   const handleSaveQuestion = async () => {
-    if (!editingQuestion) return;
+    if (!editingQuestion || testId === null) return;
     try {
       setSavingQuestion(true);
       await updateQuestion(testId, editingQuestion.id, questionForm as CreateQuestionPayload);
@@ -166,6 +166,7 @@ export function QuestionsPage() {
   };
 
   const handleDeleteQuestion = async (questionId: number) => {
+    if (testId === null) return;
     try {
       await deleteQuestion(testId, questionId);
       toast.success("Question deleted");
@@ -175,6 +176,16 @@ export function QuestionsPage() {
       toast.error((err as Error).message);
     }
   };
+
+  if (testId === null) {
+    return (
+      <DashboardLayout title="Test Not Found">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground">Invalid test ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (testNotFound) {
     return (

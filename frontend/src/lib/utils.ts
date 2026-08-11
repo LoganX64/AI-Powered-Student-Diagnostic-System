@@ -12,3 +12,9 @@ export function formatDateDDMMYYYY(isoOrDate: string): string {
   const yyyy = d.getFullYear();
   return `${dd}-${mm}-${yyyy}`;
 }
+
+export function parseRouteId(id: string | undefined): number | null {
+  if (!id) return null;
+  const n = Number(id);
+  return isNaN(n) ? null : n;
+}

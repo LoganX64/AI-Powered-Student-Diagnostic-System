@@ -50,7 +50,7 @@ import {
 } from "@/components/admin/forms/QuestionFormFields";
 import { QuestionCard } from "@/components/admin/QuestionCard";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
-import { formatDateDDMMYYYY } from "@/lib/utils";
+import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
@@ -60,7 +60,7 @@ export function TestDetailPage() {
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
   const isAdmin = role === "admin";
-  const testId = Number(id);
+  const testId = parseRouteId(id);
 
   const [test, setTest] = useState<TestDetail | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -77,34 +77,34 @@ export function TestDetailPage() {
   const [savingQuestion, setSavingQuestion] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
-    getTest(Number(id)).then(setTest).catch(() => {});
+    if (testId === null) return;
+    getTest(testId).then(setTest).catch(() => {});
     if (isAdmin && window.location.search.includes("edit=true")) {
       setEditingTest(true);
     }
-  }, [id, isAdmin]);
+  }, [testId, isAdmin]);
 
   const fetchAssignments = useCallback(async (off: number) => {
-    if (!id) return;
+    if (testId === null) return;
     try {
-      const res = await getAssignments({ limit: PAGE_SIZE, offset: off, test_id: Number(id) });
+      const res = await getAssignments({ limit: PAGE_SIZE, offset: off, test_id: testId });
       setAssignments(res.data ?? []);
       setAssignmentTotal(res.total);
     } catch {
       // silently ignore
     }
-  }, [id]);
+  }, [testId]);
 
   const fetchQuestions = useCallback(async (off: number) => {
-    if (!id) return;
+    if (testId === null) return;
     try {
-      const res = await getTestQuestions(Number(id), { limit: PAGE_SIZE, offset: off });
+      const res = await getTestQuestions(testId, { limit: PAGE_SIZE, offset: off });
       setQuestions(res.data ?? []);
       setQuestionTotal(res.total);
     } catch {
       // silently ignore
     }
-  }, [id]);
+  }, [testId]);
 
   useEffect(() => {
     fetchAssignments(assignmentOffset);
@@ -134,7 +134,7 @@ export function TestDetailPage() {
   };
 
   const handleSaveQuestion = async () => {
-    if (!editingQuestion) return;
+    if (!editingQuestion || testId === null) return;
     try {
       setSavingQuestion(true);
       await updateQuestion(testId, editingQuestion.id, questionForm as CreateQuestionPayload);
@@ -149,6 +149,7 @@ export function TestDetailPage() {
   };
 
   const handleDeleteTest = async () => {
+    if (testId === null || !test) return;
     try {
       await deleteTest(testId);
       toast.success(`Test "${test.title}" deactivated`);
@@ -157,6 +158,16 @@ export function TestDetailPage() {
       toast.error((err as Error).message);
     }
   };
+
+  if (testId === null) {
+    return (
+      <DashboardLayout title="Test Not Found">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground">Invalid test ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!test) {
     return (
@@ -456,7 +467,7 @@ export function TestDetailPage() {
           onOpenChange={(open) => {
             if (!open) {
               setEditingTest(false);
-              getTest(Number(id)).then(setTest).catch(() => {});
+              getTest(testId).then(setTest).catch(() => {});
             }
           }}
         />

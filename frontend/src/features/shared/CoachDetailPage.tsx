@@ -21,14 +21,14 @@ import {
   type CoachTest,
   type CoachStudent,
 } from "@/services/dashboard.service";
-import { formatDateDDMMYYYY } from "@/lib/utils";
+import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
 export function CoachDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const coachId = Number(id);
+  const coachId = parseRouteId(id);
 
   const [coach, setCoach] = useState<CoachDetail | null>(null);
   const [tests, setTests] = useState<CoachTest[]>([]);
@@ -39,12 +39,12 @@ export function CoachDetailPage() {
   const [studentOffset, setStudentOffset] = useState(0);
 
   useEffect(() => {
-    if (!id) return;
+    if (coachId === null) return;
     getCoach(coachId).then(setCoach).catch(() => {});
-  }, [id, coachId]);
+  }, [coachId]);
 
   const fetchTests = useCallback(async (off: number) => {
-    if (!id) return;
+    if (coachId === null) return;
     try {
       const res = await getCoachTests(coachId, { limit: PAGE_SIZE, offset: off });
       setTests(res.data ?? []);
@@ -52,10 +52,10 @@ export function CoachDetailPage() {
     } catch {
       // silently ignore
     }
-  }, [id, coachId]);
+  }, [coachId]);
 
   const fetchStudents = useCallback(async (off: number) => {
-    if (!id) return;
+    if (coachId === null) return;
     try {
       const res = await getCoachStudents(coachId, { limit: PAGE_SIZE, offset: off });
       setStudents(res.data ?? []);
@@ -63,7 +63,7 @@ export function CoachDetailPage() {
     } catch {
       // silently ignore
     }
-  }, [id, coachId]);
+  }, [coachId]);
 
   useEffect(() => {
     fetchTests(testOffset);
@@ -72,6 +72,16 @@ export function CoachDetailPage() {
   useEffect(() => {
     fetchStudents(studentOffset);
   }, [studentOffset, fetchStudents]);
+
+  if (coachId === null) {
+    return (
+      <DashboardLayout title="Coach Not Found">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground">Invalid coach ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!coach) {
     return (

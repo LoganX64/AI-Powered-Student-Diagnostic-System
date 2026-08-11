@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getStudentSQI } from "@/services/dashboard.service";
+import { parseRouteId } from "@/lib/utils";
 import type { SQIResponse } from "@/services/types";
 
 function sqiColor(score: number): string {
@@ -21,7 +22,7 @@ export function StudentSQIPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const role = useRole();
-  const studentId = Number(id);
+  const studentId = parseRouteId(id);
   const prefix = role === "admin" ? "/admin" : "/coach";
 
   const [data, setData] = useState<SQIResponse | null>(null);
@@ -29,10 +30,12 @@ export function StudentSQIPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (studentId === null) return;
     let cancelled = false;
+    const sid = studentId;
     async function load() {
       try {
-        const res = await getStudentSQI(studentId, { compute: true, include_analysis: true });
+        const res = await getStudentSQI(sid, { compute: true, include_analysis: true });
         if (!cancelled) setData(res);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load SQI data");
@@ -43,6 +46,16 @@ export function StudentSQIPage() {
     load();
     return () => { cancelled = true; };
   }, [studentId]);
+
+  if (studentId === null) {
+    return (
+      <DashboardLayout title="Student Not Found">
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="text-muted-foreground">Invalid student ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="SQI Score">
