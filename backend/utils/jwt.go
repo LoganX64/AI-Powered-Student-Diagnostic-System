@@ -65,12 +65,8 @@ func GenerateToken(userID int, role string, studentID int, tenantID int) (string
 }
 
 func ValidateToken(tokenStr string) (*Claims, error) {
-	log.Println("[JWT] Validating token...")
-
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		key := jwtKey()
-		log.Printf("[JWT] Key used for verification: %d bytes\n", len(key))
-		return key, nil
+		return jwtKey(), nil
 	})
 
 	if err != nil {
@@ -80,14 +76,11 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
-		log.Printf("[JWT] Claims cast failed\n")
 		return nil, jwt.ErrTokenNotValidYet
 	}
 
-	log.Printf("[JWT] Token valid: %v, Claims: UserID=%d, Role=%s, TenantID=%d\n", token.Valid, claims.UserID, claims.Role, claims.TenantID)
-
 	if !token.Valid {
-		log.Printf("[JWT] Token marked as invalid\n")
+		log.Printf("[JWT] Token marked as invalid for UserID=%d\n", claims.UserID)
 		return nil, jwt.ErrTokenNotValidYet
 	}
 
