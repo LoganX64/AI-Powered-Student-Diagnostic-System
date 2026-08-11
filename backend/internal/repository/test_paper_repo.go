@@ -234,6 +234,12 @@ func (r *TestPaperRepo) CreateQuestions(testID int, questions []QuestionRequest)
 	return questionIDs, nil
 }
 
+func (r *TestPaperRepo) CountQuestions(testID int) (int, error) {
+	var count int
+	err := r.DB.QueryRow("SELECT COUNT(*) FROM questions WHERE test_id=$1", testID).Scan(&count)
+	return count, err
+}
+
 func ValidateQuestionRequest(req QuestionRequest) string {
 	if req.QuestionText == "" || req.OptionA == "" || req.OptionB == "" || req.OptionC == "" || req.OptionD == "" {
 		return "question_text and all options are required"

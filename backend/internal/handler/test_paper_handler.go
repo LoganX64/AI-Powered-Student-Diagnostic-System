@@ -3,6 +3,7 @@ package handlers
 import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -273,6 +274,16 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr, "position": i})
 			return
 		}
+	}
+
+	currentCount, err := h.TestPaperRepo.CountQuestions(testID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to count questions")
+		return
+	}
+	if currentCount+len(questions) > 1000 {
+		utils.BadRequest(c, fmt.Sprintf("test has %d questions, adding %d would exceed limit of 1000", currentCount, len(questions)))
+		return
 	}
 
 	questionIDs, err := h.TestPaperRepo.CreateQuestions(testID, questions)
