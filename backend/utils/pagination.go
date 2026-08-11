@@ -6,7 +6,7 @@ func ParsePagination(limitStr, offsetStr string) (int, int) {
 	limit := 50
 	offset := 0
 	if l := limitStr; l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 10000 {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
 			limit = v
 		}
 	}
