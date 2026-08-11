@@ -316,6 +316,26 @@ func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, ana
 	return err
 }
 
+func (r *AttemptRepo) GetAverageSQI(studentID int) (float64, error) {
+	var avg sql.NullFloat64
+	err := r.DB.QueryRow(`
+		SELECT AVG(ar.sqi_score)
+		FROM attempt_results ar
+		JOIN attempts a ON ar.attempt_id = a.id
+		JOIN assignments ass ON a.assignment_id = ass.id
+		WHERE ass.student_id = $1
+		ORDER BY a.id DESC
+		LIMIT 100
+	`, studentID).Scan(&avg)
+	if err != nil {
+		return 0, err
+	}
+	if !avg.Valid {
+		return 0, nil
+	}
+	return avg.Float64, nil
+}
+
 func (r *AttemptRepo) GetResults(studentID int, includeAnalysis bool) ([]AttemptResultRow, error) {
 	query := `
 		SELECT ar.attempt_id, ass.test_id, ar.sqi_score
@@ -329,6 +349,7 @@ func (r *AttemptRepo) GetResults(studentID int, includeAnalysis bool) ([]Attempt
 		JOIN assignments ass ON a.assignment_id = ass.id
 		WHERE ass.student_id = $1
 		ORDER BY a.id DESC
+		LIMIT 100
 	`
 
 	rows, err := r.DB.Query(query, studentID)

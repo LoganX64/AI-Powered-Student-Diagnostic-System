@@ -197,19 +197,17 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 	}
 
 	var attempts []AttemptResultItem
-	var total float64
 	for _, r := range resultRows {
 		attempts = append(attempts, AttemptResultItem{
 			AttemptID: r.AttemptID,
 			TestID:    r.TestID,
 			SQI:       r.SQI,
 		})
-		total += r.SQI
 	}
 
-	var avgSQI float64
-	if len(resultRows) > 0 {
-		avgSQI = total / float64(len(resultRows))
+	avgSQI, err := s.AttemptRepo.GetAverageSQI(input.StudentID)
+	if err != nil {
+		return nil, errors.New("failed to fetch average SQI")
 	}
 
 	return &StudentSQIResponse{
