@@ -58,7 +58,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         const sqiResults = await Promise.all(
           students.map(async (s) => {
             try {
-              const sqi = await getStudentSQI(s.student_id, { compute: true });
+              const sqi = await getStudentSQI(s.student_id);
               return { ...s, average_sqi: sqi.average_sqi, total_tests: sqi.total_tests };
             } catch {
               return { ...s, average_sqi: 0, total_tests: 0 };
