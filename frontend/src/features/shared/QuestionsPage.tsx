@@ -102,6 +102,7 @@ export function QuestionsPage() {
 
   const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
   const [testNotFound, setTestNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -118,8 +119,11 @@ export function QuestionsPage() {
       );
       setQuestions(res.data ?? []);
       setQuestionTotal(res.total);
-    } catch {
-      // silently ignore
+      setFetchError(null);
+    } catch (err) {
+      const message = (err as Error).message || "Failed to load questions";
+      setFetchError(message);
+      toast.error(message);
     }
   }, [id, apiPrefix]);
 
@@ -220,7 +224,16 @@ export function QuestionsPage() {
       </div>
 
       {/* Questions */}
-      {questions.length === 0 ? (
+      {fetchError ? (
+        <div className="flex flex-col gap-4">
+          <div className="flex h-24 items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10">
+            <p className="text-sm text-destructive">{fetchError}</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => fetchQuestions(questionOffset)}>
+            Retry
+          </Button>
+        </div>
+      ) : questions.length === 0 ? (
         <div className="flex flex-col gap-4">
           <div className="flex h-24 items-center justify-center rounded-lg border border-dashed">
             <p className="text-sm text-muted-foreground">No questions in this test. Add questions below.</p>
