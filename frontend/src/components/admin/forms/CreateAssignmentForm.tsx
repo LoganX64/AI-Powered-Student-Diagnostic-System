@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ClipboardListIcon, UsersIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
+import { createAssignmentSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [students, setStudents] = useState<Student[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
@@ -44,21 +46,23 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
     const studentId = Number(selectedStudentId);
     const testId = Number(selectedTestId);
 
-    if (!studentId || !testId) {
-      toast.error("Please select both a student and a test");
-      return;
-    }
-
-    const data = {
+    const raw = {
       student_id: studentId,
       test_id: testId,
       coach_id: tests.find((t) => t.test_id === testId)?.coach_id ?? 0,
     };
 
+    const result = createAssignmentSchema.safeParse(raw);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+    setErrors({});
+
     try {
       setLoading(true);
       const createFn = onSubmit ?? adminCreateAssignment;
-      const res = await createFn(data);
+      const res = await createFn(result.data);
       toast.success(`Test assigned — Assignment ID: ${res.assignment_id}`);
       setSelectedStudentId("");
       setSelectedTestId("");
@@ -124,6 +128,7 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {errors.student_id && <p className="text-sm text-destructive">{errors.student_id}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label>Test</Label>
@@ -141,6 +146,7 @@ export function CreateAssignmentForm({ onSubmit, fetchStudents, fetchTests }: Pr
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {errors.test_id && <p className="text-sm text-destructive">{errors.test_id}</p>}
             </div>
           </div>
           <Button type="submit" disabled={loading} className="w-fit">

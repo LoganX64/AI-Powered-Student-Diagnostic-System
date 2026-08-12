@@ -28,7 +28,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createCoach, deleteCoach, reactivateCoach, getCoaches, type CreateCoachPayload, type Coach } from "@/services/dashboard.service";
+import { createCoach, deleteCoach, reactivateCoach, getCoaches, type Coach } from "@/services/dashboard.service";
+import { createCoachSchema, zodErrors } from "@/lib/validations";
 
 const PAGE_SIZE = 50;
 
@@ -36,6 +37,7 @@ export function CoachesPage() {
   const navigate = useNavigate();
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [creating, setCreating] = useState(false);
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
@@ -59,16 +61,23 @@ export function CoachesPage() {
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const data: CreateCoachPayload = {
+    const raw = {
       name: fd.get("name") as string,
       email: fd.get("email") as string,
       password: fd.get("password") as string,
     };
 
+    const result = createCoachSchema.safeParse(raw);
+    if (!result.success) {
+      setCreateErrors(zodErrors(result.error));
+      return;
+    }
+    setCreateErrors({});
+
     try {
       setCreating(true);
-      const res = await createCoach(data);
-      toast.success(`Coach "${data.name}" created — ID: ${res.coach_id}`);
+      const res = await createCoach(result.data);
+      toast.success(`Coach "${result.data.name}" created — ID: ${res.coach_id}`);
       (e.target as HTMLFormElement).reset();
       fetchCoaches(offset, includeDeactivated);
     } catch (err) {
@@ -128,6 +137,7 @@ export function CoachesPage() {
                   placeholder="John Smith"
                   required
                 />
+                {createErrors.name && <p className="text-sm text-destructive">{createErrors.name}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="coach-email">Email</Label>
@@ -138,6 +148,7 @@ export function CoachesPage() {
                   placeholder="coach@academy.com"
                   required
                 />
+                {createErrors.email && <p className="text-sm text-destructive">{createErrors.email}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="coach-password">Password</Label>
@@ -149,6 +160,7 @@ export function CoachesPage() {
                   required
                   minLength={8}
                 />
+                {createErrors.password && <p className="text-sm text-destructive">{createErrors.password}</p>}
               </div>
             </div>
             <Button type="submit" disabled={creating} className="w-fit">

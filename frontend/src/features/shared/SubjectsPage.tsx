@@ -28,12 +28,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { createSubject, deleteSubject, getSubjects, reactivateSubject, type Subject } from "@/services/dashboard.service";
+import { createSubjectSchema, zodErrors } from "@/lib/validations";
 
 const PAGE_SIZE = 50;
 
 export function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [creating, setCreating] = useState(false);
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -56,12 +58,19 @@ export function SubjectsPage() {
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const name = fd.get("name") as string;
+    const raw = { name: fd.get("name") as string };
+
+    const result = createSubjectSchema.safeParse(raw);
+    if (!result.success) {
+      setCreateErrors(zodErrors(result.error));
+      return;
+    }
+    setCreateErrors({});
 
     try {
       setCreating(true);
-      const res = await createSubject({ name });
-      toast.success(`Subject "${name}" created — ID: ${res.subject_id}`);
+      const res = await createSubject(result.data);
+      toast.success(`Subject "${result.data.name}" created — ID: ${res.subject_id}`);
       (e.target as HTMLFormElement).reset();
       fetchSubjects(offset);
     } catch (err) {
@@ -125,6 +134,7 @@ export function SubjectsPage() {
                   placeholder="Mathematics"
                   required
                 />
+                {createErrors.name && <p className="text-sm text-destructive">{createErrors.name}</p>}
               </div>
               <Button type="submit" disabled={creating}>
                 {creating ? "Creating…" : "Create Subject"}

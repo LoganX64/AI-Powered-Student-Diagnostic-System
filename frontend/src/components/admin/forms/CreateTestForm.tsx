@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { createTestSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ type Props = {
 
 export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fetchSubjects: fetchSubjectsProp, fetchCoaches: fetchCoachesProp }: Props) {
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [subjectSearch, setSubjectSearch] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
@@ -33,8 +35,8 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
   const coachDropdownRef = useRef<HTMLDivElement>(null);
   const [coachDropdownPos, setCoachDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
-  const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchSubjects = useCallback(async (search: string) => {
     try {
@@ -117,36 +119,27 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
 
-    if (!selectedSubject) {
-      toast.error("Please select a subject from the list");
-      return;
-    }
-    if (showCoachField && !selectedCoach) {
-      toast.error("Please select a coach from the list");
-      return;
-    }
-
     const fd = new FormData(e.currentTarget);
-    const duration = Number(fd.get("duration"));
-
-    if (isNaN(duration) || duration < 1) {
-      toast.error("Duration must be a positive number of minutes");
-      return;
-    }
-
-    const data: CreateTestPayload = {
+    const raw = {
       title: fd.get("title") as string,
-      subject_id: selectedSubject.subject_id,
-      subject_name: selectedSubject.name,
+      subject_id: selectedSubject?.subject_id ?? 0,
+      subject_name: selectedSubject?.name ?? "",
       coach_id: selectedCoach?.coach_id ?? 0,
-      duration,
+      duration: Number(fd.get("duration")),
       exam_date: (fd.get("exam_date") as string) || undefined,
     };
+
+    const result = createTestSchema.safeParse(raw);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+    setErrors({});
 
     try {
       setLoading(true);
       const createFn = onSubmit ?? adminCreateTest;
-      const res = await createFn(data);
+      const res = await createFn(result.data);
       toast.success(`Test created — ID: ${res.test_id}`);
       onCreated?.(res.test_id);
       (e.target as HTMLFormElement).reset();
@@ -177,6 +170,7 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
               placeholder="Mathematics Midterm Exam 2026"
               required
             />
+            {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
@@ -225,6 +219,7 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
                   No subjects found
                 </div>
               )}
+              {errors.subject_id && <p className="text-sm text-destructive">{errors.subject_id}</p>}
             </div>
             {showCoachField && (
             <div className="flex flex-col gap-2">
@@ -273,6 +268,7 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
                   No coaches found
                 </div>
               )}
+              {errors.coach_id && <p className="text-sm text-destructive">{errors.coach_id}</p>}
             </div>
             )}
           </div>
@@ -287,6 +283,7 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
                 placeholder="120"
                 required
               />
+              {errors.duration && <p className="text-sm text-destructive">{errors.duration}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="test-exam-date">Exam Date</Label>
@@ -295,6 +292,7 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
                 name="exam_date"
                 type="date"
               />
+              {errors.exam_date && <p className="text-sm text-destructive">{errors.exam_date}</p>}
             </div>
           </div>
           <Button type="submit" disabled={loading} className="w-fit">

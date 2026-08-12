@@ -1,19 +1,21 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { createStudentSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createStudent, getCoaches, type CreateStudentPayload, type Coach } from "@/services/dashboard.service";
+import { createStudent, getCoaches, type Coach } from "@/services/dashboard.service";
 
 export function CreateStudentForm() {
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [coachSearch, setCoachSearch] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchCoaches = useCallback(async (search: string) => {
     try {
@@ -59,21 +61,23 @@ export function CreateStudentForm() {
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
 
-    if (!selectedCoach) {
-      toast.error("Please select a coach from the list");
-      return;
-    }
-
     const fd = new FormData(e.currentTarget);
-    const data: CreateStudentPayload = {
+    const raw = {
       name: fd.get("name") as string,
       student_code: fd.get("student_code") as string,
-      coach_id: selectedCoach.coach_id,
+      coach_id: selectedCoach?.coach_id ?? 0,
     };
+
+    const result = createStudentSchema.safeParse(raw);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+    setErrors({});
 
     try {
       setLoading(true);
-      const res = await createStudent(data);
+      const res = await createStudent(result.data);
       toast.success(`Student created — ID: ${res.student_id}`);
       (e.target as HTMLFormElement).reset();
       setCoachSearch("");
@@ -101,6 +105,7 @@ export function CreateStudentForm() {
               placeholder="Alice"
               required
             />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="student-code">Student Code</Label>
@@ -110,6 +115,7 @@ export function CreateStudentForm() {
               placeholder="STU001"
               required
             />
+            {errors.student_code && <p className="text-sm text-destructive">{errors.student_code}</p>}
           </div>
           <div className="flex flex-col gap-2 relative" ref={dropdownRef}>
             <Label htmlFor="student-coach">Coach</Label>
@@ -143,6 +149,7 @@ export function CreateStudentForm() {
                 No coaches found
               </div>
             )}
+            {errors.coach_id && <p className="text-sm text-destructive">{errors.coach_id}</p>}
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
             {loading ? "Creating…" : "Create Student"}

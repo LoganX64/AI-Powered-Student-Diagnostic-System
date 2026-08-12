@@ -29,7 +29,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createStudent, deleteStudent, reactivateStudent, getStudents, getCoaches, type CreateStudentPayload, type Student, type Coach } from "@/services/dashboard.service";
+import { createStudent, deleteStudent, reactivateStudent, getStudents, getCoaches, type Student, type Coach } from "@/services/dashboard.service";
+import { createStudentSchema, zodErrors } from "@/lib/validations";
 
 const PAGE_SIZE = 50;
 
@@ -41,6 +42,7 @@ export function StudentsPage() {
 
   const [students, setStudents] = useState<Student[]>([]);
   const [creating, setCreating] = useState(false);
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [dialogOpenId, setDialogOpenId] = useState<number | null>(null);
@@ -50,7 +52,7 @@ export function StudentsPage() {
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Coach search (admin only)
   const [coachSearch, setCoachSearch] = useState("");
@@ -60,7 +62,7 @@ export function StudentsPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchCoaches = useCallback(async (search: string) => {
     if (!isAdmin) return;
@@ -138,21 +140,23 @@ export function StudentsPage() {
 
     const fd = new FormData(e.currentTarget);
 
-    if (isAdmin && !selectedCoach) {
-      toast.error("Please select a coach from the list");
-      return;
-    }
-
-    const data: CreateStudentPayload = {
+    const raw = {
       name: fd.get("name") as string,
       student_code: fd.get("student_code") as string,
-      coach_id: isAdmin ? selectedCoach!.coach_id : 0,
+      coach_id: isAdmin ? (selectedCoach?.coach_id ?? 0) : 0,
     };
+
+    const result = createStudentSchema.safeParse(raw);
+    if (!result.success) {
+      setCreateErrors(zodErrors(result.error));
+      return;
+    }
+    setCreateErrors({});
 
     try {
       setCreating(true);
-      const res = await createStudent(data);
-      toast.success(`Student "${data.name}" created — ID: ${res.student_id}`);
+      const res = await createStudent(result.data);
+      toast.success(`Student "${result.data.name}" created — ID: ${res.student_id}`);
       (e.target as HTMLFormElement).reset();
       setCoachSearch("");
       setSelectedCoach(null);
@@ -214,6 +218,7 @@ export function StudentsPage() {
                   placeholder="Alice"
                   required
                 />
+                {createErrors.name && <p className="text-sm text-destructive">{createErrors.name}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="student-code">Student Code</Label>
@@ -223,6 +228,7 @@ export function StudentsPage() {
                   placeholder="STU001"
                   required
                 />
+                {createErrors.student_code && <p className="text-sm text-destructive">{createErrors.student_code}</p>}
               </div>
               {isAdmin && (
                 <div className="flex flex-col gap-2">
@@ -271,6 +277,7 @@ export function StudentsPage() {
                       No coaches found
                     </div>
                   )}
+                  {createErrors.coach_id && <p className="text-sm text-destructive">{createErrors.coach_id}</p>}
                 </div>
               )}
             </div>

@@ -1,26 +1,35 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { createCoachSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createCoach, type CreateCoachPayload } from "@/services/dashboard.service";
+import { createCoach } from "@/services/dashboard.service";
 
 export function CreateCoachForm() {
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const data: CreateCoachPayload = {
+    const raw = {
       email: fd.get("email") as string,
       password: fd.get("password") as string,
       name: fd.get("name") as string,
     };
 
+    const result = createCoachSchema.safeParse(raw);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+    setErrors({});
+
     try {
       setLoading(true);
-      const res = await createCoach(data);
+      const res = await createCoach(result.data);
       toast.success(`Coach created — ID: ${res.coach_id}`);
       (e.target as HTMLFormElement).reset();
     } catch (err) {
@@ -46,6 +55,7 @@ export function CreateCoachForm() {
               placeholder="John Smith"
               required
             />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="coach-email">Email</Label>
@@ -56,6 +66,7 @@ export function CreateCoachForm() {
               placeholder="coach.smith@academy.com"
               required
             />
+            {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="coach-password">Password</Label>
@@ -67,6 +78,7 @@ export function CreateCoachForm() {
               required
               minLength={8}
             />
+            {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
             {loading ? "Creating…" : "Create Coach"}

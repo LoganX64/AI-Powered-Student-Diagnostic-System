@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
+import { createTestSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ type Props = {
 
 export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState(0);
@@ -44,8 +46,8 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
   const coachDropdownRef = useRef<HTMLDivElement>(null);
   const [coachDropdownPos, setCoachDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
-  const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     if (test && open) {
@@ -136,33 +138,26 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
 
   const handleSave = async () => {
     if (!test) return;
-    if (!title.trim()) {
-      toast.error("Title is required");
+
+    const raw = {
+      title: title.trim(),
+      subject_id: selectedSubject?.subject_id ?? 0,
+      subject_name: selectedSubject?.name ?? "",
+      coach_id: selectedCoach?.coach_id ?? 0,
+      duration,
+      exam_date: examDate || undefined,
+    };
+
+    const result = createTestSchema.safeParse(raw);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
       return;
     }
-    if (!selectedSubject) {
-      toast.error("Please select a subject");
-      return;
-    }
-    if (!selectedCoach) {
-      toast.error("Please select a coach");
-      return;
-    }
-    if (isNaN(duration) || duration < 1) {
-      toast.error("Duration must be a positive number");
-      return;
-    }
+    setErrors({});
 
     try {
       setLoading(true);
-      await updateTest(test.test_id, {
-        title: title.trim(),
-        subject_id: selectedSubject.subject_id,
-        subject_name: selectedSubject.name,
-        coach_id: selectedCoach.coach_id,
-        duration,
-        exam_date: examDate || undefined,
-      });
+      await updateTest(test.test_id, result.data);
       toast.success("Test updated");
       onOpenChange(false);
       onUpdated?.();
@@ -195,6 +190,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Mathematics Midterm Exam 2026"
             />
+            {errors.title && <p className="text-sm text-destructive">{errors.title}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -243,6 +239,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
                   No subjects found
                 </div>
               )}
+              {errors.subject_id && <p className="text-sm text-destructive">{errors.subject_id}</p>}
             </div>
 
             <div className="flex flex-col gap-2">
@@ -290,6 +287,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
                   No coaches found
                 </div>
               )}
+              {errors.coach_id && <p className="text-sm text-destructive">{errors.coach_id}</p>}
             </div>
           </div>
 
@@ -303,6 +301,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
                 value={duration}
                 onChange={(e) => setDuration(Number(e.target.value))}
               />
+              {errors.duration && <p className="text-sm text-destructive">{errors.duration}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="edit-test-exam-date">Exam Date</Label>
@@ -312,6 +311,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
                 value={examDate}
                 onChange={(e) => setExamDate(e.target.value)}
               />
+              {errors.exam_date && <p className="text-sm text-destructive">{errors.exam_date}</p>}
             </div>
           </div>
         </div>

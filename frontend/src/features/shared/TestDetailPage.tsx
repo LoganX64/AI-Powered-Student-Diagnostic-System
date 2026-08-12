@@ -125,9 +125,9 @@ export function TestDetailPage() {
       correct_answer: q.correct_answer as "A" | "B" | "C" | "D",
       marks: q.marks,
       neg_marks: q.neg_marks,
-      importance: q.importance,
-      difficulty: q.difficulty,
-      type: q.type,
+      importance: q.importance as "high" | "medium" | "low",
+      difficulty: q.difficulty as "E" | "M" | "H",
+      type: q.type as "mcq" | "multi" | "integer",
       expected_time: q.expected_time,
       concept_tag: q.concept_tag,
     });

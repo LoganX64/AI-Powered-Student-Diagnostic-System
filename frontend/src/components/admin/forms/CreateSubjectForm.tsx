@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { createSubjectSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,14 +9,23 @@ import { createSubject } from "@/services/dashboard.service";
 
 export function CreateSubjectForm() {
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const raw = { name: fd.get("name") as string };
+
+    const result = createSubjectSchema.safeParse(raw);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+    setErrors({});
 
     try {
       setLoading(true);
-      const res = await createSubject({ name: fd.get("name") as string });
+      const res = await createSubject(result.data);
       toast.success(`Subject created — ID: ${res.subject_id}`);
       (e.target as HTMLFormElement).reset();
     } catch (err) {
@@ -41,6 +51,7 @@ export function CreateSubjectForm() {
               placeholder="Mathematics"
               required
             />
+            {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
             {loading ? "Creating…" : "Create Subject"}

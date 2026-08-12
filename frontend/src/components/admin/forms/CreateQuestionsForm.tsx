@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { PlusIcon, Trash2Icon } from "lucide-react";
+import { createQuestionsBatchSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
   const [testId, setTestId] = useState(testIdProp?.toString() ?? "");
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const update = (index: number, field: keyof QuestionDraft, value: string | number) => {
     setQuestions((prev) =>
@@ -61,10 +63,13 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
     const id = Number(testId);
-    if (!id || id < 1) {
-      toast.error("Please enter a valid Test ID");
+
+    const result = createQuestionsBatchSchema.safeParse({ test_id: id, questions });
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
       return;
     }
+    setErrors({});
 
     try {
       setLoading(true);
@@ -105,6 +110,7 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
               required
               className="max-w-[180px]"
             />
+            {errors.test_id && <p className="text-sm text-destructive">{errors.test_id}</p>}
           </div>
 
           <Separator />
