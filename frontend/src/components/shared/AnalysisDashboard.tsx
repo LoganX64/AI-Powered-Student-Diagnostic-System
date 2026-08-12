@@ -130,10 +130,10 @@ function DimensionBars({ data }: { data: SQIAnalysis }) {
                 {d.score.toFixed(1)}
               </span>
             </div>
-            <Progress value={d.score} className="h-2" />
-            <div
-              className={`mt-1 h-2 rounded-full ${progressColor(d.score)}`}
-              style={{ width: `${d.score}%` }}
+            <Progress
+              value={d.score}
+              className="h-2"
+              indicatorClassName={progressColor(d.score)}
             />
           </CardContent>
         </Card>
