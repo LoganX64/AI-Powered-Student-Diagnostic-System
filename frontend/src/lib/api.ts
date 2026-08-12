@@ -1,5 +1,9 @@
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
+if (!BASE_URL) {
+  throw new Error("VITE_BACKEND_URL is not set in frontend/.env");
+}
+
 /**
  * Shared fetch wrapper that attaches a JWT and handles errors.
  * @param tokenKey - localStorage key for the token (default: "admin_token")
