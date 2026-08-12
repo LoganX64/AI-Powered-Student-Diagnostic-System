@@ -36,7 +36,7 @@ export function StudentDetailPage() {
     getStudent(studentId).then(setStudent).catch(() => {});
   }, [studentId]);
 
-  const fetchAssignments = useCallback(async (off: number) => {
+  const fetchAssignments = useCallback(async () => {
     if (studentId === null) return;
     try {
       const res = await getStudentAssignments(studentId);
@@ -48,7 +48,7 @@ export function StudentDetailPage() {
   }, [studentId]);
 
   useEffect(() => {
-    fetchAssignments(assignmentOffset);
+    fetchAssignments();
   }, [assignmentOffset, fetchAssignments]);
 
   if (studentId === null) {
