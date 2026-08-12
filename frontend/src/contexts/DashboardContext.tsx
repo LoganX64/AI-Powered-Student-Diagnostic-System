@@ -4,10 +4,11 @@ import {
   getDashboardCounts,
   getStudents,
   getCoaches,
+  getCoachStatsBatch,
   getStudentSQIBatch,
   type DashboardCounts,
 } from "@/services/dashboard.service";
-import type { Student, Coach } from "@/services/types";
+import type { Student, Coach, CoachStatMetric } from "@/services/types";
 
 export type StudentWithSQI = Student & {
   average_sqi: number;
@@ -69,15 +70,27 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         if (role === "admin") {
           const coachesRes = await getCoaches({ limit: 100 });
           const coaches = coachesRes.data ?? [];
-          const rows: CoachRow[] = coaches.map((c: Coach) => ({
-            id: c.coach_id,
-            name: c.name,
-            email: c.email,
-            studentsCount: 0,
-            avgStudentSqi: 0,
-            status: c.deleted_at ? ("Inactive" as const) : ("Active" as const),
-            joinedDate: "—",
-          }));
+          let statsById: Map<number, CoachStatMetric> | null = null;
+          if (coaches.length) {
+            try {
+              const statsRes = await getCoachStatsBatch(coaches.map((c) => c.coach_id));
+              statsById = new Map(statsRes.data.map((m) => [m.coach_id, m]));
+            } catch {
+              // stats are optional; keep defaults
+            }
+          }
+          const rows: CoachRow[] = coaches.map((c: Coach) => {
+            const m = statsById?.get(c.coach_id);
+            return {
+              id: c.coach_id,
+              name: c.name,
+              email: c.email,
+              studentsCount: m?.student_count ?? 0,
+              avgStudentSqi: m?.avg_sqi ?? 0,
+              status: c.deleted_at ? ("Inactive" as const) : ("Active" as const),
+              joinedDate: c.created_at ?? "—",
+            };
+          });
           if (!cancelled) setCoachRows(rows);
         }
       } catch {

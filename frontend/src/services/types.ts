@@ -36,7 +36,14 @@ export type Coach = {
   user_id: number;
   name: string;
   email: string;
+  created_at?: string;
   deleted_at?: string | null;
+};
+
+export type CoachStatMetric = {
+  coach_id: number;
+  student_count: number;
+  avg_sqi: number;
 };
 
 export type Student = {

@@ -242,11 +242,15 @@ const coachColumns: ColumnDef<CoachRow>[] = [
   {
     accessorKey: "joinedDate",
     header: "Joined",
-    cell: ({ row }) => (
-      <span className="text-sm text-muted-foreground">
-        {new Date(row.original.joinedDate).toLocaleDateString()}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const jd = row.original.joinedDate;
+      const d = jd && !isNaN(Date.parse(jd)) ? new Date(jd) : null;
+      return (
+        <span className="text-sm text-muted-foreground">
+          {d ? d.toLocaleDateString() : "—"}
+        </span>
+      );
+    },
   },
   {
     id: "actions",

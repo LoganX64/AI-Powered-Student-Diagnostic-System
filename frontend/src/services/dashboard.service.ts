@@ -23,6 +23,7 @@ import type {
   AssignmentDetail,
   SQIResponse,
   StudentSQIMetric,
+  CoachStatMetric,
 } from "./types";
 
 export type {
@@ -49,6 +50,7 @@ export type {
   AssignmentDetail,
   SQIResponse,
   StudentSQIMetric,
+  CoachStatMetric,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -96,6 +98,12 @@ export const createCoach = (data: CreateCoachPayload) =>
 
 export const getCoaches = (params?: PaginationParams & { include_deactivated?: boolean }) =>
   apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildListQuery(params)}`);
+
+export const getCoachStatsBatch = (coachIds: number[]) =>
+  apiFetch<{ data: CoachStatMetric[] }>("/admin/coaches/stats-batch", {
+    method: "POST",
+    body: JSON.stringify({ coach_ids: coachIds }),
+  });
 
 export const getCoach = (coachId: number) =>
   apiFetch<CoachDetail>(`/admin/coaches/${coachId}`);
