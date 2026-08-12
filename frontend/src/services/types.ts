@@ -1,51 +1,21 @@
-// ─── Create Payloads ──────────────────────────────────────────────────────────
+// ─── Create Payloads (derived from Zod schemas) ──────────────────────────────
 
-export type CreateCoachPayload = {
-  email: string;
-  password: string;
-  name: string;
-};
+import { z } from "zod";
+import {
+  createCoachSchema,
+  createStudentSchema,
+  createSubjectSchema,
+  createTestSchema,
+  createQuestionSchema,
+  createAssignmentSchema,
+} from "@/lib/validations";
 
-export type CreateStudentPayload = {
-  name: string;
-  student_code: string;
-  coach_id: number;
-};
-
-export type CreateSubjectPayload = {
-  name: string;
-};
-
-export type CreateTestPayload = {
-  title: string;
-  subject_id: number;
-  subject_name: string;
-  coach_id: number;
-  duration: number;
-  exam_date?: string;
-};
-
-export type CreateQuestionPayload = {
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: "A" | "B" | "C" | "D";
-  marks: number;
-  neg_marks: number;
-  importance: string;
-  difficulty: string;
-  type: string;
-  expected_time: number;
-  concept_tag: string;
-};
-
-export type CreateAssignmentPayload = {
-  student_id: number;
-  test_id: number;
-  coach_id: number;
-};
+export type CreateCoachPayload = z.infer<typeof createCoachSchema>;
+export type CreateStudentPayload = z.infer<typeof createStudentSchema>;
+export type CreateSubjectPayload = z.infer<typeof createSubjectSchema>;
+export type CreateTestPayload = z.infer<typeof createTestSchema>;
+export type CreateQuestionPayload = z.infer<typeof createQuestionSchema>;
+export type CreateAssignmentPayload = z.infer<typeof createAssignmentSchema>;
 
 // ─── Row Types ────────────────────────────────────────────────────────────────
 
