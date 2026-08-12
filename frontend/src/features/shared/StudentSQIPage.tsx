@@ -7,7 +7,6 @@ import { AnalysisDashboard } from "@/components/shared/AnalysisDashboard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { getStudentSQI } from "@/services/dashboard.service";
 import { parseRouteId } from "@/lib/utils";
 import type { SQIResponse } from "@/services/types";
@@ -140,9 +139,7 @@ export function StudentSQIPage() {
                         View Analysis
                       </summary>
                       <div className="mt-2">
-                        <TooltipProvider>
-                          <AnalysisDashboard data={attempt.analysis} />
-                        </TooltipProvider>
+                        <AnalysisDashboard data={attempt.analysis} />
                       </div>
                     </details>
                   )}
