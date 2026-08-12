@@ -173,6 +173,8 @@ export type SQIAnalysis = {
     coverage: number;
   };
   exam_summary: {
+    exam_type: string;
+    has_negative_marking: boolean;
     total_questions: number;
     attempted: number;
     correct: number;
@@ -192,6 +194,8 @@ export type SQIAnalysis = {
     carefully_right: number;
     seen_abandoned: number;
     never_reached: number;
+    neg_marks_from_guess: number;
+    neg_marks_from_careful: number;
   };
   concept_profiles: Array<{
     concept_tag: string;
