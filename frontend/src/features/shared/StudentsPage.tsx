@@ -49,6 +49,8 @@ export function StudentsPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [coachFetchError, setCoachFetchError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -69,8 +71,10 @@ export function StudentsPage() {
     try {
       const res = await getCoaches({ search, limit: 10 });
       setCoaches(res.data ?? []);
-    } catch {
+      setCoachFetchError(null);
+    } catch (err) {
       setCoaches([]);
+      setCoachFetchError((err as Error).message || "Failed to load coaches");
     }
   }, [isAdmin]);
 
@@ -110,8 +114,11 @@ export function StudentsPage() {
       const res = await getStudents({ limit: PAGE_SIZE, offset: off, include_deactivated: deactivated, search: searchTerm || undefined });
       setStudents(res.data ?? []);
       setTotal(res.total);
-    } catch {
-      // silently ignore
+      setFetchError(null);
+    } catch (err) {
+      const message = (err as Error).message || "Failed to load students";
+      setFetchError(message);
+      toast.error(message);
     }
   }, []);
 
@@ -269,7 +276,15 @@ export function StudentsPage() {
                       ))}
                     </div>
                   )}
-                  {showDropdown && coachSearch && coaches.length === 0 && (
+                  {showDropdown && coachSearch && coachFetchError && (
+                    <div
+                      style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                      className="z-50 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive shadow-md"
+                    >
+                      {coachFetchError}
+                    </div>
+                  )}
+                  {showDropdown && coachSearch && !coachFetchError && coaches.length === 0 && (
                     <div
                       style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
                       className="z-50 rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md"
@@ -318,7 +333,21 @@ export function StudentsPage() {
           </div>
         </div>
 
-        {students.length === 0 ? (
+        {fetchError ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex h-32 items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10">
+              <p className="text-sm text-destructive">{fetchError}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => fetchStudents(offset, includeDeactivated, search)}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : students.length === 0 ? (
           <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
             <p className="text-sm text-muted-foreground">
               No students yet. Create one above.
