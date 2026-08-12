@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Eye, EyeOff, BarChart3Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { adminSignupSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,33 +30,15 @@ export function AdminSignupForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!orgName.trim()) {
-      newErrors.orgName = "Organization name is required";
-    }
-    if (!email.trim()) {
-      newErrors.email = "Email is required";
-    }
-    if (!password) {
-      newErrors.password = "Password is required";
-    } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters long";
-    }
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
-    if (!validate()) return;
+    const result = adminSignupSchema.safeParse({ orgName, email, password, confirmPassword });
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
 
     setLoading(true);
 

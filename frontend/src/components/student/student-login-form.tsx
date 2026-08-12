@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { BarChart3Icon, AlertCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { studentLoginSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,13 +31,22 @@ export function StudentLoginForm({
   loading,
   error,
 }: LoginFormProps) {
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
+    setErrors({});
 
     const formData = new FormData(event.currentTarget);
-    onSubmit?.({
+    const result = studentLoginSchema.safeParse({
       student_code: formData.get("student_code")?.toString() ?? "",
     });
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+
+    onSubmit?.(result.data);
   };
 
   return (
@@ -69,6 +80,9 @@ export function StudentLoginForm({
                   placeholder="Enter your student code"
                   required
                 />
+                {errors.student_code && (
+                  <p className="text-sm text-destructive">{errors.student_code}</p>
+                )}
               </Field>
 
               <Field>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, BarChart3Icon, AlertCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { loginSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -54,12 +55,9 @@ export function LoginPage({
     e.preventDefault();
     setErrors({});
 
-    const newErrors: Record<string, string> = {};
-    if (!email.trim()) newErrors.email = "Email is required";
-    if (!password) newErrors.password = "Password is required";
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+    const result = loginSchema.safeParse({ email, password });
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
       return;
     }
 
