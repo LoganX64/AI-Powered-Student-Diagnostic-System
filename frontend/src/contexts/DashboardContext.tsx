@@ -4,7 +4,7 @@ import {
   getDashboardCounts,
   getStudents,
   getCoaches,
-  getStudentSQI,
+  getStudentSQIBatch,
   type DashboardCounts,
 } from "@/services/dashboard.service";
 import type { Student, Coach } from "@/services/types";
@@ -56,18 +56,15 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         const studentsRes = await getStudents({ limit: 100 });
         const students = studentsRes.data ?? [];
 
-        const sqiResults = await Promise.all(
-          students.map(async (s) => {
-            try {
-              const sqi = await getStudentSQI(s.student_id);
-              return { ...s, average_sqi: sqi.average_sqi, total_tests: sqi.total_tests };
-            } catch {
-              return { ...s, average_sqi: 0, total_tests: 0 };
-            }
-          })
-        );
-
-        if (!cancelled) setStudentsWithSQI(sqiResults);
+        if (students.length) {
+          const sqiRes = await getStudentSQIBatch(students.map((s) => s.student_id));
+          const byId = new Map(sqiRes.data.map((m) => [m.student_id, m]));
+          const sqiResults = students.map((s) => {
+            const m = byId.get(s.student_id);
+            return { ...s, average_sqi: m?.average_sqi ?? 0, total_tests: m?.total_tests ?? 0 };
+          });
+          if (!cancelled) setStudentsWithSQI(sqiResults);
+        }
 
         if (role === "admin") {
           const coachesRes = await getCoaches({ limit: 100 });

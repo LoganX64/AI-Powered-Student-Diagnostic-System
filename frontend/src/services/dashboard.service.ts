@@ -22,6 +22,7 @@ import type {
   PaginationParams,
   AssignmentDetail,
   SQIResponse,
+  StudentSQIMetric,
 } from "./types";
 
 export type {
@@ -47,6 +48,7 @@ export type {
   PaginationParams,
   AssignmentDetail,
   SQIResponse,
+  StudentSQIMetric,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -243,6 +245,12 @@ export const getStudentSQI = (studentId: number, opts?: { compute?: boolean; inc
   const qs = query.toString();
   return apiFetch<SQIResponse>(`${getPrefix()}/students/${studentId}/sqi${qs ? `?${qs}` : ""}`);
 };
+
+export const getStudentSQIBatch = (studentIds: number[]) =>
+  apiFetch<{ data: StudentSQIMetric[] }>(`${getPrefix()}/students/sqi-batch`, {
+    method: "POST",
+    body: JSON.stringify({ student_ids: studentIds }),
+  });
 
 // ─── Dashboard stats (role-aware) ───────────────────────────────────────────
 
