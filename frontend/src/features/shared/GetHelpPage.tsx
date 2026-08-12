@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { contactSupportSchema, zodErrors } from "@/lib/validations";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,9 +26,18 @@ export function GetHelpPage() {
     message: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const result = contactSupportSchema.safeParse(contactForm);
+    if (!result.success) {
+      setErrors(zodErrors(result.error));
+      return;
+    }
+    setErrors({});
+
     setSubmitting(true);
     await new Promise((r) => setTimeout(r, 1000));
     toast.success("Your message has been sent. We'll get back to you soon!");
@@ -105,6 +114,7 @@ export function GetHelpPage() {
                   }
                   required
                 />
+                {errors.subject && <p className="text-sm text-destructive">{errors.subject}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="message">Message</Label>
@@ -118,6 +128,7 @@ export function GetHelpPage() {
                   }
                   required
                 />
+                {errors.message && <p className="text-sm text-destructive">{errors.message}</p>}
               </div>
               <Button type="submit" disabled={submitting} className="w-fit">
                 {submitting ? "Sending..." : "Send Message"}

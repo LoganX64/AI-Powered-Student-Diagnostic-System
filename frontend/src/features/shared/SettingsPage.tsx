@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { useRole } from "@/hooks/useRole";
+import { profileSettingsSchema, changePasswordSchema, zodErrors } from "@/lib/validations";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
-  Settings2Icon,
   UserIcon,
   BellIcon,
   ShieldIcon,
@@ -23,13 +22,27 @@ import {
 } from "@/features/shared/mockData";
 
 export function SettingsPage() {
-  const role = useRole();
   const [profile, setProfile] = useState(mockUserProfile);
   const [notifications, setNotifications] = useState(mockNotificationPreferences);
   const [saving, setSaving] = useState(false);
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
+  const [passwords, setPasswords] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmNewPassword: "",
+  });
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const result = profileSettingsSchema.safeParse(profile);
+    if (!result.success) {
+      setProfileErrors(zodErrors(result.error));
+      return;
+    }
+    setProfileErrors({});
+
     setSaving(true);
     await new Promise((r) => setTimeout(r, 1000));
     toast.success("Profile updated successfully");
@@ -40,6 +53,21 @@ export function SettingsPage() {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 1000));
     toast.success("Notification preferences saved");
+    setSaving(false);
+  };
+
+  const handleSavePassword = async () => {
+    const result = changePasswordSchema.safeParse(passwords);
+    if (!result.success) {
+      setPasswordErrors(zodErrors(result.error));
+      return;
+    }
+    setPasswordErrors({});
+
+    setSaving(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    toast.success("Password updated successfully");
+    setPasswords({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
     setSaving(false);
   };
 
@@ -85,6 +113,7 @@ export function SettingsPage() {
                   value={profile.name}
                   onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                 />
+                {profileErrors.name && <p className="text-sm text-destructive">{profileErrors.name}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="email">Email</Label>
@@ -94,6 +123,7 @@ export function SettingsPage() {
                   value={profile.email}
                   onChange={(e) => setProfile({ ...profile, email: e.target.value })}
                 />
+                {profileErrors.email && <p className="text-sm text-destructive">{profileErrors.email}</p>}
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="phone">Phone</Label>
@@ -102,6 +132,7 @@ export function SettingsPage() {
                   value={profile.phone}
                   onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
                 />
+                {profileErrors.phone && <p className="text-sm text-destructive">{profileErrors.phone}</p>}
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary">{profile.role}</Badge>
@@ -243,17 +274,37 @@ export function SettingsPage() {
           <CardContent className="flex flex-col gap-4 max-w-lg">
             <div className="flex flex-col gap-2">
               <Label htmlFor="current-password">Current Password</Label>
-              <Input id="current-password" type="password" />
+              <Input
+                id="current-password"
+                type="password"
+                value={passwords.currentPassword}
+                onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+              />
+              {passwordErrors.currentPassword && <p className="text-sm text-destructive">{passwordErrors.currentPassword}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="new-password">New Password</Label>
-              <Input id="new-password" type="password" />
+              <Input
+                id="new-password"
+                type="password"
+                value={passwords.newPassword}
+                onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+              />
+              {passwordErrors.newPassword && <p className="text-sm text-destructive">{passwordErrors.newPassword}</p>}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input id="confirm-password" type="password" />
+              <Input
+                id="confirm-password"
+                type="password"
+                value={passwords.confirmNewPassword}
+                onChange={(e) => setPasswords({ ...passwords, confirmNewPassword: e.target.value })}
+              />
+              {passwordErrors.confirmNewPassword && <p className="text-sm text-destructive">{passwordErrors.confirmNewPassword}</p>}
             </div>
-            <Button className="w-fit">Update Password</Button>
+            <Button className="w-fit" onClick={handleSavePassword} disabled={saving}>
+              {saving ? "Updating..." : "Update Password"}
+            </Button>
           </CardContent>
         </Card>
       </TabsContent>
