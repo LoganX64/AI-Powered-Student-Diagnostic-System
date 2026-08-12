@@ -42,14 +42,15 @@ import {
   type Assignment,
   type TestDetail,
   type TestQuestion,
-  type CreateQuestionPayload,
 } from "@/services/dashboard.service";
 import {
   QuestionFormFields,
+  emptyQuestion,
   type QuestionDraft,
 } from "@/components/admin/forms/QuestionFormFields";
 import { QuestionCard } from "@/components/admin/QuestionCard";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
+import { createQuestionSchema, zodErrors } from "@/lib/validations";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
@@ -73,7 +74,7 @@ export function TestDetailPage() {
   const [editingTest, setEditingTest] = useState(false);
 
   const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null);
-  const [questionForm, setQuestionForm] = useState<Partial<CreateQuestionPayload>>({});
+  const [questionForm, setQuestionForm] = useState<QuestionDraft>(emptyQuestion());
   const [savingQuestion, setSavingQuestion] = useState(false);
 
   useEffect(() => {
@@ -135,9 +136,14 @@ export function TestDetailPage() {
 
   const handleSaveQuestion = async () => {
     if (!editingQuestion || testId === null) return;
+    const parsed = createQuestionSchema.safeParse(questionForm);
+    if (!parsed.success) {
+      toast.error(Object.values(zodErrors(parsed.error)).join("; "));
+      return;
+    }
     try {
       setSavingQuestion(true);
-      await updateQuestion(testId, editingQuestion.id, questionForm as CreateQuestionPayload);
+      await updateQuestion(testId, editingQuestion.id, parsed.data);
       toast.success("Question updated");
       setEditingQuestion(null);
       fetchQuestions(questionOffset);
@@ -440,7 +446,7 @@ export function TestDetailPage() {
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <QuestionFormFields
-                q={questionForm as QuestionDraft}
+                q={questionForm}
                 onChange={(field, value) =>
                   setQuestionForm((prev) => ({ ...prev, [field]: value }))
                 }
