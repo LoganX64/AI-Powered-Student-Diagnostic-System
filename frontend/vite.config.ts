@@ -6,10 +6,10 @@ import path from "path";
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const port = parseInt(env.VITE_PORT);
+  const port = Number(env.VITE_PORT);
 
-  if (!env.VITE_PORT) {
-    throw new Error("VITE_PORT environment variable is required");
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`VITE_PORT must be a valid port number, got: ${env.VITE_PORT}`);
   }
 
   return {
