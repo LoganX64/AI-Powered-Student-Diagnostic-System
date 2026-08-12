@@ -67,7 +67,7 @@ function buildQuery(params?: PaginationParams): string {
   return qs ? `?${qs}` : "";
 }
 
-function buildStudentQuery(params?: PaginationParams & { include_deactivated?: boolean }): string {
+function buildListQuery(params?: PaginationParams & { include_deactivated?: boolean }): string {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
@@ -94,15 +94,8 @@ export const createCoach = (data: CreateCoachPayload) =>
     body: JSON.stringify(data),
   });
 
-export const getCoaches = (params?: PaginationParams & { include_deactivated?: boolean }) => {
-  const query = new URLSearchParams();
-  if (params?.limit) query.set("limit", params.limit.toString());
-  if (params?.offset) query.set("offset", params.offset.toString());
-  if (params?.search) query.set("search", params.search);
-  if (params?.include_deactivated) query.set("include_deactivated", "true");
-  const qs = query.toString();
-  return apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${qs ? `?${qs}` : ""}`);
-};
+export const getCoaches = (params?: PaginationParams & { include_deactivated?: boolean }) =>
+  apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildListQuery(params)}`);
 
 export const getCoach = (coachId: number) =>
   apiFetch<CoachDetail>(`/admin/coaches/${coachId}`);
@@ -150,7 +143,7 @@ export const getStudentAssignments = (studentId: number) =>
   );
 
 export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) =>
-  apiFetch<PaginatedResponse<Student>>(`${getPrefix()}/students${buildStudentQuery(params)}`);
+  apiFetch<PaginatedResponse<Student>>(`${getPrefix()}/students${buildListQuery(params)}`);
 
 // ─── Subject endpoints (role-aware) ───────────────────────────────────────────
 
