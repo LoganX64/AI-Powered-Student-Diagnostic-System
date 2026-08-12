@@ -149,7 +149,7 @@ export function AssignmentDetailPage() {
 
       {/* SQI Score + Time */}
       <div className="flex items-center gap-3">
-        {sqi_score > 0 && (
+        {sqi_score != null && sqi_score > 0 && (
           <Button
             variant="outline"
             className="w-fit gap-2"

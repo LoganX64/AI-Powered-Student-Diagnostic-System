@@ -156,7 +156,7 @@ export type AssignmentDetail = {
   test: { id: number; title: string };
   assignment: { id: number; status: string; assigned_at: string };
   attempt: { id: number; submitted_at: string | null } | null;
-  sqi_score: number;
+  sqi_score: number | null;
   analysis?: SQIAnalysis;
   answers: AnswerDetail[];
 };
