@@ -110,6 +110,10 @@ export function StudentQuizPage() {
           }));
           setQuestions(mapped);
           localStorage.setItem("exam_duration", String(data.duration));
+          localStorage.setItem("exam_started", "true");
+          if (!localStorage.getItem("exam_started_at")) {
+            localStorage.setItem("exam_started_at", String(Date.now()));
+          }
         }
       } catch (err) {
         if (!cancelled) {

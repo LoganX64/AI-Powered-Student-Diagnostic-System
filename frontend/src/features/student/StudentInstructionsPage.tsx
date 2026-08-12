@@ -106,10 +106,6 @@ export function StudentInstructionsPage() {
 
   const handleAccept = () => {
     localStorage.removeItem("exam_timer");
-    localStorage.setItem("exam_started", "true");
-    if (!localStorage.getItem("exam_started_at")) {
-      localStorage.setItem("exam_started_at", String(Date.now()));
-    }
     navigate("/quiz");
   };
 
