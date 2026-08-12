@@ -135,6 +135,7 @@ func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 		admin.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		admin.GET("/assignments", adminHandler.ListAssignments)
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
+		admin.POST("/students/sqi-batch", adminHandler.GetStudentSQIBatch)
 	}
 
 	// coach
@@ -145,6 +146,7 @@ func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 	)
 	{
 		coach.GET("/students/:id/sqi", coachHandler.GetStudentSQI)
+		coach.POST("/students/sqi-batch", adminHandler.GetStudentSQIBatch)
 
 		coach.POST("/students", coachHandler.CreateStudent)
 		coach.POST("/tests", coachHandler.CreateTest)

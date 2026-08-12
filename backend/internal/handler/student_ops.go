@@ -70,6 +70,62 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+type StudentSQIBatchRequest struct {
+	StudentIDs []int `json:"student_ids" binding:"required"`
+}
+
+const maxBatchStudentIDs = 500
+
+func (h *AdminHandler) GetStudentSQIBatch(c *gin.Context) {
+	role := c.GetString("role")
+
+	if role == "super_admin" {
+		utils.Forbidden(c, "super-admin has no access to student scores")
+		return
+	}
+
+	var req StudentSQIBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+	if len(req.StudentIDs) == 0 {
+		utils.BadRequest(c, "student_ids must not be empty")
+		return
+	}
+	if len(req.StudentIDs) > maxBatchStudentIDs {
+		utils.BadRequest(c, "too many student_ids")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	coachID := 0
+	if role == "coach" {
+		coachID, err = resolveCoachID(c, h.CoachRepo)
+		if err != nil {
+			utils.Unauthorized(c, "coach not found")
+			return
+		}
+	}
+
+	result, err := h.AttemptService.GetStudentSQIBatch(req.StudentIDs, tenantID, coachID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch student SQI")
+		return
+	}
+
+	if result == nil {
+		result = []repository.StudentSQIMetric{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
+}
+
 func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

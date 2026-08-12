@@ -224,6 +224,35 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 	}, nil
 }
 
+func (s *AttemptService) GetStudentSQIBatch(studentIDs []int, tenantID, coachID int) ([]repository.StudentSQIMetric, error) {
+	if len(studentIDs) == 0 {
+		return []repository.StudentSQIMetric{}, nil
+	}
+
+	seen := make(map[int]struct{}, len(studentIDs))
+	unique := make([]int, 0, len(studentIDs))
+	for _, id := range studentIDs {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+
+	metrics, err := s.AttemptRepo.GetStudentSQIMetrics(unique, tenantID, coachID)
+	if err != nil {
+		return nil, err
+	}
+
+	if metrics == nil {
+		return []repository.StudentSQIMetric{}, nil
+	}
+	for i := range metrics {
+		metrics[i].AverageSQI = helper.Round2V2(metrics[i].AverageSQI)
+	}
+	return metrics, nil
+}
+
 func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (types.DiagnosticPayloadV2, error) {
 	questionRows, _, err := s.TestPaperRepo.ListQuestions(testID, 1000, 0)
 	if err != nil {

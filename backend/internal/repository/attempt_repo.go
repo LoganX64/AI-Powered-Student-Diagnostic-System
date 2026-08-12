@@ -3,6 +3,8 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 type AttemptRepo struct {
@@ -334,6 +336,48 @@ func (r *AttemptRepo) GetAverageSQI(studentID int) (float64, error) {
 		return 0, nil
 	}
 	return avg.Float64, nil
+}
+
+type StudentSQIMetric struct {
+	StudentID  int
+	AverageSQI float64
+	TotalTests int
+}
+
+func (r *AttemptRepo) GetStudentSQIMetrics(studentIDs []int, tenantID, coachID int) ([]StudentSQIMetric, error) {
+	rows, err := r.DB.Query(`
+		SELECT sub.student_id, AVG(sub.sqi_score) AS avg_sqi, COUNT(*) AS total_tests
+		FROM (
+			SELECT ass.student_id, ar.sqi_score,
+				   ROW_NUMBER() OVER (PARTITION BY ass.student_id ORDER BY a.id DESC) AS rn
+			FROM attempt_results ar
+			JOIN attempts a ON ar.attempt_id = a.id
+			JOIN assignments ass ON a.assignment_id = ass.id
+			JOIN students s ON ass.student_id = s.id
+			WHERE ass.student_id = ANY($1)
+			  AND s.tenant_id = $2
+			  AND ($3 = 0 OR s.coach_id = $3)
+		) sub
+		WHERE sub.rn <= 100
+		GROUP BY sub.student_id
+	`, pq.Array(studentIDs), tenantID, coachID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var metrics []StudentSQIMetric
+	for rows.Next() {
+		var m StudentSQIMetric
+		if err := rows.Scan(&m.StudentID, &m.AverageSQI, &m.TotalTests); err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return metrics, nil
 }
 
 func (r *AttemptRepo) GetResults(studentID int, includeAnalysis bool) ([]AttemptResultRow, error) {
