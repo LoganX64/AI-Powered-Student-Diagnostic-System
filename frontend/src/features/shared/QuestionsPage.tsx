@@ -48,38 +48,10 @@ import {
   updateQuestion,
   type PaginatedResponse,
 } from "@/services/dashboard.service";
+import { type TestDetail, type TestQuestion } from "@/services/types";
 import { apiFetch } from "@/lib/api";
 import { createQuestionSchema, zodErrors } from "@/lib/validations";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
-
-type TestDetail = {
-  test_id: number;
-  title: string;
-  subject_id: number;
-  coach_id: number;
-  duration: number;
-  created_at: string;
-  subject_name: string;
-  coach_name: string;
-  exam_date?: string;
-};
-
-type Question = {
-  id: number;
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: string;
-  marks: number;
-  neg_marks: number;
-  importance: string;
-  difficulty: string;
-  type: string;
-  expected_time: number;
-  concept_tag: string;
-};
 
 const PAGE_SIZE = 50;
 
@@ -93,11 +65,11 @@ export function QuestionsPage() {
   const apiPrefix = isAdmin ? "/admin" : "/coach";
 
   const [test, setTest] = useState<TestDetail | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<TestQuestion[]>([]);
   const [questionTotal, setQuestionTotal] = useState(0);
   const [questionOffset, setQuestionOffset] = useState(0);
 
-  const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null);
   const [questionForm, setQuestionForm] = useState<QuestionDraft>(emptyQuestion());
   const [savingQuestion, setSavingQuestion] = useState(false);
 
@@ -115,7 +87,7 @@ export function QuestionsPage() {
   const fetchQuestions = useCallback(async (off: number) => {
     if (testId === null) return;
     try {
-      const res = await apiFetch<PaginatedResponse<Question>>(
+      const res = await apiFetch<PaginatedResponse<TestQuestion>>(
         `${apiPrefix}/tests/${testId}/questions?limit=${PAGE_SIZE}&offset=${off}`
       );
       setQuestions(res.data ?? []);
@@ -132,7 +104,7 @@ export function QuestionsPage() {
     fetchQuestions(questionOffset);
   }, [questionOffset, fetchQuestions]);
 
-  const openEditDialog = (q: Question) => {
+  const openEditDialog = (q: TestQuestion) => {
     setEditingQuestion(q);
     setQuestionForm({
       question_text: q.question_text,

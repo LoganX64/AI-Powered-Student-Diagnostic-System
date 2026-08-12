@@ -4,16 +4,25 @@ if (!BASE_URL) {
   throw new Error("VITE_BACKEND_URL is not set in frontend/.env");
 }
 
+function getTokenKey(): string {
+  const adminRole = localStorage.getItem("admin_role");
+  if (adminRole === "admin") return "admin_token";
+  const coachRole = localStorage.getItem("coach_role");
+  if (coachRole === "coach") return "coach_token";
+  return "admin_token";
+}
+
 /**
  * Shared fetch wrapper that attaches a JWT and handles errors.
- * @param tokenKey - localStorage key for the token (default: "admin_token")
+ * @param tokenKey - localStorage key for the token (auto-detected if not provided)
  */
 export async function apiFetch<T = unknown>(
   url: string,
   options: RequestInit = {},
-  tokenKey: string = "admin_token"
+  tokenKey?: string
 ): Promise<T> {
-  const token = localStorage.getItem(tokenKey);
+  const key = tokenKey || getTokenKey();
+  const token = localStorage.getItem(key);
 
   const headers = new Headers(options.headers);
 

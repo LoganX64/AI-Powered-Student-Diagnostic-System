@@ -56,8 +56,11 @@ export type {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getPrefix(): string {
-  const role = localStorage.getItem("admin_role");
-  return role === "coach" ? "/coach" : "/admin";
+  const adminRole = localStorage.getItem("admin_role");
+  if (adminRole === "admin") return "/admin";
+  const coachRole = localStorage.getItem("coach_role");
+  if (coachRole === "coach") return "/coach";
+  return "/admin";
 }
 
 function buildQuery(params?: PaginationParams): string {

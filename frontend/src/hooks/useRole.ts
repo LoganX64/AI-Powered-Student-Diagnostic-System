@@ -6,11 +6,19 @@ export type Role = "admin" | "coach" | "student";
 export const ROLE_CHANGE_EVENT = "role-change";
 
 function readTokenRole(): Role | null {
-  const token = localStorage.getItem("admin_token");
-  if (token) {
-    const payload = getTokenPayload(token);
-    if (payload && (payload.role === "admin" || payload.role === "coach")) {
-      return payload.role;
+  const adminToken = localStorage.getItem("admin_token");
+  if (adminToken) {
+    const payload = getTokenPayload(adminToken);
+    if (payload && payload.role === "admin") {
+      return "admin";
+    }
+  }
+
+  const coachToken = localStorage.getItem("coach_token");
+  if (coachToken) {
+    const payload = getTokenPayload(coachToken);
+    if (payload && payload.role === "coach") {
+      return "coach";
     }
   }
 

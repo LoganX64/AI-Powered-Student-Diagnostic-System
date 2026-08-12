@@ -1,19 +1,12 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { getTokenPayload, isTokenExpired } from "@/lib/token";
 import { ROLE_CHANGE_EVENT } from "@/hooks/useRole";
-
-type Role = "admin" | "coach" | "student";
-
-const REDIRECT_MAP: Record<Role, string> = {
-  admin: "/admin-signin",
-  coach: "/coach-signin",
-  student: "/student-login",
-};
+import { STUDENT_ROUTES, ROLE_REDIRECT_MAP, type Role } from "@/config/routes";
 
 function detectRoleFromPath(pathname: string): Role | null {
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/coach")) return "coach";
-  if (["/dashboard", "/instructions", "/quiz", "/submitted"].includes(pathname)) return "student";
+  if (STUDENT_ROUTES.includes(pathname as (typeof STUDENT_ROUTES)[number])) return "student";
   return null;
 }
 
@@ -32,6 +25,9 @@ function clearExpiredToken(tokenKey: string) {
   if (tokenKey === "student_token") {
     localStorage.removeItem("student_token");
     localStorage.removeItem("student_code");
+  } else if (tokenKey === "coach_token") {
+    localStorage.removeItem("coach_token");
+    localStorage.removeItem("coach_role");
   } else {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_role");
@@ -41,13 +37,24 @@ function clearExpiredToken(tokenKey: string) {
 
 function isAuthenticated(role: Role): boolean {
   switch (role) {
-    case "admin":
-    case "coach": {
+    case "admin": {
       const tokenKey = "admin_token";
       const token = localStorage.getItem(tokenKey);
       if (!token) return false;
       const tokenRole = getRoleFromToken(tokenKey);
-      if (tokenRole !== role) return false;
+      if (tokenRole !== "admin") return false;
+      if (isTokenExpired(token)) {
+        clearExpiredToken(tokenKey);
+        return false;
+      }
+      return true;
+    }
+    case "coach": {
+      const tokenKey = "coach_token";
+      const token = localStorage.getItem(tokenKey);
+      if (!token) return false;
+      const tokenRole = getRoleFromToken(tokenKey);
+      if (tokenRole !== "coach") return false;
       if (isTokenExpired(token)) {
         clearExpiredToken(tokenKey);
         return false;
@@ -75,5 +82,5 @@ export function ProtectedRoute() {
 
   if (!requiredRole) return <Navigate to="/" replace />;
   if (isAuthenticated(requiredRole)) return <Outlet />;
-  return <Navigate to={REDIRECT_MAP[requiredRole]} replace />;
+  return <Navigate to={ROLE_REDIRECT_MAP[requiredRole]} replace />;
 }
