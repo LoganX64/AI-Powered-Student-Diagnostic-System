@@ -3,6 +3,8 @@ package repository
 import (
 	"database/sql"
 	"strconv"
+
+	"github.com/lib/pq"
 )
 
 type CoachRepo struct {
@@ -18,6 +20,7 @@ type CoachRow struct {
 	UserID    int     `json:"user_id"`
 	Name      string  `json:"name"`
 	Email     string  `json:"email"`
+	CreatedAt string  `json:"created_at"`
 	DeletedAt *string `json:"deleted_at"`
 }
 
@@ -71,7 +74,7 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 		return nil, 0, err
 	}
 
-	dataQuery := "SELECT c.id, c.user_id, c.name, u.email, c.deleted_at " + baseQuery + " ORDER BY c.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
+	dataQuery := "SELECT c.id, c.user_id, c.name, u.email, c.created_at, c.deleted_at " + baseQuery + " ORDER BY c.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
 	args = append(args, limit, offset)
 
 	rows, err := r.DB.Query(dataQuery, args...)
@@ -83,7 +86,7 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 	var coaches []CoachRow
 	for rows.Next() {
 		var c2 CoachRow
-		if err := rows.Scan(&c2.CoachID, &c2.UserID, &c2.Name, &c2.Email, &c2.DeletedAt); err != nil {
+		if err := rows.Scan(&c2.CoachID, &c2.UserID, &c2.Name, &c2.Email, &c2.CreatedAt, &c2.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		coaches = append(coaches, c2)
@@ -92,6 +95,54 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 		return nil, 0, err
 	}
 	return coaches, total, nil
+}
+
+type CoachStatMetric struct {
+	CoachID      int     `json:"coach_id"`
+	StudentCount int     `json:"student_count"`
+	AverageSQI   float64 `json:"avg_sqi"`
+}
+
+func (r *CoachRepo) GetCoachStats(coachIDs []int, tenantID int) ([]CoachStatMetric, error) {
+	rows, err := r.DB.Query(`
+		SELECT s.coach_id,
+		       COUNT(DISTINCT s.id) AS student_count,
+		       COALESCE(AVG(p.student_avg), 0) AS avg_sqi
+		FROM students s
+		LEFT JOIN (
+			SELECT main.student_id, AVG(main.sqi_score) AS student_avg
+			FROM (
+				SELECT s2.coach_id, ass.student_id, ar.sqi_score,
+				       ROW_NUMBER() OVER (PARTITION BY s2.coach_id, ass.student_id ORDER BY a.id DESC) AS rn
+				FROM attempt_results ar
+				JOIN attempts a ON ar.attempt_id = a.id
+				JOIN assignments ass ON a.assignment_id = ass.id
+				JOIN students s2 ON ass.student_id = s2.id
+				WHERE s2.coach_id = ANY($1) AND s2.tenant_id = $2 AND s2.deleted_at IS NULL
+			) main
+			WHERE main.rn <= 100
+			GROUP BY main.student_id
+		) p ON p.student_id = s.id
+		WHERE s.coach_id = ANY($1) AND s.tenant_id = $2 AND s.deleted_at IS NULL
+		GROUP BY s.coach_id
+	`, pq.Array(coachIDs), tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var metrics []CoachStatMetric
+	for rows.Next() {
+		var m CoachStatMetric
+		if err := rows.Scan(&m.CoachID, &m.StudentCount, &m.AverageSQI); err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return metrics, nil
 }
 
 func (r *CoachRepo) GetDetail(coachID, tenantID int) (*CoachDetailRow, error) {

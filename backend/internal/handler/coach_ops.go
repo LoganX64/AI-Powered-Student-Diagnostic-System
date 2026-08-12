@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/helper"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 	"net/http"
@@ -165,4 +166,54 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": students})
+}
+
+type CoachStatsBatchRequest struct {
+	CoachIDs []int `json:"coach_ids" binding:"required"`
+}
+
+const maxBatchCoachIDs = 500
+
+func (h *AdminHandler) GetCoachStatsBatch(c *gin.Context) {
+	role := c.GetString("role")
+
+	if role == "super_admin" {
+		utils.Forbidden(c, "super-admin has no access to coach stats")
+		return
+	}
+
+	var req CoachStatsBatchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+	if len(req.CoachIDs) == 0 {
+		utils.BadRequest(c, "coach_ids must not be empty")
+		return
+	}
+	if len(req.CoachIDs) > maxBatchCoachIDs {
+		utils.BadRequest(c, "too many coach_ids")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	result, err := h.CoachRepo.GetCoachStats(req.CoachIDs, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch coach stats")
+		return
+	}
+
+	if result == nil {
+		result = []repository.CoachStatMetric{}
+	}
+	for i := range result {
+		result[i].AverageSQI = helper.Round2V2(result[i].AverageSQI)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": result})
 }

@@ -136,6 +136,7 @@ func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 		admin.GET("/assignments", adminHandler.ListAssignments)
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 		admin.POST("/students/sqi-batch", adminHandler.GetStudentSQIBatch)
+		admin.POST("/coaches/stats-batch", adminHandler.GetCoachStatsBatch)
 	}
 
 	// coach
