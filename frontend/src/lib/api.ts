@@ -15,10 +15,11 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const token = localStorage.getItem(tokenKey);
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
+  const headers = new Headers(options.headers);
+
+  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
