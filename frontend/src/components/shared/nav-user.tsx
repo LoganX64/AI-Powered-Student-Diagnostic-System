@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useNavigate, useLocation } from "react-router-dom"
 import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { ROLE_CHANGE_EVENT } from "@/hooks/useRole"
 
 export function NavUser({
   user,
@@ -38,6 +39,7 @@ export function NavUser({
   const handleLogout = () => {
     localStorage.removeItem("admin_token")
     localStorage.removeItem("admin_role")
+    window.dispatchEvent(new Event(ROLE_CHANGE_EVENT))
     navigate(prefix === "/admin" ? "/admin-signin" : "/coach-signin")
   }
 

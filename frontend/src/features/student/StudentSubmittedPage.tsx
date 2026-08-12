@@ -4,6 +4,7 @@ import { CheckCircle, RefreshCw } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { submitAnswers } from "../../services/student.service";
 import type { AnswerPayload } from "../../services/student.service";
+import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
@@ -19,6 +20,7 @@ function clearStudentSession() {
   localStorage.removeItem("quiz_answer_details");
   localStorage.removeItem("current_question_index");
   localStorage.removeItem("pending_submission");
+  window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
 }
 
 type PendingSubmission = {

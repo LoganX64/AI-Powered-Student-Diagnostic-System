@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
-import { useRole } from "@/hooks/useRole";
+import { useRole, type Role } from "@/hooks/useRole";
 import {
   getDashboardCounts,
   getStudents,
@@ -29,7 +29,7 @@ type DashboardContextValue = {
   studentsWithSQI: StudentWithSQI[];
   coachRows: CoachRow[];
   loading: boolean;
-  role: string;
+  role: Role | null;
 };
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -49,6 +49,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function load() {
       try {
+        if (!role) return;
         const c = await getDashboardCounts();
         if (!cancelled) setCounts(c);
 

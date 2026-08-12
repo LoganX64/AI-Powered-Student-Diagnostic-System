@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { getTokenPayload, isTokenExpired } from "@/lib/token";
+import { ROLE_CHANGE_EVENT } from "@/hooks/useRole";
 
 type Role = "admin" | "coach" | "student";
 
@@ -35,6 +36,7 @@ function clearExpiredToken(tokenKey: string) {
     localStorage.removeItem("admin_token");
     localStorage.removeItem("admin_role");
   }
+  window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
 }
 
 function isAuthenticated(role: Role): boolean {

@@ -4,6 +4,7 @@ import { AlertTriangle, BarChart3, Clock, FileText, LogOut, Mail, Phone } from "
 import { Button } from "../../components/ui/button";
 import { getStudentAssignments } from "../../services/student.service";
 import type { Assignment } from "../../services/student.service";
+import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -54,6 +55,7 @@ export function StudentDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem("student_token");
     localStorage.removeItem("student_code");
+    window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
     navigate("/", { replace: true });
   };
 
