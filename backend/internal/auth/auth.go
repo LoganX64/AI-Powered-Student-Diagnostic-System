@@ -37,6 +37,11 @@ func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
 		return
 	}
 
+	if err := utils.ValidatePassword(req.Password); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
 	hashed, err := utils.HashPassword(req.Password)
 	if err != nil {
 		utils.InternalError(c, err, "hashing failed")
@@ -118,6 +123,11 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 
 	userID := c.GetInt("user_id")
 
+	if err := utils.ValidatePassword(req.Password); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
 	hashed, err := utils.HashPassword(req.Password)
 	if err != nil {
 		utils.InternalError(c, err, "hashing failed")
@@ -151,6 +161,11 @@ func (h *AuthHandler) UpdatePassword(c *gin.Context) {
 	var req UpdatePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		utils.BadRequest(c, err.Error())
 		return
 	}
 
