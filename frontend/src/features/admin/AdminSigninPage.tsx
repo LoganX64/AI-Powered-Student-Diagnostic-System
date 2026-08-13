@@ -5,7 +5,7 @@ export function AdminSigninPage() {
     <div className="flex min-h-screen items-center justify-center px-4">
       <LoginPage
         title="Welcome back"
-        description="Login with your Google account"
+        description="Sign in to your admin account"
         dashboardPath="/admin/dashboard"
         footerLinks={[
           { label: "Don't have an account?", linkText: "Sign up", href: "/admin-signup" },

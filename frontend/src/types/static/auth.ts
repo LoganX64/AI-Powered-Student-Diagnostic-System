@@ -1,8 +1,6 @@
 export interface AuthFormText {
   cardTitle: string;
   cardDescription: string;
-  googleButton: string;
-  separatorText: string;
   emailLabel: string;
   emailPlaceholder: string;
   passwordLabel: string;
@@ -59,9 +57,7 @@ export interface AuthPageText {
 export const authPageText: AuthPageText = {
   adminLogin: {
     cardTitle: "Welcome back",
-    cardDescription: "Login with your Google account",
-    googleButton: "Login with Google",
-    separatorText: "Or continue with",
+    cardDescription: "Sign in to your admin account",
     emailLabel: "Email",
     emailPlaceholder: "m@example.com",
     passwordLabel: "Password",
@@ -96,8 +92,6 @@ export const authPageText: AuthPageText = {
   coachLogin: {
     cardTitle: "Welcome back, Coach!",
     cardDescription: "Sign in to your coach account",
-    googleButton: "Login with Google",
-    separatorText: "Or continue with",
     emailLabel: "Email",
     emailPlaceholder: "coach@example.com",
     passwordLabel: "Password",
