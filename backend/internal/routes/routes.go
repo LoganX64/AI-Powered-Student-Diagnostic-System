@@ -89,7 +89,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 	{
 		authRoute.POST("/login", authHandler.UserLogin)
 		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
-		authRoute.POST("/google", authHandler.GoogleLogin)
 	}
 
 	// student
