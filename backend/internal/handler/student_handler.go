@@ -5,6 +5,7 @@ import (
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -12,11 +13,12 @@ import (
 )
 
 type StudentHandler struct {
-	StudentRepo    *repository.StudentRepo
-	AssignmentRepo *repository.AssignmentRepo
-	AttemptRepo    *repository.AttemptRepo
-	TestPaperRepo  *repository.TestPaperRepo
-	AttemptService *services.AttemptService
+	StudentRepo      *repository.StudentRepo
+	AssignmentRepo   *repository.AssignmentRepo
+	AttemptRepo      *repository.AttemptRepo
+	TestPaperRepo    *repository.TestPaperRepo
+	AttemptService   *services.AttemptService
+	LoginAttemptRepo *repository.LoginAttemptRepo
 }
 
 func NewStudentHandler(
@@ -25,13 +27,15 @@ func NewStudentHandler(
 	attemptRepo *repository.AttemptRepo,
 	testPaperRepo *repository.TestPaperRepo,
 	attemptService *services.AttemptService,
+	loginAttemptRepo *repository.LoginAttemptRepo,
 ) *StudentHandler {
 	return &StudentHandler{
-		StudentRepo:    studentRepo,
-		AssignmentRepo: assignmentRepo,
-		AttemptRepo:    attemptRepo,
-		TestPaperRepo:  testPaperRepo,
-		AttemptService: attemptService,
+		StudentRepo:      studentRepo,
+		AssignmentRepo:   assignmentRepo,
+		AttemptRepo:      attemptRepo,
+		TestPaperRepo:    testPaperRepo,
+		AttemptService:   attemptService,
+		LoginAttemptRepo: loginAttemptRepo,
 	}
 }
 
@@ -46,10 +50,30 @@ func (h *StudentHandler) StudentLogin(c *gin.Context) {
 		return
 	}
 
+	locked, err := h.LoginAttemptRepo.IsLocked(req.StudentCode)
+	if err != nil {
+		utils.InternalError(c, err, "login attempt check failed")
+		return
+	}
+	if locked {
+		c.AbortWithStatusJSON(http.StatusLocked, gin.H{
+			"error":   "account locked",
+			"message": "too many failed attempts, try again later",
+		})
+		return
+	}
+
 	studentID, tenantID, err := h.StudentRepo.GetIDByStudentCode(req.StudentCode)
 	if err != nil {
+		if recErr := h.LoginAttemptRepo.RecordFailure(req.StudentCode); recErr != nil {
+			log.Printf("[STUDENT] failed to record login attempt for %s: %v", req.StudentCode, recErr)
+		}
 		utils.Unauthorized(c, "invalid student code")
 		return
+	}
+
+	if err := h.LoginAttemptRepo.Reset(req.StudentCode); err != nil {
+		log.Printf("[STUDENT] failed to reset login attempts for %s: %v", req.StudentCode, err)
 	}
 
 	token, err := utils.GenerateToken(0, "student", studentID, tenantID)

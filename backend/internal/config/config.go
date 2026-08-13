@@ -20,6 +20,7 @@ type Config struct {
 	DBMaxIdleConns    int
 	DBConnMaxLifetime time.Duration
 	AllowedOrigins    []string
+	TrustedProxies    []string
 }
 
 func LoadConfig() *Config {
@@ -90,6 +91,16 @@ func LoadConfig() *Config {
 		}
 	}
 
+	var trustedProxies []string
+	if proxyStr := os.Getenv("TRUSTED_PROXIES"); proxyStr != "" {
+		for _, p := range strings.Split(proxyStr, ",") {
+			trimmed := strings.TrimSpace(p)
+			if trimmed != "" {
+				trustedProxies = append(trustedProxies, trimmed)
+			}
+		}
+	}
+
 	return &Config{
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
@@ -100,5 +111,6 @@ func LoadConfig() *Config {
 		DBMaxIdleConns:    maxIdle,
 		DBConnMaxLifetime: maxLifetime,
 		AllowedOrigins:    allowedOrigins,
+		TrustedProxies:    trustedProxies,
 	}
 }

@@ -14,8 +14,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
+func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *gin.Engine {
 	r := gin.Default()
+
+	// Configure trusted proxies so c.ClientIP() reads X-Forwarded-For correctly
+	// when running behind a load balancer. Empty list = trust nothing (RemoteAddr only).
+	if len(trustedProxies) > 0 {
+		if err := r.SetTrustedProxies(trustedProxies); err != nil {
+			log.Fatalf("invalid TRUSTED_PROXIES: %v", err)
+		}
+	} else {
+		r.SetTrustedProxies(nil)
+	}
 
 	// Global error handlers
 	r.NoRoute(func(c *gin.Context) {
@@ -60,6 +70,7 @@ func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 	testPaperRepo := repository.NewTestPaperRepo(db)
 	assignmentRepo := repository.NewAssignmentRepo(db)
 	attemptRepo := repository.NewAttemptRepo(db)
+	loginAttemptRepo := repository.NewLoginAttemptRepo(db)
 
 	// Initialize services
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
@@ -67,13 +78,14 @@ func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 	authService := services.NewAuthService(userRepo, coachRepo)
 
 	// Initialize handlers
-	authHandler := auth.NewAuthHandler(authService)
+	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
 	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo)
 
 	// auth
 	authRoute := r.Group("/auth")
+	authRoute.Use(middleware.RateLimit())
 	{
 		authRoute.POST("/login", authHandler.UserLogin)
 		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
@@ -83,7 +95,7 @@ func SetupRouter(db *sql.DB, allowedOrigins []string) *gin.Engine {
 	// student
 	student := r.Group("/student")
 	{
-		student.POST("/login", studentHandler.StudentLogin)
+		student.POST("/login", middleware.RateLimit(), studentHandler.StudentLogin)
 
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo))

@@ -1,19 +1,22 @@
 package auth
 
 import (
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	AuthService *services.AuthService
+	AuthService      *services.AuthService
+	LoginAttemptRepo *repository.LoginAttemptRepo
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
-	return &AuthHandler{AuthService: authService}
+func NewAuthHandler(authService *services.AuthService, loginAttemptRepo *repository.LoginAttemptRepo) *AuthHandler {
+	return &AuthHandler{AuthService: authService, LoginAttemptRepo: loginAttemptRepo}
 }
 
 type LoginRequest struct {
@@ -61,10 +64,30 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 		return
 	}
 
+	locked, err := h.LoginAttemptRepo.IsLocked(req.Email)
+	if err != nil {
+		utils.InternalError(c, err, "login attempt check failed")
+		return
+	}
+	if locked {
+		c.AbortWithStatusJSON(http.StatusLocked, gin.H{
+			"error":   "account locked",
+			"message": "too many failed attempts, try again later",
+		})
+		return
+	}
+
 	result, err := h.AuthService.UserLogin(req.Email, req.Password)
 	if err != nil {
+		if recErr := h.LoginAttemptRepo.RecordFailure(req.Email); recErr != nil {
+			log.Printf("[AUTH] failed to record login attempt for %s: %v", req.Email, recErr)
+		}
 		utils.Unauthorized(c, "invalid credentials")
 		return
+	}
+
+	if err := h.LoginAttemptRepo.Reset(req.Email); err != nil {
+		log.Printf("[AUTH] failed to reset login attempts for %s: %v", req.Email, err)
 	}
 
 	token, err := utils.GenerateToken(result.UserID, result.Role, 0, int(result.TenantID))
