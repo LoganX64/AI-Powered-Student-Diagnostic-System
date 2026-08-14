@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -11,9 +12,12 @@ import (
 )
 
 type CreateAssignmentRequest struct {
-	StudentID int `json:"student_id" binding:"required"`
-	TestID    int `json:"test_id" binding:"required"`
-	CoachID   int `json:"coach_id" binding:"required"`
+	StudentID       int             `json:"student_id" binding:"required"`
+	TestID          int             `json:"test_id" binding:"required"`
+	CoachID         int             `json:"coach_id" binding:"required"`
+	IntegrityPolicy json.RawMessage `json:"integrity_policy"`
+	EstimatedCost   float64         `json:"estimated_cost"`
+	DeliveryMode    string          `json:"delivery_mode"`
 }
 
 func (h *AdminHandler) CreateAssignment(c *gin.Context) {
@@ -26,13 +30,21 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 	role := c.GetString("role")
 	userID := c.GetInt("user_id")
 
+	deliveryMode := req.DeliveryMode
+	if deliveryMode == "" {
+		deliveryMode = services.DeliveryModeForN(1, 0)
+	}
+
 	id, err := h.AssignmentService.CreateAssignment(services.CreateAssignmentInput{
-		CallerRole: role,
-		CallerID:   userID,
-		TenantID:   c.GetInt("tenant_id"),
-		StudentID:  req.StudentID,
-		TestID:     req.TestID,
-		CoachID:    req.CoachID,
+		CallerRole:      role,
+		CallerID:        userID,
+		TenantID:        c.GetInt("tenant_id"),
+		StudentID:       req.StudentID,
+		TestID:          req.TestID,
+		CoachID:         req.CoachID,
+		IntegrityPolicy: req.IntegrityPolicy,
+		EstimatedCost:   req.EstimatedCost,
+		DeliveryMode:    deliveryMode,
 	})
 	if err != nil {
 		var svcErr *services.CreateAssignmentError
@@ -45,6 +57,109 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"assignment_id": id})
+}
+
+// CreateBatchAssignmentRequest assigns one test to many students and/or batches.
+type CreateBatchAssignmentRequest struct {
+	TestID          int             `json:"test_id" binding:"required"`
+	StudentIDs      []int           `json:"student_ids"`
+	BatchIDs        []int           `json:"batch_ids"`
+	CoachID         int             `json:"coach_id"`
+	IntegrityPolicy json.RawMessage `json:"integrity_policy"`
+	EstimatedCost   float64         `json:"estimated_cost"`
+	DeliveryMode    string          `json:"delivery_mode"`
+}
+
+func (h *AdminHandler) CreateBatchAssignment(c *gin.Context) {
+	var req CreateBatchAssignmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	role := c.GetString("role")
+	tenantID := c.GetInt("tenant_id")
+	userID := c.GetInt("user_id")
+
+	studentIDs, err := h.expandBatchTargets(c, tenantID, req.StudentIDs, req.BatchIDs)
+	if err != nil {
+		return
+	}
+
+	deliveryMode := req.DeliveryMode
+	if deliveryMode == "" {
+		deliveryMode = services.DeliveryModeForN(len(studentIDs), h.scaleBandC())
+	}
+
+	created, err := h.AssignmentService.CreateBatchAssignment(services.CreateBatchAssignmentInput{
+		CallerRole:      role,
+		CallerID:        userID,
+		TenantID:        tenantID,
+		TestID:          req.TestID,
+		CoachID:         req.CoachID,
+		StudentIDs:      studentIDs,
+		IntegrityPolicy: req.IntegrityPolicy,
+		EstimatedCost:   req.EstimatedCost,
+		DeliveryMode:    deliveryMode,
+	})
+	if err != nil {
+		var svcErr *services.CreateAssignmentError
+		if errors.As(err, &svcErr) {
+			c.JSON(svcErr.Status, gin.H{"error": svcErr.Message})
+			return
+		}
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create assignments")
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"created": created})
+}
+
+func (h *CoachHandler) CreateBatchAssignment(c *gin.Context) {
+	var req CreateBatchAssignmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	_, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
+	if err != nil {
+		utils.Unauthorized(c, "coach not found")
+		return
+	}
+
+	studentIDs, err := h.expandBatchTargets(c, tenantID, req.StudentIDs, req.BatchIDs)
+	if err != nil {
+		return
+	}
+
+	deliveryMode := req.DeliveryMode
+	if deliveryMode == "" {
+		deliveryMode = services.DeliveryModeForN(len(studentIDs), h.scaleBandC())
+	}
+
+	created, err := h.AssignmentService.CreateBatchAssignment(services.CreateBatchAssignmentInput{
+		CallerRole:      "coach",
+		CallerID:        c.GetInt("user_id"),
+		TenantID:        tenantID,
+		TestID:          req.TestID,
+		CoachID:         0,
+		StudentIDs:      studentIDs,
+		IntegrityPolicy: req.IntegrityPolicy,
+		EstimatedCost:   req.EstimatedCost,
+		DeliveryMode:    deliveryMode,
+	})
+	if err != nil {
+		var svcErr *services.CreateAssignmentError
+		if errors.As(err, &svcErr) {
+			c.JSON(svcErr.Status, gin.H{"error": svcErr.Message})
+			return
+		}
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create assignments")
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"created": created})
 }
 
 func (h *AdminHandler) ListAssignments(c *gin.Context) {
