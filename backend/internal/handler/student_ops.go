@@ -12,8 +12,9 @@ import (
 
 type CreateStudentRequest struct {
 	Name        string `json:"name" binding:"required"`
-	StudentCode string `json:"student_code" binding:"required"`
+	StudentCode string `json:"student_code"`
 	CoachID     int    `json:"coach_id"`
+	BatchID     *int   `json:"batch_id"`
 }
 
 func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
@@ -226,10 +227,17 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	id, err := h.StudentRepo.Create(tenantID, req.Name, req.StudentCode, coachID)
+	id, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
+	}
+
+	if req.BatchID != nil {
+		ok, err := h.BatchRepo.Exists(tenantID, *req.BatchID)
+		if err == nil && ok {
+			_ = h.BatchRepo.SetStudentBatch(tenantID, id, req.BatchID)
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"student_id": id})
