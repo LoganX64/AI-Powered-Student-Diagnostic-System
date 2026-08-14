@@ -5,6 +5,7 @@ import (
 	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/middleware"
+	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
@@ -67,14 +68,18 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	attemptRepo := repository.NewAttemptRepo(db)
 	loginAttemptRepo := repository.NewLoginAttemptRepo(db)
 	batchRepo := repository.NewBatchRepo(db)
+	jobRepo := repository.NewJobRepo(db)
 
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
 	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo)
+	jobService := services.NewJobService(jobRepo, attemptService, cfg.ComputeChunkSize)
 	authService := services.NewAuthService(userRepo, coachRepo)
 
+	jobQueue := queue.New(1024)
+
 	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, attemptService, assignmentService, cfg)
-	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, attemptService, assignmentService, cfg)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
+	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, cfg)
 
 	authRoute := r.Group("/auth")
@@ -94,12 +99,12 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			protected.POST("/submit/:id", studentHandler.SubmitAnswers)
 			protected.GET("/assignments", studentHandler.ListStudentAssignments)
 			protected.GET("/assignments/:id/questions", studentHandler.GetAssignmentQuestions)
-			protected.POST("/assignments/:id/start", studentHandler.StartAttempt)
+			protected.POST("/assignments/:id/start", studentHandler.StartExam)
 			protected.POST("/assignments/:id/autosave", studentHandler.Autosave)
 			protected.GET("/assignments/:id/state", studentHandler.GetState)
-			protected.POST("/assignments/:id/submit", studentHandler.SubmitAttempt)
+			protected.POST("/assignments/:id/submit", studentHandler.SubmitExam)
 			protected.POST("/assignments/:id/video-chunk", studentHandler.VideoChunk)
-			protected.POST("/api/time", studentHandler.SyncTime)
+			protected.POST("/api/time", studentHandler.ServerTime)
 		}
 	}
 
@@ -151,6 +156,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/batches", adminHandler.ListBatches)
 		admin.DELETE("/batches/:id", adminHandler.DeleteBatch)
 		admin.PATCH("/students/:id/batch", adminHandler.TransferStudentBatch)
+
+		admin.POST("/sqi/compute", adminHandler.ComputeSQI)
+		admin.POST("/sqi/compute-batch", adminHandler.ComputeSQIBatch)
+		admin.GET("/jobs/:id", adminHandler.GetJob)
 	}
 
 	coach := r.Group("/coach")
@@ -194,8 +203,16 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.DELETE("/batches/:id", coachHandler.DeleteBatch)
 		coach.PATCH("/students/:id/batch", coachHandler.TransferStudentBatch)
 
+		coach.POST("/sqi/compute", coachHandler.ComputeSQI)
+		coach.POST("/sqi/compute-batch", coachHandler.ComputeSQIBatch)
+		coach.GET("/jobs/:id", coachHandler.GetJob)
+
 		coach.PUT("/password", authHandler.UpdatePassword)
 	}
+
+	jobQueue.Start(func(jobID int) {
+		jobService.Process(jobID)
+	})
 
 	return r
 }

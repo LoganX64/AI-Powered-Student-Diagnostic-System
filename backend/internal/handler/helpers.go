@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -43,6 +44,16 @@ func getStudentIDFromContext(c *gin.Context) (int, error) {
 		return 0, fmt.Errorf("invalid token data")
 	}
 	return studentID, nil
+}
+
+// parseIDParam reads an integer path parameter, responding 400 on failure.
+func parseIDParam(c *gin.Context, name string) (int, error) {
+	id, err := strconv.Atoi(c.Param(name))
+	if err != nil {
+		utils.BadRequest(c, "invalid "+name)
+		return 0, err
+	}
+	return id, nil
 }
 
 func verifyCoachExists(c *gin.Context, coachID int, tenantID int, coachRepo *repository.CoachRepo) bool {

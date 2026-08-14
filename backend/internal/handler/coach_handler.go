@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/config"
+	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
@@ -22,7 +23,8 @@ type CoachHandler struct {
 	JobRepo           *repository.JobRepo
 	AttemptService    *services.AttemptService
 	AssignmentService *services.AssignmentService
-	BatchRepo         *repository.BatchRepo
+	JobService        *services.JobService
+	Queue             *queue.Queue
 	Cfg               *config.Config
 }
 
@@ -33,8 +35,11 @@ func NewCoachHandler(
 	assignmentRepo *repository.AssignmentRepo,
 	attemptRepo *repository.AttemptRepo,
 	batchRepo *repository.BatchRepo,
+	jobRepo *repository.JobRepo,
 	attemptService *services.AttemptService,
 	assignmentService *services.AssignmentService,
+	jobService *services.JobService,
+	q *queue.Queue,
 	cfg *config.Config,
 ) *CoachHandler {
 	return &CoachHandler{
@@ -44,8 +49,11 @@ func NewCoachHandler(
 		AssignmentRepo:    assignmentRepo,
 		AttemptRepo:       attemptRepo,
 		BatchRepo:         batchRepo,
+		JobRepo:           jobRepo,
 		AttemptService:    attemptService,
 		AssignmentService: assignmentService,
+		JobService:        jobService,
+		Queue:             q,
 		Cfg:               cfg,
 	}
 }
