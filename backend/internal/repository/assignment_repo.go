@@ -3,6 +3,8 @@ package repository
 import (
 	"database/sql"
 	"strconv"
+
+	"github.com/lib/pq"
 )
 
 type AssignmentRepo struct {
@@ -34,13 +36,46 @@ type AssignmentDetailRow struct {
 	AssignedAt  string `json:"assigned_at"`
 }
 
-func (r *AssignmentRepo) Create(studentID, testID, coachID int) (int, error) {
+func (r *AssignmentRepo) Create(studentID, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(`
-		INSERT INTO assignments (student_id, test_id, coach_id)
-		VALUES ($1,$2,$3) RETURNING id
-	`, studentID, testID, coachID).Scan(&id)
+		INSERT INTO assignments (student_id, test_id, coach_id, integrity_policy, estimated_cost, delivery_mode)
+		VALUES ($1,$2,$3, COALESCE($4, '{}'::jsonb), $5, $6) RETURNING id
+	`, studentID, testID, coachID, integrityPolicy, estimatedCost, deliveryMode).Scan(&id)
 	return id, err
+}
+
+// CreateBatch assigns a test to many students in one call. Duplicate
+// (student_id, test_id) pairs are skipped (unique constraint).
+// Returns the number of assignments actually created.
+func (r *AssignmentRepo) CreateBatch(studentIDs []int, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
+	created := 0
+	for _, studentID := range studentIDs {
+		var id int
+		err := r.DB.QueryRow(`
+			INSERT INTO assignments (student_id, test_id, coach_id, integrity_policy, estimated_cost, delivery_mode)
+			VALUES ($1,$2,$3, COALESCE($4, '{}'::jsonb), $5, $6) RETURNING id
+		`, studentID, testID, coachID, integrityPolicy, estimatedCost, deliveryMode).Scan(&id)
+		if err != nil {
+			// Skip duplicate assignments, surface real errors.
+			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+				continue
+			}
+			return created, err
+		}
+		created++
+	}
+	return created, nil
+}
+
+// GetPolicy returns the raw integrity_policy JSONB for an assignment.
+func (r *AssignmentRepo) GetPolicy(assignmentID int) ([]byte, error) {
+	var policy []byte
+	err := r.DB.QueryRow(
+		`SELECT integrity_policy FROM assignments WHERE id = $1`,
+		assignmentID,
+	).Scan(&policy)
+	return policy, err
 }
 
 func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, limit, offset int) ([]AssignmentRow, int, error) {

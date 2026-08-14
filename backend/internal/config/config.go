@@ -21,6 +21,17 @@ type Config struct {
 	DBConnMaxLifetime time.Duration
 	AllowedOrigins    []string
 	TrustedProxies    []string
+
+	ScaleBandB            int
+	ScaleBandC            int
+	ComputeChunkSize      int
+	QueueMode             string
+	UploadDir             string
+	PricingTimingFlat     float64
+	PricingAutosaveFlat   float64
+	PricingTabFlat        float64
+	PricingVideoPerMinute float64
+	SubmitGraceSeconds    int
 }
 
 func LoadConfig() *Config {
@@ -101,6 +112,26 @@ func LoadConfig() *Config {
 		}
 	}
 
+	scaleBandB := intEnv("SCALE_BAND_B", 10000)
+	scaleBandC := intEnv("SCALE_BAND_C", 50000)
+	computeChunkSize := intEnv("COMPUTE_CHUNK_SIZE", 100)
+	submitGrace := intEnv("SUBMIT_GRACE_SECONDS", 30)
+
+	queueMode := os.Getenv("QUEUE_MODE")
+	if queueMode == "" {
+		queueMode = "standard"
+	}
+
+	uploadDir := os.Getenv("UPLOAD_DIR")
+	if uploadDir == "" {
+		uploadDir = "./uploads"
+	}
+
+	pricingTiming := floatEnv("PRICING_TIMING_FLAT", 0)
+	pricingAutosave := floatEnv("PRICING_AUTOSAVE_FLAT", 0)
+	pricingTab := floatEnv("PRICING_TAB_FLAT", 0)
+	pricingVideo := floatEnv("PRICING_VIDEO_PER_MINUTE", 0)
+
 	return &Config{
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
@@ -112,5 +143,34 @@ func LoadConfig() *Config {
 		DBConnMaxLifetime: maxLifetime,
 		AllowedOrigins:    allowedOrigins,
 		TrustedProxies:    trustedProxies,
+
+		ScaleBandB:            scaleBandB,
+		ScaleBandC:            scaleBandC,
+		ComputeChunkSize:      computeChunkSize,
+		QueueMode:             queueMode,
+		UploadDir:             uploadDir,
+		PricingTimingFlat:     pricingTiming,
+		PricingAutosaveFlat:   pricingAutosave,
+		PricingTabFlat:        pricingTab,
+		PricingVideoPerMinute: pricingVideo,
+		SubmitGraceSeconds:    submitGrace,
 	}
+}
+
+func intEnv(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
+}
+
+func floatEnv(key string, def float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
