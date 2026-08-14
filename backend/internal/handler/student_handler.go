@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/assignment/structs"
 	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -236,11 +238,17 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		examDateStr = detail.ExamDate.Time.Format("2006-01-02")
 	}
 
+	policy := structs.AssignmentIntegrityPolicy{}
+	if policyJSON, err := h.AssignmentRepo.GetPolicy(assignmentID); err == nil && len(policyJSON) > 0 {
+		_ = json.Unmarshal(policyJSON, &policy)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"assignment_id": assignmentID,
-		"test_title":    detail.TestTitle,
-		"duration":      detail.Duration,
-		"exam_date":     examDateStr,
-		"questions":     responseQuestions,
+		"assignment_id":    assignmentID,
+		"test_title":       detail.TestTitle,
+		"duration":         detail.Duration,
+		"exam_date":        examDateStr,
+		"questions":        responseQuestions,
+		"integrity_policy": policy,
 	})
 }

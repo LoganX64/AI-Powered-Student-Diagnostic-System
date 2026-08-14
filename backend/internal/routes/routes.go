@@ -94,6 +94,12 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			protected.POST("/submit/:id", studentHandler.SubmitAnswers)
 			protected.GET("/assignments", studentHandler.ListStudentAssignments)
 			protected.GET("/assignments/:id/questions", studentHandler.GetAssignmentQuestions)
+			protected.POST("/assignments/:id/start", studentHandler.StartAttempt)
+			protected.POST("/assignments/:id/autosave", studentHandler.Autosave)
+			protected.GET("/assignments/:id/state", studentHandler.GetState)
+			protected.POST("/assignments/:id/submit", studentHandler.SubmitAttempt)
+			protected.POST("/assignments/:id/video-chunk", studentHandler.VideoChunk)
+			protected.POST("/api/time", studentHandler.SyncTime)
 		}
 	}
 

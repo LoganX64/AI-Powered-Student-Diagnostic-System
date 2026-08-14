@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -315,4 +316,89 @@ func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (typ
 	}
 
 	return Analyze(questions, answers, cfg), nil
+}
+
+// ─────────────────────────────────────────────
+// SubmitTimed (server-authoritative timing tier)
+// ─────────────────────────────────────────────
+
+func (s *AttemptService) SubmitTimed(assignmentID, studentID, graceSeconds int, answers []AnswerInput) (*SubmitAnswersResult, error) {
+	owner, err := s.AssignmentRepo.GetOwnerAndTest(assignmentID)
+	if err != nil {
+		return nil, &SubmitAnswersError{Status: 400, Message: "invalid assignment"}
+	}
+	if owner.OwnerID != studentID {
+		return nil, &SubmitAnswersError{Status: 403, Message: "assignment does not belong to student"}
+	}
+
+	attemptID, startedAt, err := s.AttemptRepo.GetInProgressAttempt(assignmentID)
+	if err != nil {
+		return nil, &SubmitAnswersError{Status: 409, Message: "exam not started or already submitted"}
+	}
+
+	if owner.Duration > 0 {
+		deadline := startedAt.Add(time.Duration(owner.Duration) * time.Second)
+		if time.Now().After(deadline.Add(time.Duration(graceSeconds) * time.Second)) {
+			return nil, &SubmitAnswersError{Status: 410, Message: "exam deadline has passed"}
+		}
+	}
+
+	correctMap, err := s.AttemptRepo.GetCorrectAnswers(owner.TestID)
+	if err != nil {
+		return nil, &SubmitAnswersError{Status: 500, Message: "failed to fetch questions"}
+	}
+
+	if err := validateAnswers(answers, correctMap, 0); err != nil {
+		return nil, err
+	}
+
+	var totalTimeSpent float64
+	for _, ans := range answers {
+		answerSeen := ans.SelectedAnswer != ""
+		if ans.Seen != nil {
+			answerSeen = *ans.Seen
+		}
+		if !answerSeen {
+			ans.TimeSpent = 0
+			ans.SelectedAnswer = ""
+			ans.MarkedForReview = false
+			ans.Revisited = false
+			ans.ChangedAnswer = false
+			ans.WasInitiallyWrong = false
+		}
+		totalTimeSpent += ans.TimeSpent
+
+		correctAnswer := correctMap[ans.QuestionID]
+		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctAnswer
+		if err := s.AttemptRepo.UpsertAnswer(
+			attemptID, ans.QuestionID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
+			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen,
+		); err != nil {
+			return nil, &SubmitAnswersError{Status: 500, Message: "failed to save answers"}
+		}
+	}
+
+	if err := s.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID); err != nil {
+		return nil, &SubmitAnswersError{Status: 500, Message: "failed to finalize submission"}
+	}
+
+	return &SubmitAnswersResult{
+		AttemptID:      attemptID,
+		TotalTimeSpent: helper.Round2V2(totalTimeSpent),
+		TestDuration:   owner.Duration,
+	}, nil
+}
+
+// ComputeAndStoreAttempt runs SQI analysis for a single attempt and persists the
+// result. Used by the explicit (on-demand) compute endpoints / async worker.
+func (s *AttemptService) ComputeAndStoreAttempt(attemptID, testID int) error {
+	payload, err := s.calculateAttemptSQIAnalysis(attemptID, testID)
+	if err != nil {
+		return err
+	}
+	analysisJSON, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return s.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version)
 }
