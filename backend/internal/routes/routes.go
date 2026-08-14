@@ -3,6 +3,7 @@ package routes
 import (
 	"ai-student-diagnostic/backend/internal/auth"
 	handlers "ai-student-diagnostic/backend/internal/handler"
+	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
@@ -14,11 +15,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *gin.Engine {
+func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, trustedProxies []string) *gin.Engine {
 	r := gin.Default()
 
-	// Configure trusted proxies so c.ClientIP() reads X-Forwarded-For correctly
-	// when running behind a load balancer. Empty list = trust nothing (RemoteAddr only).
 	if len(trustedProxies) > 0 {
 		if err := r.SetTrustedProxies(trustedProxies); err != nil {
 			log.Fatalf("invalid TRUSTED_PROXIES: %v", err)
@@ -27,7 +26,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		r.SetTrustedProxies(nil)
 	}
 
-	// Global error handlers
 	r.NoRoute(func(c *gin.Context) {
 		utils.NotFound(c, "route not found")
 	})
@@ -35,7 +33,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
 	})
 
-	// CORS middleware
 	r.Use(func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		for _, o := range allowedOrigins {
@@ -53,7 +50,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		c.Next()
 	})
 
-	// health check
 	r.GET("/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {
 			log.Printf("[HEALTH] DB ping failed: %v", err)
@@ -63,7 +59,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		c.JSON(200, gin.H{"status": "healthy"})
 	})
 
-	// Initialize repos
 	userRepo := repository.NewUserRepo(db)
 	studentRepo := repository.NewStudentRepo(db)
 	coachRepo := repository.NewCoachRepo(db)
@@ -71,19 +66,17 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 	assignmentRepo := repository.NewAssignmentRepo(db)
 	attemptRepo := repository.NewAttemptRepo(db)
 	loginAttemptRepo := repository.NewLoginAttemptRepo(db)
+	batchRepo := repository.NewBatchRepo(db)
 
-	// Initialize services
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
 	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo)
 	authService := services.NewAuthService(userRepo, coachRepo)
 
-	// Initialize handlers
 	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
-	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, attemptService, assignmentService)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, attemptService, assignmentService, cfg)
+	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, attemptService, assignmentService, cfg)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, cfg)
 
-	// auth
 	authRoute := r.Group("/auth")
 	authRoute.Use(middleware.RateLimit())
 	{
@@ -91,7 +84,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
 	}
 
-	// student
 	student := r.Group("/student")
 	{
 		student.POST("/login", middleware.RateLimit(), studentHandler.StudentLogin)
@@ -105,7 +97,6 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		}
 	}
 
-	// admin
 	admin := r.Group("/admin")
 	admin.Use(
 		middleware.AuthMiddleware(studentRepo, userRepo),
@@ -148,9 +139,13 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
 		admin.POST("/students/sqi-batch", adminHandler.GetStudentSQIBatch)
 		admin.POST("/coaches/stats-batch", adminHandler.GetCoachStatsBatch)
+
+		admin.POST("/batches", adminHandler.CreateBatch)
+		admin.GET("/batches", adminHandler.ListBatches)
+		admin.DELETE("/batches/:id", adminHandler.DeleteBatch)
+		admin.PATCH("/students/:id/batch", adminHandler.TransferStudentBatch)
 	}
 
-	// coach
 	coach := r.Group("/coach")
 	coach.Use(
 		middleware.AuthMiddleware(studentRepo, userRepo),
@@ -185,6 +180,11 @@ func SetupRouter(db *sql.DB, allowedOrigins []string, trustedProxies []string) *
 		coach.DELETE("/subjects/:id", adminHandler.DeleteSubject)
 		coach.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		coach.GET("/assignments", adminHandler.ListAssignments)
+
+		coach.POST("/batches", coachHandler.CreateBatch)
+		coach.GET("/batches", coachHandler.ListBatches)
+		coach.DELETE("/batches/:id", coachHandler.DeleteBatch)
+		coach.PATCH("/students/:id/batch", coachHandler.TransferStudentBatch)
 
 		coach.PUT("/password", authHandler.UpdatePassword)
 	}

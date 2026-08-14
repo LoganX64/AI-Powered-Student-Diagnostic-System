@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
@@ -17,8 +18,12 @@ type CoachHandler struct {
 	TestPaperRepo     *repository.TestPaperRepo
 	AssignmentRepo    *repository.AssignmentRepo
 	AttemptRepo       *repository.AttemptRepo
+	BatchRepo         *repository.BatchRepo
+	JobRepo           *repository.JobRepo
 	AttemptService    *services.AttemptService
 	AssignmentService *services.AssignmentService
+	BatchRepo         *repository.BatchRepo
+	Cfg               *config.Config
 }
 
 func NewCoachHandler(
@@ -27,8 +32,10 @@ func NewCoachHandler(
 	testPaperRepo *repository.TestPaperRepo,
 	assignmentRepo *repository.AssignmentRepo,
 	attemptRepo *repository.AttemptRepo,
+	batchRepo *repository.BatchRepo,
 	attemptService *services.AttemptService,
 	assignmentService *services.AssignmentService,
+	cfg *config.Config,
 ) *CoachHandler {
 	return &CoachHandler{
 		StudentRepo:       studentRepo,
@@ -36,8 +43,10 @@ func NewCoachHandler(
 		TestPaperRepo:     testPaperRepo,
 		AssignmentRepo:    assignmentRepo,
 		AttemptRepo:       attemptRepo,
+		BatchRepo:         batchRepo,
 		AttemptService:    attemptService,
 		AssignmentService: assignmentService,
+		Cfg:               cfg,
 	}
 }
 
@@ -137,10 +146,17 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	id, err := h.StudentRepo.Create(tenantID, req.Name, req.StudentCode, coachID)
+	id, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
+	}
+
+	if req.BatchID != nil {
+		ok, err := h.BatchRepo.Exists(tenantID, *req.BatchID)
+		if err == nil && ok {
+			_ = h.BatchRepo.SetStudentBatch(tenantID, id, req.BatchID)
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"student_id": id})

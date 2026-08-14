@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 )
@@ -12,8 +13,12 @@ type AdminHandler struct {
 	TestPaperRepo     *repository.TestPaperRepo
 	AssignmentRepo    *repository.AssignmentRepo
 	AttemptRepo       *repository.AttemptRepo
+	BatchRepo         *repository.BatchRepo
+	JobRepo           *repository.JobRepo
 	AttemptService    *services.AttemptService
 	AssignmentService *services.AssignmentService
+	BatchRepo         *repository.BatchRepo
+	Cfg               *config.Config
 }
 
 func NewAdminHandler(
@@ -23,8 +28,10 @@ func NewAdminHandler(
 	testPaperRepo *repository.TestPaperRepo,
 	assignmentRepo *repository.AssignmentRepo,
 	attemptRepo *repository.AttemptRepo,
+	batchRepo *repository.BatchRepo,
 	attemptService *services.AttemptService,
 	assignmentService *services.AssignmentService,
+	cfg *config.Config,
 ) *AdminHandler {
 	return &AdminHandler{
 		UserRepo:          userRepo,
@@ -33,7 +40,9 @@ func NewAdminHandler(
 		TestPaperRepo:     testPaperRepo,
 		AssignmentRepo:    assignmentRepo,
 		AttemptRepo:       attemptRepo,
+		BatchRepo:         batchRepo,
 		AttemptService:    attemptService,
 		AssignmentService: assignmentService,
+		Cfg:               cfg,
 	}
 }

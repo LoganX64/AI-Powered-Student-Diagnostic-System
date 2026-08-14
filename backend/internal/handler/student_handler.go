@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
@@ -19,6 +20,7 @@ type StudentHandler struct {
 	TestPaperRepo    *repository.TestPaperRepo
 	AttemptService   *services.AttemptService
 	LoginAttemptRepo *repository.LoginAttemptRepo
+	Cfg              *config.Config
 }
 
 func NewStudentHandler(
@@ -28,6 +30,7 @@ func NewStudentHandler(
 	testPaperRepo *repository.TestPaperRepo,
 	attemptService *services.AttemptService,
 	loginAttemptRepo *repository.LoginAttemptRepo,
+	cfg *config.Config,
 ) *StudentHandler {
 	return &StudentHandler{
 		StudentRepo:      studentRepo,
@@ -36,6 +39,7 @@ func NewStudentHandler(
 		TestPaperRepo:    testPaperRepo,
 		AttemptService:   attemptService,
 		LoginAttemptRepo: loginAttemptRepo,
+		Cfg:              cfg,
 	}
 }
 
