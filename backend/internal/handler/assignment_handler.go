@@ -30,10 +30,7 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 	role := c.GetString("role")
 	userID := c.GetInt("user_id")
 
-	deliveryMode := req.DeliveryMode
-	if deliveryMode == "" {
-		deliveryMode = services.DeliveryModeForN(1, 0)
-	}
+	deliveryMode := services.DeliveryModeForN(1, h.scaleBandC())
 
 	id, err := h.AssignmentService.CreateAssignment(services.CreateAssignmentInput{
 		CallerRole:      role,

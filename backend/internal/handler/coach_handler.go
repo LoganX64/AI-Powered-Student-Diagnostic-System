@@ -154,7 +154,7 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	id, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID)
+	id, code, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
@@ -167,7 +167,7 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"student_id": id})
+	c.JSON(http.StatusCreated, gin.H{"student_id": id, "student_code": code})
 }
 
 func (h *CoachHandler) CreateTest(c *gin.Context) {

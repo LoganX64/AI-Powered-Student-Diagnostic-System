@@ -23,7 +23,7 @@ func generateStudentCode(tenantID int) string {
 // ensureStudentCode creates a student, auto-generating a unique tenant-scoped
 // code (format T{tenant}{base36-6}) when none is provided, retrying on the
 // partial unique index (tenant_id, student_code) collision.
-func ensureStudentCode(studentRepo *repository.StudentRepo, tenantID int, name, providedCode string, coachID int) (int, error) {
+func ensureStudentCode(studentRepo *repository.StudentRepo, tenantID int, name, providedCode string, coachID int) (int, string, error) {
 	code := providedCode
 	for attempt := 0; attempt < 10; attempt++ {
 		if code == "" {
@@ -36,9 +36,9 @@ func ensureStudentCode(studentRepo *repository.StudentRepo, tenantID int, name, 
 				code = "" // regenerate and retry
 				continue
 			}
-			return 0, err
+			return 0, "", err
 		}
-		return id, nil
+		return id, code, nil
 	}
-	return 0, errors.New("failed to generate a unique student code")
+	return 0, "", errors.New("failed to generate a unique student code")
 }
