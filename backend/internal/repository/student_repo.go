@@ -18,14 +18,16 @@ type StudentRow struct {
 	Name        string  `json:"name"`
 	StudentCode string  `json:"student_code"`
 	CoachID     int     `json:"coach_id"`
+	BatchID     *int    `json:"batch_id"`
 	DeletedAt   *string `json:"deleted_at"`
 }
 
-type StudentDetailRow struct {
+	type StudentDetailRow struct {
 	StudentID      int     `json:"student_id"`
 	Name           string  `json:"name"`
 	StudentCode    string  `json:"student_code"`
 	CoachID        int     `json:"coach_id"`
+	BatchID        *int    `json:"batch_id"`
 	CoachName      string  `json:"coach_name"`
 	CreatedAt      string  `json:"created_at"`
 	DeletedAt      *string `json:"deleted_at"`
@@ -107,7 +109,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	}
 
 	countQuery := "SELECT COUNT(*) FROM students WHERE " + where
-	dataQuery := "SELECT id, name, student_code, coach_id, deleted_at FROM students WHERE " + where
+	dataQuery := "SELECT id, name, student_code, coach_id, batch_id, deleted_at FROM students WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
@@ -127,7 +129,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	var students []StudentRow
 	for rows.Next() {
 		var s StudentRow
-		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.DeletedAt); err != nil {
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.BatchID, &s.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		students = append(students, s)
@@ -153,7 +155,7 @@ func (r *StudentRepo) ExistsByID(studentID int) (bool, error) {
 
 func (r *StudentRepo) GetDetail(studentID, tenantID int, coachID *int) (*StudentDetailRow, error) {
 	query := `
-		SELECT st.id, st.name, st.student_code, st.coach_id, COALESCE(c.name, ''),
+		SELECT st.id, st.name, st.student_code, st.coach_id, st.batch_id, COALESCE(c.name, ''),
 		       st.created_at, st.deleted_at, u.email, dco.name, u.role
 		FROM students st
 		LEFT JOIN coaches c ON st.coach_id = c.id
@@ -169,7 +171,7 @@ func (r *StudentRepo) GetDetail(studentID, tenantID int, coachID *int) (*Student
 
 	var s StudentDetailRow
 	err := r.DB.QueryRow(query, args...).Scan(
-		&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName,
+		&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.BatchID, &s.CoachName,
 		&s.CreatedAt, &s.DeletedAt, &s.DeletedByEmail, &s.DeletedByName, &s.DeletedByRole,
 	)
 	if err != nil {
