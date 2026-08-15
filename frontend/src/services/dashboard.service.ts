@@ -291,6 +291,37 @@ export const getStudentSQIBatch = (studentIds: number[]) =>
     body: JSON.stringify({ student_ids: studentIds }),
   });
 
+// ─── Scalable SQI compute + jobs (role-aware) ─────────────────────────────
+
+export type Job = {
+  id: number;
+  tenant_id: number;
+  type: string;
+  total: number;
+  done: number;
+  failed: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ComputeResponse = { job_id: number; total: number };
+
+export const computeSQI = (attemptId: number) =>
+  apiFetch<ComputeResponse>(`${getPrefix()}/sqi/compute`, {
+    method: "POST",
+    body: JSON.stringify({ attempt_id: attemptId }),
+  });
+
+export const computeSQIBatch = (testId: number) =>
+  apiFetch<ComputeResponse>(`${getPrefix()}/sqi/compute-batch`, {
+    method: "POST",
+    body: JSON.stringify({ test_id: testId }),
+  });
+
+export const getJob = (jobId: number) =>
+  apiFetch<Job>(`${getPrefix()}/jobs/${jobId}`);
+
 // ─── Dashboard stats (role-aware) ───────────────────────────────────────────
 
 export type DashboardCounts = {
