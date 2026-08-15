@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import { getActiveRole } from "@/lib/token";
 import type {
   CreateCoachPayload,
   CreateStudentPayload,
@@ -62,10 +63,8 @@ export type { IntegrityPolicy, CreateBatchAssignmentPayload } from "./types";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getPrefix(): string {
-  const adminRole = localStorage.getItem("admin_role");
-  if (adminRole === "admin") return "/admin";
-  const coachRole = localStorage.getItem("coach_role");
-  if (coachRole === "coach") return "/coach";
+  const role = getActiveRole();
+  if (role === "coach") return "/coach";
   return "/admin";
 }
 

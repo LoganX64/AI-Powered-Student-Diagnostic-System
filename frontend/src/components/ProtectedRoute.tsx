@@ -27,10 +27,8 @@ function clearExpiredToken(tokenKey: string) {
     localStorage.removeItem("student_code");
   } else if (tokenKey === "coach_token") {
     localStorage.removeItem("coach_token");
-    localStorage.removeItem("coach_role");
   } else {
     localStorage.removeItem("admin_token");
-    localStorage.removeItem("admin_role");
   }
   window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
 }

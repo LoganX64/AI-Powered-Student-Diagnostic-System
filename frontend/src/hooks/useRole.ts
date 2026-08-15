@@ -1,36 +1,12 @@
 import { useEffect, useState } from "react";
-import { getTokenPayload } from "@/lib/token";
+import { getActiveRole, type Role } from "@/lib/token";
 
-export type Role = "admin" | "coach" | "student";
+export type { Role };
 
 export const ROLE_CHANGE_EVENT = "role-change";
 
 function readTokenRole(): Role | null {
-  const adminToken = localStorage.getItem("admin_token");
-  if (adminToken) {
-    const payload = getTokenPayload(adminToken);
-    if (payload && payload.role === "admin") {
-      return "admin";
-    }
-  }
-
-  const coachToken = localStorage.getItem("coach_token");
-  if (coachToken) {
-    const payload = getTokenPayload(coachToken);
-    if (payload && payload.role === "coach") {
-      return "coach";
-    }
-  }
-
-  const studentToken = localStorage.getItem("student_token");
-  if (studentToken) {
-    const payload = getTokenPayload(studentToken);
-    if (payload && payload.role === "student") {
-      return "student";
-    }
-  }
-
-  return null;
+  return getActiveRole();
 }
 
 export function useRole(): Role | null {

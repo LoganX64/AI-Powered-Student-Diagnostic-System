@@ -1,3 +1,5 @@
+import { getActiveRole, TOKEN_KEYS } from "@/lib/token";
+
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 if (!BASE_URL) {
@@ -5,11 +7,9 @@ if (!BASE_URL) {
 }
 
 function getTokenKey(): string {
-  const adminRole = localStorage.getItem("admin_role");
-  if (adminRole === "admin") return "admin_token";
-  const coachRole = localStorage.getItem("coach_role");
-  if (coachRole === "coach") return "coach_token";
-  return "admin_token";
+  const role = getActiveRole();
+  if (role === "coach") return TOKEN_KEYS.coach;
+  return TOKEN_KEYS.admin;
 }
 
 /**

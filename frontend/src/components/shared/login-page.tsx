@@ -66,10 +66,8 @@ export function LoginPage({
       const res = await login({ email, password });
       if (res.role === "coach") {
         localStorage.setItem("coach_token", res.token);
-        localStorage.setItem("coach_role", res.role);
       } else {
         localStorage.setItem("admin_token", res.token);
-        localStorage.setItem("admin_role", res.role);
       }
       navigate(dashboardPath);
     } catch (err: unknown) {
