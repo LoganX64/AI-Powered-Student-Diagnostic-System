@@ -31,13 +31,54 @@ export type QuestionFromAPI = {
   concept_tag: string;
 };
 
+export type IntegrityPolicy = {
+  server_timing: boolean;
+  autosave: boolean;
+  video_proctoring: boolean;
+  tab_switch_detect: boolean;
+};
+
 export type AssignmentQuestionsResponse = {
   assignment_id: number;
   test_title: string;
   duration: number;
   exam_date: string;
   questions: QuestionFromAPI[];
+  integrity_policy?: IntegrityPolicy | null;
 };
+
+export type AutosaveAnswer = {
+  question_id: number;
+  selected_answer: string;
+  seen: boolean;
+  time_spent: number;
+  marked_for_review: boolean;
+  revisited: boolean;
+  changed_answer: boolean;
+};
+
+export type ServerTimeResponse = { server_time: string };
+
+export type StartExamResponse = {
+  attempt_id: number;
+  deadline: string;
+  server_now: string;
+};
+
+export type ExamStateResponse = {
+  attempt_id: number;
+  deadline: string;
+  remaining_seconds: number;
+  answers: Array<{
+    question_id: number;
+    selected_answer: string;
+    time_spent: number;
+    marked_for_review: boolean;
+    seen: boolean;
+  }>;
+};
+
+export type AutosaveResponse = { saved: number };
 
 export type AnswerPayload = {
   question_id: number;
@@ -84,6 +125,73 @@ export async function submitAnswers(
 ): Promise<SubmitResponse> {
   return apiFetch<SubmitResponse>(
     `/student/submit/${assignmentId}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    },
+    "student_token"
+  );
+}
+
+export async function getServerTime(): Promise<ServerTimeResponse> {
+  return apiFetch<ServerTimeResponse>("/api/time", {}, "student_token");
+}
+
+export async function startExam(
+  assignmentId: number,
+): Promise<StartExamResponse> {
+  return apiFetch<StartExamResponse>(
+    `/student/assignments/${assignmentId}/start`,
+    { method: "POST" },
+    "student_token",
+  );
+}
+
+export async function autosaveAnswers(
+  assignmentId: number,
+  answers: AutosaveAnswer[],
+): Promise<AutosaveResponse> {
+  return apiFetch<AutosaveResponse>(
+    `/student/assignments/${assignmentId}/autosave`,
+    {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    },
+    "student_token",
+  );
+}
+
+export async function getExamState(
+  assignmentId: number,
+): Promise<ExamStateResponse> {
+  return apiFetch<ExamStateResponse>(
+    `/student/assignments/${assignmentId}/state`,
+    {},
+    "student_token",
+  );
+}
+
+export async function uploadVideoChunk(
+  assignmentId: number,
+  index: number,
+  blob: Blob,
+): Promise<{ received_index: string }> {
+  const form = new FormData();
+  form.append("index", String(index));
+  form.append("chunk", blob, `${index}.webm`);
+  return apiFetch<{ received_index: string }>(
+    `/student/assignments/${assignmentId}/video-chunk`,
+    { method: "POST", body: form },
+    "student_token",
+  );
+}
+
+export async function submitExam(
+  assignmentId: number,
+  answers: AnswerPayload[],
+): Promise<SubmitResponse> {
+  return apiFetch<SubmitResponse>(
+    `/student/assignments/${assignmentId}/submit`,
     {
       method: "POST",
       body: JSON.stringify({ answers }),
