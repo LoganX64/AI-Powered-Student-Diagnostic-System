@@ -178,6 +178,21 @@ func (r *AttemptRepo) ExistsByAssignment(assignmentID int) (bool, error) {
 	return err == nil, err
 }
 
+// HasSubmittedAttempt reports whether a terminal (submitted/completed) attempt
+// already exists for the assignment. In-progress attempts are allowed so that a
+// student can resume a server-timed exam after a refresh.
+func (r *AttemptRepo) HasSubmittedAttempt(assignmentID int) (bool, error) {
+	var n int
+	err := r.DB.QueryRow(
+		"SELECT 1 FROM attempts WHERE assignment_id = $1 AND status IN ('submitted', 'completed') LIMIT 1",
+		assignmentID,
+	).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (r *AttemptRepo) GetSQIResult(attemptID int) (sql.NullFloat64, sql.NullString, error) {
 	var sqiScore sql.NullFloat64
 	var analysisJSON sql.NullString
