@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,10 +15,22 @@ import {
 } from "../../components/ui/alert-dialog";
 import { cn } from "../../lib/utils";
 import { useExamTimer } from "../../hooks/useExamTimer";
-import { useAnswerTracker } from "../../hooks/useAnswerTracker";
-import { getAssignmentQuestions, submitAnswers } from "../../services/student.service";
-import type { AssignmentQuestionsResponse, SubmitResponse } from "../../services/student.service";
-import { AlertTriangle, ArrowLeft, Flag, RefreshCw } from "lucide-react";
+import { useAnswerTracker, type AnswerRecord } from "../../hooks/useAnswerTracker";
+import {
+  getAssignmentQuestions,
+  submitExam,
+  startExam,
+  autosaveAnswers,
+  getExamState,
+  uploadVideoChunk,
+} from "../../services/student.service";
+import type {
+  AssignmentQuestionsResponse,
+  SubmitResponse,
+  ExamStateResponse,
+  IntegrityPolicy,
+} from "../../services/student.service";
+import { AlertTriangle, ArrowLeft, Flag, RefreshCw, ShieldCheck, Video, Timer } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,6 +94,11 @@ export function StudentQuizPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const isAutoSubmitRef = useRef(false);
 
+  // Tiered-exam (server-timing) state
+  const [policy, setPolicy] = useState<IntegrityPolicy | null>(null);
+  const [serverDeadlineMs, setServerDeadlineMs] = useState<number | null>(null);
+  const [serverSkewMs, setServerSkewMs] = useState(0);
+
   // Fetch questions from API
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +127,7 @@ export function StudentQuizPage() {
             },
           }));
           setQuestions(mapped);
+          setPolicy(data.integrity_policy ?? null);
           localStorage.setItem("exam_duration", String(data.duration));
           localStorage.setItem("exam_started", "true");
           if (!localStorage.getItem("exam_started_at")) {
@@ -137,6 +156,8 @@ export function StudentQuizPage() {
     startTracking,
     stopTracking,
     getPayload,
+    restoreRecords,
+    getAutosavePayload,
     answeredCount,
     markedForReviewIds,
   } = useAnswerTracker(questionIds);
@@ -168,10 +189,18 @@ export function StudentQuizPage() {
   // Submit handler
   // ---------------------------------------------------------------------------
 
+  const flushAutosave = useCallback(() => {
+    if (!policy?.autosave) return;
+    const payload = getAutosavePayload();
+    if (!payload.length) return;
+    autosaveAnswers(assignmentId, payload).catch(() => {});
+  }, [policy, assignmentId, getAutosavePayload]);
+
   const performSubmit = useCallback(async () => {
     if (submitting) return;
     setSubmitting(true);
     stopTracking();
+    flushAutosave();
 
     const payload = getPayload(questionIds);
 
@@ -189,8 +218,9 @@ export function StudentQuizPage() {
     }
 
     try {
-      const result: SubmitResponse = await submitAnswers(assignmentId, payload);
+      const result: SubmitResponse = await submitExam(assignmentId, payload);
       clearExamStorage();
+      localStorage.removeItem("exam_ctx_" + assignmentId);
       navigate("/submitted", { replace: true, state: { submitResult: result } });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
@@ -210,7 +240,7 @@ export function StudentQuizPage() {
       clearExamStorage();
       navigate("/submitted", { replace: true });
     }
-  }, [submitting, stopTracking, getPayload, questionIds, navigate, assignmentId]);
+  }, [submitting, stopTracking, flushAutosave, getPayload, questionIds, navigate, assignmentId]);
 
   const handleManualSubmit = () => {
     isAutoSubmitRef.current = false;
@@ -240,9 +270,164 @@ export function StudentQuizPage() {
     },
     examStarted,
     examStartedAt,
+    serverDeadlineMs,
+    serverSkewMs,
   );
 
   const timeLeft = timerTimeLeft;
+
+  // ---------------------------------------------------------------------------
+  // Tiered-exam behaviors (server-timing start, autosave, restore, proctoring)
+  // ---------------------------------------------------------------------------
+
+  const mapStateToRecords = (st: ExamStateResponse): Record<number, AnswerRecord> => {
+    const out: Record<number, AnswerRecord> = {};
+    for (const a of st.answers) {
+      const sel = a.selected_answer as AnswerRecord["selected_answer"];
+      out[a.question_id] = {
+        question_id: a.question_id,
+        seen: a.seen,
+        selected_answer: sel,
+        previous_answer: sel,
+        time_spent: a.time_spent,
+        marked_for_review: a.marked_for_review,
+        revisited: false,
+        changed_answer: false,
+        first_answer: sel,
+      };
+    }
+    return out;
+  };
+
+  const begunRef = useRef(false);
+
+  // Begin the exam: for server-timed exams obtain the absolute deadline from the
+  // backend (tamper-resistant timer); for any tier, restore previously saved
+  // answers. Runs once after the integrity policy is known.
+  useEffect(() => {
+    if (!policy || begunRef.current) return;
+    begunRef.current = true;
+    (async () => {
+      try {
+        if (policy.server_timing) {
+          try {
+            const res = await startExam(assignmentId);
+            const now = new Date(res.server_now).getTime();
+            const deadline = new Date(res.deadline).getTime();
+            const skew = Date.now() - now;
+            setServerSkewMs(skew);
+            setServerDeadlineMs(deadline);
+            localStorage.setItem(
+              "exam_ctx_" + assignmentId,
+              JSON.stringify({ deadline, skew, startedAt: Date.now() }),
+            );
+          } catch {
+            // Attempt already exists (e.g. after a refresh) → recover the
+            // deadline + answers from the saved exam state instead.
+            const st = await getExamState(assignmentId);
+            const deadline = new Date(st.deadline).getTime();
+            setServerDeadlineMs(deadline);
+            localStorage.setItem(
+              "exam_ctx_" + assignmentId,
+              JSON.stringify({ deadline, skew: 0, startedAt: Date.now() }),
+            );
+            const restored = mapStateToRecords(st);
+            if (Object.keys(restored).length) restoreRecords(restored);
+            return;
+          }
+        }
+        const st = await getExamState(assignmentId);
+        const restored = mapStateToRecords(st);
+        if (Object.keys(restored).length) restoreRecords(restored);
+      } catch {
+        // no saved attempt yet — proceed fresh
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policy, assignmentId]);
+
+  // Autosave (debounced interval) while the exam is in progress.
+  useEffect(() => {
+    if (!policy?.autosave || !examStarted || submitting) return;
+    const id = setInterval(() => {
+      const payload = getAutosavePayload();
+      if (payload.length) autosaveAnswers(assignmentId, payload).catch(() => {});
+    }, 15000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policy, examStarted, submitting, assignmentId]);
+
+  // Tab-switch detection: flush autosave + warn when the tab is hidden.
+  useEffect(() => {
+    if (!policy?.tab_switch_detect || !examStarted) return;
+    const onVisibility = () => {
+      if (document.hidden) {
+        flushAutosave();
+        toast.warning("Tab switch detected — your activity is being recorded.");
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policy, examStarted, flushAutosave]);
+
+  // Video proctoring: stream webcam in chunks to the backend.
+  useEffect(() => {
+    if (!policy?.video_proctoring || !examStarted || submitting) return;
+    let stream: MediaStream | null = null;
+    let recorder: MediaRecorder | null = null;
+    let idx = 0;
+    let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const makeRecorder = () => {
+      if (!stream) return;
+      const rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          uploadVideoChunk(assignmentId, idx, e.data).catch(() => {});
+          idx += 1;
+        }
+      };
+      rec.start();
+      recorder = rec;
+    };
+
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        makeRecorder();
+        interval = setInterval(() => {
+          if (recorder && recorder.state === "recording") {
+            try {
+              recorder.stop();
+            } catch {
+              // ignore
+            }
+            makeRecorder();
+          }
+        }, 5000);
+      } catch {
+        // Camera unavailable/denied — degrade gracefully.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+      try {
+        recorder?.stop();
+      } catch {
+        // ignore
+      }
+      stream?.getTracks().forEach((t) => t.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [policy, examStarted, submitting, assignmentId]);
 
   // ---------------------------------------------------------------------------
   // Navigation handlers
@@ -341,6 +526,36 @@ export function StudentQuizPage() {
     <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
       {/* Header */}
       <ExamHeader candidateName={studentCode} timeLeft={timeLeft} />
+
+      {/* Integrity policy banner */}
+      {policy &&
+        (policy.server_timing ||
+          policy.autosave ||
+          policy.video_proctoring ||
+          policy.tab_switch_detect) && (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {policy.server_timing && (
+              <Badge variant="secondary" className="gap-1">
+                <Timer className="size-3" /> Server Timed
+              </Badge>
+            )}
+            {policy.autosave && (
+              <Badge variant="secondary" className="gap-1">
+                <RefreshCw className="size-3" /> Autosave
+              </Badge>
+            )}
+            {policy.video_proctoring && (
+              <Badge variant="secondary" className="gap-1">
+                <Video className="size-3" /> Video Proctoring
+              </Badge>
+            )}
+            {policy.tab_switch_detect && (
+              <Badge variant="secondary" className="gap-1">
+                <ShieldCheck className="size-3" /> Tab-Switch Monitor
+              </Badge>
+            )}
+          </div>
+        )}
 
       {/* Body */}
       <div className="mt-6 flex flex-1 gap-4">
