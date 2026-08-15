@@ -26,6 +26,7 @@ import { QuestionsPage } from "../src/features/shared/QuestionsPage.tsx";
 import { SettingsPage } from "../src/features/shared/SettingsPage.tsx";
 import { GetHelpPage } from "../src/features/shared/GetHelpPage.tsx";
 import { AccountsPage } from "../src/features/shared/AccountsPage.tsx";
+import { BatchesPage } from "../src/features/shared/BatchesPage.tsx";
 import { BillingPage } from "../src/features/shared/BillingPage.tsx";
 import { NotificationsPage } from "../src/features/shared/NotificationsPage.tsx";
 import { AssignmentDetailPage } from "../src/features/shared/AssignmentDetailPage.tsx";
@@ -51,6 +52,7 @@ const router = createBrowserRouter([
       { path: "admin/coaches", Component: CoachesPage },
       { path: "admin/coaches/:id", Component: CoachDetailPage },
       { path: "admin/students", Component: StudentsPage },
+      { path: "admin/batches", Component: BatchesPage },
       { path: "admin/students/:id", Component: StudentDetailPage },
       { path: "admin/students/:id/sqi", Component: StudentSQIPage },
       { path: "admin/students/:id/assignments/:assignmentId", Component: AssignmentDetailPage },
@@ -68,6 +70,7 @@ const router = createBrowserRouter([
       // Coach dashboard routes
       { path: "coach/dashboard", Component: DashboardPage },
       { path: "coach/students", Component: StudentsPage },
+      { path: "coach/batches", Component: BatchesPage },
       { path: "coach/students/:id", Component: StudentDetailPage },
       { path: "coach/students/:id/sqi", Component: StudentSQIPage },
       { path: "coach/students/:id/assignments/:assignmentId", Component: AssignmentDetailPage },
