@@ -27,6 +27,8 @@ import type {
   CoachStatMetric,
 } from "./types";
 
+import type { CreateBatchAssignmentPayload } from "./types";
+
 export type {
   CreateCoachPayload,
   CreateStudentPayload,
@@ -54,6 +56,8 @@ export type {
   StudentSQIMetric,
   CoachStatMetric,
 };
+
+export type { IntegrityPolicy, CreateBatchAssignmentPayload } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -253,6 +257,12 @@ export const deleteQuestion = (testId: number, questionId: number) =>
 
 export const createAssignment = (data: CreateAssignmentPayload) =>
   apiFetch<{ assignment_id: number }>(`${getPrefix()}/assignments`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const createBatchAssignment = (data: CreateBatchAssignmentPayload) =>
+  apiFetch<{ created: number }>(`${getPrefix()}/assignments/batch`, {
     method: "POST",
     body: JSON.stringify(data),
   });

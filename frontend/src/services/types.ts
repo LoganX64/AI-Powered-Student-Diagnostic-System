@@ -8,6 +8,7 @@ import {
   createTestSchema,
   createQuestionSchema,
   createAssignmentSchema,
+  createBatchAssignmentSchema,
 } from "@/lib/validations";
 
 export type CreateCoachPayload = z.infer<typeof createCoachSchema>;
@@ -16,6 +17,15 @@ export type CreateSubjectPayload = z.infer<typeof createSubjectSchema>;
 export type CreateTestPayload = z.infer<typeof createTestSchema>;
 export type CreateQuestionPayload = z.infer<typeof createQuestionSchema>;
 export type CreateAssignmentPayload = z.infer<typeof createAssignmentSchema>;
+
+export type IntegrityPolicy = {
+  server_timing: boolean;
+  autosave: boolean;
+  video_proctoring: boolean;
+  tab_switch_detect: boolean;
+};
+
+export type CreateBatchAssignmentPayload = z.infer<typeof createBatchAssignmentSchema>;
 
 // ─── Row Types ────────────────────────────────────────────────────────────────
 

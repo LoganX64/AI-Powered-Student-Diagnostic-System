@@ -22,10 +22,7 @@ import { deleteTest as adminDeleteTest } from "@/services/dashboard.service";
 import {
   createTest as coachCreateTest,
   createQuestions as coachCreateQuestions,
-  createAssignment as coachCreateAssignment,
   deleteTest as coachDeleteTest,
-  getStudents as coachGetStudents,
-  getTests as coachGetTests,
   getSubjects as coachGetSubjects,
 } from "@/services/dashboard.service";
 import { ClipboardListIcon, LinkIcon } from "lucide-react";
@@ -112,11 +109,7 @@ export function TestsPage() {
         </TabsContent>
 
         <TabsContent value="assign">
-          <CreateAssignmentForm
-            onSubmit={isCoach ? coachCreateAssignment : undefined}
-            fetchStudents={isCoach ? coachGetStudents : undefined}
-            fetchTests={isCoach ? coachGetTests : undefined}
-          />
+          <CreateAssignmentForm />
         </TabsContent>
       </Tabs>
 

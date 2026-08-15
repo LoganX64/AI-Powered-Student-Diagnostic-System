@@ -88,10 +88,27 @@ export const createQuestionsBatchSchema = z.object({
     .min(1, "At least one question required"),
 });
 
+const integrityPolicySchema = z.object({
+  server_timing: z.boolean(),
+  autosave: z.boolean(),
+  video_proctoring: z.boolean(),
+  tab_switch_detect: z.boolean(),
+});
+
 export const createAssignmentSchema = z.object({
   student_id: z.number().int().positive("Please select a student"),
   test_id: z.number().int().positive("Please select a test"),
   coach_id: z.number().int(),
+  integrity_policy: integrityPolicySchema.optional(),
+  estimated_cost: z.number().optional(),
+});
+
+export const createBatchAssignmentSchema = z.object({
+  test_id: z.number().int().positive("Please select a test"),
+  student_ids: z.array(z.number().int()).min(1, "Select at least one student"),
+  coach_id: z.number().int(),
+  integrity_policy: integrityPolicySchema.optional(),
+  estimated_cost: z.number().optional(),
 });
 
 // ─── Settings / Support ───────────────────────────────────────────────────────
