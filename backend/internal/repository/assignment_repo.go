@@ -37,6 +37,12 @@ type AssignmentDetailRow struct {
 }
 
 func (r *AssignmentRepo) Create(studentID, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
+	if len(integrityPolicy) == 0 {
+		integrityPolicy = []byte("{}")
+	}
+	if deliveryMode == "" {
+		deliveryMode = "standard"
+	}
 	var id int
 	err := r.DB.QueryRow(`
 		INSERT INTO assignments (student_id, test_id, coach_id, integrity_policy, estimated_cost, delivery_mode)
@@ -49,6 +55,12 @@ func (r *AssignmentRepo) Create(studentID, testID, coachID int, integrityPolicy 
 // (student_id, test_id) pairs are skipped (unique constraint).
 // Returns the number of assignments actually created.
 func (r *AssignmentRepo) CreateBatch(studentIDs []int, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
+	if len(integrityPolicy) == 0 {
+		integrityPolicy = []byte("{}")
+	}
+	if deliveryMode == "" {
+		deliveryMode = "standard"
+	}
 	created := 0
 	for _, studentID := range studentIDs {
 		var id int
