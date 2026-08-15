@@ -5,7 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createStudent, getCoaches, type Coach } from "@/services/dashboard.service";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  createStudent,
+  getCoaches,
+  getBatches,
+  type Coach,
+  type Batch,
+} from "@/services/dashboard.service";
 
 export function CreateStudentForm() {
   const [loading, setLoading] = useState(false);
@@ -16,6 +40,10 @@ export function CreateStudentForm() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
 
   const fetchCoaches = useCallback(async (search: string) => {
     try {
@@ -35,6 +63,12 @@ export function CreateStudentForm() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [coachSearch, fetchCoaches]);
+
+  useEffect(() => {
+    getBatches()
+      .then((res) => setBatches(res.data ?? []))
+      .catch(() => setBatches([]));
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -58,13 +92,13 @@ export function CreateStudentForm() {
     setShowDropdown(true);
   };
 
-  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
-    e.preventDefault();
-
-    const fd = new FormData(e.currentTarget);
+  const doSubmit = async (batchId: number | null) => {
+    const form = document.getElementById("create-student-form") as HTMLFormElement | null;
+    if (!form) return;
+    const fd = new FormData(form);
     const raw = {
       name: fd.get("name") as string,
-      student_code: fd.get("student_code") as string,
+      student_code: (fd.get("student_code") as string) || undefined,
       coach_id: selectedCoach?.coach_id ?? 0,
     };
 
@@ -77,11 +111,12 @@ export function CreateStudentForm() {
 
     try {
       setLoading(true);
-      const res = await createStudent(result.data);
+      const res = await createStudent({ ...result.data, batch_id: batchId });
       toast.success(`Student created — ID: ${res.student_id}`);
-      (e.target as HTMLFormElement).reset();
+      form.reset();
       setCoachSearch("");
       setSelectedCoach(null);
+      setSelectedBatchId("");
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -89,22 +124,29 @@ export function CreateStudentForm() {
     }
   };
 
+  const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
+    e.preventDefault();
+    if (selectedBatchId === "") {
+      setShowBatchConfirm(true);
+      return;
+    }
+    const batchId = selectedBatchId === "none" ? null : Number(selectedBatchId);
+    await doSubmit(batchId);
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Create Student</CardTitle>
-        <CardDescription>Add a new student and assign them to a coach.</CardDescription>
+        <CardDescription>
+          Add a new student and optionally assign them to a coach and batch.
+        </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="create-student-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <Label htmlFor="student-name">Full Name</Label>
-            <Input
-              id="student-name"
-              name="name"
-              placeholder="Alice"
-              required
-            />
+            <Input id="student-name" name="name" placeholder="Alice" required />
             {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
           </div>
           <div className="flex flex-col gap-2">
@@ -112,10 +154,14 @@ export function CreateStudentForm() {
             <Input
               id="student-code"
               name="student_code"
-              placeholder="STU001"
-              required
+              placeholder="Auto-generated if blank"
             />
-            {errors.student_code && <p className="text-sm text-destructive">{errors.student_code}</p>}
+            <p className="text-xs text-muted-foreground">
+              Leave blank to auto-generate a unique tenant code.
+            </p>
+            {errors.student_code && (
+              <p className="text-sm text-destructive">{errors.student_code}</p>
+            )}
           </div>
           <div className="flex flex-col gap-2 relative" ref={dropdownRef}>
             <Label htmlFor="student-coach">Coach</Label>
@@ -151,10 +197,51 @@ export function CreateStudentForm() {
             )}
             {errors.coach_id && <p className="text-sm text-destructive">{errors.coach_id}</p>}
           </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="student-batch">Batch (optional)</Label>
+            <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+              <SelectTrigger id="student-batch">
+                <SelectValue placeholder="No batch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="none">No batch</SelectItem>
+                  {batches.map((b) => (
+                    <SelectItem key={b.id} value={b.id.toString()}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
           <Button type="submit" disabled={loading} className="w-fit">
             {loading ? "Creating…" : "Create Student"}
           </Button>
         </form>
+
+        <AlertDialog open={showBatchConfirm} onOpenChange={setShowBatchConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Save without a batch?</AlertDialogTitle>
+              <AlertDialogDescription>
+                You haven&apos;t assigned this student to any batch. You can assign one later
+                from the Batches page. Save the student without a batch?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  setShowBatchConfirm(false);
+                  await doSubmit(null);
+                }}
+              >
+                Save without batch
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

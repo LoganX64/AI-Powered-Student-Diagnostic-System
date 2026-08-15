@@ -6,6 +6,7 @@ import {
   BookOpenIcon,
   ClipboardListIcon,
   FilePlusIcon,
+  FolderIcon,
   Settings2Icon,
   CircleHelpIcon,
   CommandIcon,
@@ -41,6 +42,11 @@ const adminNavItems = [
     icon: <GraduationCapIcon />,
   },
   {
+    title: "Batches",
+    url: "/admin/batches",
+    icon: <FolderIcon />,
+  },
+  {
     title: "Subjects",
     url: "/admin/subjects",
     icon: <BookOpenIcon />,
@@ -67,6 +73,11 @@ const coachNavItems = [
     title: "Students",
     url: "/coach/students",
     icon: <GraduationCapIcon />,
+  },
+  {
+    title: "Batches",
+    url: "/coach/batches",
+    icon: <FolderIcon />,
   },
   {
     title: "Subjects",

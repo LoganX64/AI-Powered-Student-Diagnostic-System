@@ -31,7 +31,7 @@ export async function apiFetch<T = unknown>(
   }
 
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const res = await fetch(`${BASE_URL}${url}`, { ...options, headers });

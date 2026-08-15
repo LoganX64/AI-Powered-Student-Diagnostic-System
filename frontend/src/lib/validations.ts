@@ -43,8 +43,9 @@ export const createCoachSchema = z.object({
 
 export const createStudentSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  student_code: z.string().min(1, "Student code is required"),
+  student_code: z.string().optional(),
   coach_id: z.number().int().positive("Please select a coach"),
+  batch_id: z.number().int().nullable().optional(),
 });
 
 export const createSubjectSchema = z.object({

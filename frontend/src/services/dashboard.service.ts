@@ -12,6 +12,7 @@ import type {
   Coach,
   Student,
   Subject,
+  Batch,
   Assignment,
   StudentDetail,
   StudentAssignment,
@@ -39,6 +40,7 @@ export type {
   Coach,
   Student,
   Subject,
+  Batch,
   Assignment,
   StudentDetail,
   StudentAssignment,
@@ -155,6 +157,29 @@ export const getStudentAssignments = (studentId: number) =>
 
 export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) =>
   apiFetch<PaginatedResponse<Student>>(`${getPrefix()}/students${buildListQuery(params)}`);
+
+// ─── Batch endpoints (role-aware, tenant-wide) ────────────────────────────────
+
+export const getBatches = () =>
+  apiFetch<{ data: Batch[] }>(`${getPrefix()}/batches`);
+
+export const createBatch = (name: string) =>
+  apiFetch<{ batch_id: number }>(`${getPrefix()}/batches`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+
+export const deleteBatch = (batchId: number) =>
+  apiFetch<{ message: string; students_reassigned: number }>(
+    `${getPrefix()}/batches/${batchId}`,
+    { method: "DELETE" }
+  );
+
+export const transferStudentBatch = (studentId: number, batchId: number | null) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/students/${studentId}/batch`, {
+    method: "PATCH",
+    body: JSON.stringify({ batch_id: batchId }),
+  });
 
 // ─── Subject endpoints (role-aware) ───────────────────────────────────────────
 

@@ -1,0 +1,351 @@
+import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
+import { FolderIcon, PlusIcon, Trash2Icon, UsersIcon } from "lucide-react";
+import { DashboardLayout } from "@/components/shared/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  getBatches,
+  createBatch,
+  deleteBatch,
+  transferStudentBatch,
+  getStudents,
+  type Batch,
+  type Student,
+} from "@/services/dashboard.service";
+
+export function BatchesPage() {
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [transferringId, setTransferringId] = useState<number | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [batchRes, studentRes] = await Promise.all([
+        getBatches(),
+        getStudents({ limit: 10000 }),
+      ]);
+      setBatches(batchRes.data ?? []);
+      setStudents(studentRes.data ?? []);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [batchRes, studentRes] = await Promise.all([
+          getBatches(),
+          getStudents({ limit: 10000 }),
+        ]);
+        if (!active) return;
+        setBatches(batchRes.data ?? []);
+        setStudents(studentRes.data ?? []);
+      } catch (err) {
+        toast.error((err as Error).message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const members = students.filter(
+    (s) => String(s.batch_id ?? "") === selectedBatchId
+  );
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name) return;
+    try {
+      setCreating(true);
+      await createBatch(name);
+      toast.success(`Batch "${name}" created`);
+      setNewName("");
+      await refresh();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      const res = await deleteBatch(deleteTarget.id);
+      toast.success(
+        `Batch deleted. ${res.students_reassigned} student(s) unassigned.`
+      );
+      if (String(deleteTarget.id) === selectedBatchId) setSelectedBatchId("");
+      await refresh();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleTransfer = async (studentId: number, value: string) => {
+    const target = value === "none" ? null : Number(value);
+    try {
+      setTransferringId(studentId);
+      await transferStudentBatch(studentId, target);
+      toast.success("Student batch updated");
+      await refresh();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setTransferringId(null);
+    }
+  };
+
+  return (
+    <DashboardLayout title="Batches">
+      {/* Create batch */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PlusIcon className="size-5" />
+            Create Batch
+          </CardTitle>
+          <CardDescription>
+            Batches are organization-wide. Any admin or coach in your organization can manage them.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreate} className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="flex flex-1 flex-col gap-2">
+              <Label htmlFor="batch-name">Batch name</Label>
+              <Input
+                id="batch-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Batch 2025-A"
+                required
+              />
+            </div>
+            <Button type="submit" disabled={creating} className="w-fit">
+              {creating ? "Creating…" : "Create Batch"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Batch list */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderIcon className="size-5" />
+            All Batches
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : batches.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No batches yet. Create one above.</p>
+          ) : (
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="w-32">Students</TableHead>
+                    <TableHead className="w-44">Created</TableHead>
+                    <TableHead className="w-24 text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {batches.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell className="font-medium">{b.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{b.student_count}</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(b.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-destructive"
+                          disabled={deleting}
+                          aria-label={`Delete batch ${b.name}`}
+                          onClick={() => setDeleteTarget(b)}
+                        >
+                          <Trash2Icon className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Member management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UsersIcon className="size-5" />
+            Manage Members
+          </CardTitle>
+          <CardDescription>
+            Select a batch to view and move its students between batches.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 sm:max-w-xs">
+            <Label>Batch</Label>
+            <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a batch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {batches.map((b) => (
+                    <SelectItem key={b.id} value={b.id.toString()}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedBatchId && (
+            members.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No students in this batch yet.
+              </p>
+            ) : (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16">ID</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead className="w-64">Move to</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {members.map((s) => (
+                      <TableRow key={s.student_id}>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {s.student_id}
+                        </TableCell>
+                        <TableCell className="font-medium">{s.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono">
+                            {s.student_code}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={selectedBatchId}
+                            disabled={transferringId === s.student_id}
+                            onValueChange={(v) => handleTransfer(s.student_id, v)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value="none">No batch</SelectItem>
+                                {batches
+                                  .filter((b) => String(b.id) !== selectedBatchId)
+                                  .map((b) => (
+                                    <SelectItem key={b.id} value={b.id.toString()}>
+                                      {b.name}
+                                    </SelectItem>
+                                  ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Batch</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the batch{" "}
+              <span className="font-semibold">{deleteTarget?.name}</span>? Its students will be
+              unassigned (not deleted).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Batch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </DashboardLayout>
+  );
+}

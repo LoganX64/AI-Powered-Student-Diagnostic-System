@@ -51,12 +51,20 @@ export type Student = {
   name: string;
   student_code: string;
   coach_id: number;
+  batch_id?: number | null;
   deleted_at?: string | null;
 };
 
 export type Subject = {
   subject_id: number;
   name: string;
+};
+
+export type Batch = {
+  id: number;
+  name: string;
+  created_at: string;
+  student_count: number;
 };
 
 export type Assignment = {
@@ -76,6 +84,7 @@ export type StudentDetail = {
   name: string;
   student_code: string;
   coach_id: number;
+  batch_id: number | null;
   coach_name: string;
   created_at: string;
   deleted_at: string | null;
