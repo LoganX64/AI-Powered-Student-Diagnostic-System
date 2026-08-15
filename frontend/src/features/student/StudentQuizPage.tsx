@@ -369,7 +369,6 @@ export function StudentQuizPage() {
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [policy, examStarted, flushAutosave]);
 
   // Video proctoring: stream webcam in chunks to the backend.
@@ -427,7 +426,6 @@ export function StudentQuizPage() {
       }
       stream?.getTracks().forEach((t) => t.stop());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [policy, examStarted, submitting, assignmentId]);
 
   // ---------------------------------------------------------------------------

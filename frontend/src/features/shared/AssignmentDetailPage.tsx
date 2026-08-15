@@ -41,7 +41,7 @@ export function AssignmentDetailPage() {
   }, [studentId, parsedAssignmentId]);
 
   const handleCompute = async () => {
-    const attemptId = data?.attempt?.attempt_id;
+    const attemptId = data?.attempt?.id;
     if (attemptId == null) return;
     try {
       const { job_id } = await computeSQI(attemptId);

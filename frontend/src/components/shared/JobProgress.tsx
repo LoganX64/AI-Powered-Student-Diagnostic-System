@@ -14,7 +14,10 @@ export function JobProgress({
   const [job, setJob] = useState<Job | null>(null);
   const [error, setError] = useState<string | null>(null);
   const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  });
 
   useEffect(() => {
     let active = true;
@@ -66,9 +69,9 @@ export function JobProgress({
           style={{ width: `${pct}%` }}
         />
       </div>
-      {job?.failed > 0 && (
+      {job?.failed ? (
         <p className="text-xs text-destructive">{job.failed} failed</p>
-      )}
+      ) : null}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
