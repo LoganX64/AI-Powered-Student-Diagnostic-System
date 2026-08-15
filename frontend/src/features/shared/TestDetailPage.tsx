@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon, BarChartIcon } from "lucide-react";
+import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon, BarChartIcon, CalculatorIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { JobProgress } from "@/components/shared/JobProgress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,7 @@ import {
   getTestQuestions,
   updateQuestion,
   deleteTest,
+  computeSQIBatch,
   type Assignment,
   type TestDetail,
   type TestQuestion,
@@ -72,6 +74,17 @@ export function TestDetailPage() {
   const [questionOffset, setQuestionOffset] = useState(0);
 
   const [editingTest, setEditingTest] = useState(false);
+  const [computeJobId, setComputeJobId] = useState<number | null>(null);
+
+  const handleComputeAll = async () => {
+    if (testId === null) return;
+    try {
+      const { job_id } = await computeSQIBatch(testId);
+      setComputeJobId(job_id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
 
   const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null);
   const [questionForm, setQuestionForm] = useState<QuestionDraft>(emptyQuestion());
@@ -277,6 +290,32 @@ export function TestDetailPage() {
 
         {/* Assignments tab */}
         <TabsContent value="assignments" className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-sm text-muted-foreground">
+              Compute SQI scores for every submitted attempt of this test.
+            </p>
+            <div className="flex items-center gap-2">
+              {computeJobId !== null && (
+                <JobProgress
+                  jobId={computeJobId}
+                  label="Computing all SQI"
+                  onDone={() => {
+                    setComputeJobId(null);
+                    fetchAssignments(assignmentOffset);
+                  }}
+                />
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                disabled={testId === null || computeJobId !== null}
+                onClick={handleComputeAll}
+              >
+                <CalculatorIcon className="size-4" /> Compute all
+              </Button>
+            </div>
+          </div>
           {assignments.length === 0 ? (
             <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
               <p className="text-sm text-muted-foreground">No students assigned to this test.</p>

@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon } from "lucide-react";
+import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { JobProgress } from "@/components/shared/JobProgress";
 import {
   Table,
   TableBody,
@@ -14,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getAssignmentDetail, type AssignmentDetail } from "@/services/dashboard.service";
+import { getAssignmentDetail, computeSQI, type AssignmentDetail } from "@/services/dashboard.service";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
 export function AssignmentDetailPage() {
@@ -28,6 +30,26 @@ export function AssignmentDetailPage() {
   const [data, setData] = useState<AssignmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [computeJobId, setComputeJobId] = useState<number | null>(null);
+
+  const reload = useCallback(() => {
+    if (studentId === null || parsedAssignmentId === null) return;
+    getAssignmentDetail(studentId, parsedAssignmentId)
+      .then(setData)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
+      .finally(() => setLoading(false));
+  }, [studentId, parsedAssignmentId]);
+
+  const handleCompute = async () => {
+    const attemptId = data?.attempt?.attempt_id;
+    if (attemptId == null) return;
+    try {
+      const { job_id } = await computeSQI(attemptId);
+      setComputeJobId(job_id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
 
   useEffect(() => {
     if (studentId === null || parsedAssignmentId === null) return;
@@ -148,7 +170,7 @@ export function AssignmentDetailPage() {
       </div>
 
       {/* SQI Score + Time */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         {sqi_score != null && sqi_score > 0 && (
           <Button
             variant="outline"
@@ -158,11 +180,30 @@ export function AssignmentDetailPage() {
             <BarChart3Icon className="size-4" /> SQI Score: {sqi_score}
           </Button>
         )}
+        <Button
+          variant="outline"
+          className="w-fit gap-2"
+          disabled={!data?.attempt || computeJobId !== null}
+          onClick={handleCompute}
+        >
+          <BarChart3Icon className="size-4" /> Calculate Score
+        </Button>
         <span className="text-sm text-muted-foreground">
           <ClockIcon className="size-3.5 inline mr-1" />
           Total time: {Math.floor(totalTime / 60)}m {Math.round(totalTime % 60)}s
         </span>
       </div>
+
+      {computeJobId !== null && (
+        <JobProgress
+          jobId={computeJobId}
+          label="Calculating SQI"
+          onDone={() => {
+            setComputeJobId(null);
+            reload();
+          }}
+        />
+      )}
 
       {/* Answers table */}
       {answers.length === 0 ? (

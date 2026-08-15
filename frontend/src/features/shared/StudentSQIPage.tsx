@@ -1,15 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, BarChart3Icon, Loader2Icon } from "lucide-react";
+import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { AnalysisDashboard } from "@/components/shared/AnalysisDashboard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getStudentSQI } from "@/services/dashboard.service";
+import { getStudentSQI, computeSQI } from "@/services/dashboard.service";
 import { parseRouteId } from "@/lib/utils";
 import type { SQIResponse } from "@/services/types";
+import { JobProgress } from "@/components/shared/JobProgress";
 
 function sqiColor(score: number): string {
   if (score >= 75) return "text-green-600";
@@ -27,6 +29,27 @@ export function StudentSQIPage() {
   const [data, setData] = useState<SQIResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [computeJobId, setComputeJobId] = useState<number | null>(null);
+
+  const handleCompute = async (attemptId: number) => {
+    try {
+      const { job_id } = await computeSQI(attemptId);
+      setComputeJobId(job_id);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const reload = useCallback(async () => {
+    if (studentId === null) return;
+    try {
+      const res = await getStudentSQI(studentId, { include_analysis: true });
+      setData(res);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load SQI data");
+    }
+  }, [studentId]);
 
   useEffect(() => {
     if (studentId === null) return;
@@ -34,7 +57,7 @@ export function StudentSQIPage() {
     const sid = studentId;
     async function load() {
       try {
-        const res = await getStudentSQI(sid, { compute: true, include_analysis: true });
+        const res = await getStudentSQI(sid, { include_analysis: true });
         if (!cancelled) setData(res);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load SQI data");
@@ -44,7 +67,7 @@ export function StudentSQIPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, [studentId]);
+  }, [studentId, reload]);
 
   if (studentId === null) {
     return (
@@ -109,17 +132,37 @@ export function StudentSQIPage() {
 
           <div className="flex flex-col gap-3">
             <h2 className="text-base font-semibold">Attempts</h2>
+            {computeJobId !== null && (
+              <JobProgress
+                jobId={computeJobId}
+                label="Calculating SQI"
+                onDone={() => {
+                  setComputeJobId(null);
+                  reload();
+                }}
+              />
+            )}
             {data.attempts.length === 0 && (
               <p className="text-sm text-muted-foreground">No attempts found.</p>
             )}
             {data.attempts.map((attempt) => (
               <Card key={attempt.attempt_id}>
                 <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
+                  <CardTitle className="flex items-center justify-between gap-2">
                     <span className="truncate">Attempt #{attempt.attempt_id}</span>
-                    <Badge variant="outline" className={`font-mono ${sqiColor(attempt.sqi_score)}`}>
-                      SQI: {attempt.sqi_score.toFixed(1)}
-                    </Badge>
+                    <span className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={computeJobId !== null}
+                        onClick={() => handleCompute(attempt.attempt_id)}
+                      >
+                        Calculate Score
+                      </Button>
+                      <Badge variant="outline" className={`font-mono ${sqiColor(attempt.sqi_score)}`}>
+                        SQI: {attempt.sqi_score.toFixed(1)}
+                      </Badge>
+                    </span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
