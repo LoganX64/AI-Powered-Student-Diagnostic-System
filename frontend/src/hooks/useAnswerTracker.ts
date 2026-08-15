@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { AutosaveAnswer } from "@/services/student.service";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -246,6 +247,27 @@ export function useAnswerTracker(questionIds: number[]) {
     localStorage.removeItem(STORAGE_KEY);
   }, [stopTracking]);
 
+  /** Overwrite the current records (used to resume a saved attempt). */
+  const restoreRecords = useCallback(
+    (next: Record<number, AnswerRecord>) => {
+      setRecords(next);
+    },
+    [],
+  );
+
+  /** Build the payload used by the server autosave endpoint. */
+  const getAutosavePayload = useCallback((): AutosaveAnswer[] => {
+    return Object.values(records).map((r) => ({
+      question_id: r.question_id,
+      selected_answer: r.selected_answer,
+      seen: r.seen,
+      time_spent: r.time_spent, // seconds
+      marked_for_review: r.marked_for_review,
+      revisited: r.revisited,
+      changed_answer: r.changed_answer,
+    }));
+  }, [records]);
+
   // ---------------------------------------------------------------------------
   // Derived state for convenience
   // ---------------------------------------------------------------------------
@@ -269,6 +291,8 @@ export function useAnswerTracker(questionIds: number[]) {
     stopTracking,
     getPayload,
     clearAll,
+    restoreRecords,
+    getAutosavePayload,
     answeredCount,
     markedForReviewIds,
     seenIds,

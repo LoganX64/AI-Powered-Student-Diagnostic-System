@@ -11,6 +11,12 @@ import { useEffect, useRef, useState } from "react";
  *
  * Pass `started = false` to hold the timer on the instructions page and only
  * begin counting once the student clicks "Accept and Begin".
+ *
+ * Server-timing mode (tiered/premium exams): pass `serverDeadlineMs` (an
+ * absolute epoch-ms deadline returned by the backend) and `serverSkewMs`
+ * (clock difference between client and server). When provided, the countdown
+ * is derived from the deadline on every tick instead of local storage, so it
+ * is tamper-resistant and survives refreshes.
  */
 export function useExamTimer(
   initialSeconds: number,
@@ -18,13 +24,25 @@ export function useExamTimer(
   onExpire?: () => void,
   started: boolean = true,
   examStartedAt?: number | null,
+  serverDeadlineMs?: number | null,
+  serverSkewMs: number = 0,
 ) {
   const calcRemaining = (startedAt: number) => {
     const elapsed = (Date.now() - startedAt) / 1000;
     return Math.max(0, Math.round(initialSeconds - elapsed));
   };
 
+  const calcFromDeadline = () => {
+    if (serverDeadlineMs == null) return null;
+    const now = Date.now() + serverSkewMs;
+    return Math.max(0, Math.round((serverDeadlineMs - now) / 1000));
+  };
+
   const getInitial = () => {
+    if (serverDeadlineMs != null) {
+      const fromDeadline = calcFromDeadline();
+      if (fromDeadline != null) return fromDeadline;
+    }
     // If we have a start timestamp, derive remaining from it
     if (examStartedAt) {
       return calcRemaining(examStartedAt);
@@ -47,14 +65,14 @@ export function useExamTimer(
   // Re-sync timer when initialSeconds changes before the exam starts (e.g. data
   // loaded asynchronously on the instructions page).
   useEffect(() => {
-    if (!started) {
+    if (!started && serverDeadlineMs == null) {
       setTimeLeft(getInitial());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSeconds, started]);
 
   useEffect(() => {
-    if (!started) return; // don't tick until exam has started
+    if (!started && serverDeadlineMs == null) return; // don't tick until exam has started
 
     if (timeLeft <= 0) {
       onExpireRef.current?.();
@@ -62,6 +80,16 @@ export function useExamTimer(
     }
 
     const id = setInterval(() => {
+      if (serverDeadlineMs != null) {
+        const remaining = calcFromDeadline();
+        if (remaining == null || remaining <= 0) {
+          onExpireRef.current?.();
+          setTimeLeft(0);
+        } else {
+          setTimeLeft(remaining);
+        }
+        return;
+      }
       setTimeLeft((prev) => {
         const next = prev - 1;
         localStorage.setItem(storageKey, String(next));
@@ -75,7 +103,7 @@ export function useExamTimer(
 
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey, started]);
+  }, [storageKey, started, serverDeadlineMs, serverSkewMs]);
 
   return timeLeft;
 }
