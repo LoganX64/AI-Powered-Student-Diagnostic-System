@@ -32,6 +32,10 @@ type Config struct {
 	PricingTabFlat        float64
 	PricingVideoPerMinute float64
 	SubmitGraceSeconds    int
+
+	RedisURL      string
+	RedisEnabled  bool
+	CloudinaryURL string
 }
 
 func LoadConfig() *Config {
@@ -122,6 +126,11 @@ func LoadConfig() *Config {
 		queueMode = "standard"
 	}
 
+	redisURL := os.Getenv("REDIS_URL")
+	redisEnabled := redisURL != "" && (queueMode == "scale" || os.Getenv("REDIS_ENABLED") == "true")
+
+	cloudinaryURL := os.Getenv("CLOUDINARY_URL")
+
 	uploadDir := os.Getenv("UPLOAD_DIR")
 	if uploadDir == "" {
 		uploadDir = "./uploads"
@@ -154,6 +163,10 @@ func LoadConfig() *Config {
 		PricingTabFlat:        pricingTab,
 		PricingVideoPerMinute: pricingVideo,
 		SubmitGraceSeconds:    submitGrace,
+
+		RedisURL:      redisURL,
+		RedisEnabled:  redisEnabled,
+		CloudinaryURL: cloudinaryURL,
 	}
 }
 
