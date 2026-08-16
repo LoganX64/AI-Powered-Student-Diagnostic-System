@@ -402,3 +402,75 @@ func (s *AttemptService) ComputeAndStoreAttempt(attemptID, testID int) error {
 	}
 	return s.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version)
 }
+
+// ValidateTimedSubmit performs ownership + deadline checks for a server-timed
+// submission and returns the active attempt id. It does NOT write anything — the
+// scale path enqueues finalization, the standard path finalizes inline.
+func (s *AttemptService) ValidateTimedSubmit(assignmentID, studentID, graceSeconds int) (int, error) {
+	owner, err := s.AssignmentRepo.GetOwnerAndTest(assignmentID)
+	if err != nil {
+		return 0, &SubmitAnswersError{Status: 400, Message: "invalid assignment"}
+	}
+	if owner.OwnerID != studentID {
+		return 0, &SubmitAnswersError{Status: 403, Message: "assignment does not belong to student"}
+	}
+
+	attemptID, startedAt, err := s.AttemptRepo.GetInProgressAttempt(assignmentID)
+	if err != nil {
+		return 0, &SubmitAnswersError{Status: 409, Message: "exam not started or already submitted"}
+	}
+
+	if owner.Duration > 0 {
+		deadline := startedAt.Add(time.Duration(owner.Duration) * time.Second)
+		if time.Now().After(deadline.Add(time.Duration(graceSeconds) * time.Second)) {
+			return 0, &SubmitAnswersError{Status: 410, Message: "exam deadline has passed"}
+		}
+	}
+	return attemptID, nil
+}
+
+// FinalizeSubmission persists answers and marks the attempt submitted in one
+// transaction. It is idempotent: if the attempt is already finalized it returns
+// nil. Used by the async worker (scale mode) and the sweeper.
+func (s *AttemptService) FinalizeSubmission(assignmentID, attemptID int, answers []AnswerInput) error {
+	if _, _, err := s.AttemptRepo.GetInProgressAttempt(assignmentID); err != nil {
+		// No in-progress attempt → already submitted/finalized. Idempotent no-op.
+		return nil
+	}
+
+	testID, err := s.AttemptRepo.GetTestIDForAttempt(attemptID)
+	if err != nil {
+		return &SubmitAnswersError{Status: 500, Message: "failed to resolve test"}
+	}
+	correctMap, err := s.AttemptRepo.GetCorrectAnswers(testID)
+	if err != nil {
+		return &SubmitAnswersError{Status: 500, Message: "failed to fetch questions"}
+	}
+
+	for _, ans := range answers {
+		answerSeen := ans.SelectedAnswer != ""
+		if ans.Seen != nil {
+			answerSeen = *ans.Seen
+		}
+		if !answerSeen {
+			ans.TimeSpent = 0
+			ans.SelectedAnswer = ""
+			ans.MarkedForReview = false
+			ans.Revisited = false
+			ans.ChangedAnswer = false
+			ans.WasInitiallyWrong = false
+		}
+		isCorrect := answerSeen && ans.SelectedAnswer != "" && ans.SelectedAnswer == correctMap[ans.QuestionID]
+		if err := s.AttemptRepo.UpsertAnswer(
+			attemptID, ans.QuestionID, ans.SelectedAnswer, isCorrect, ans.TimeSpent,
+			ans.MarkedForReview, ans.Revisited, ans.ChangedAnswer, ans.WasInitiallyWrong, answerSeen,
+		); err != nil {
+			return &SubmitAnswersError{Status: 500, Message: "failed to save answers"}
+		}
+	}
+
+	if err := s.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID); err != nil {
+		return &SubmitAnswersError{Status: 500, Message: "failed to finalize submission"}
+	}
+	return nil
+}

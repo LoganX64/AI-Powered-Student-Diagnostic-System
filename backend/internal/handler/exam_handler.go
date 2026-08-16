@@ -3,13 +3,12 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
-	"io"
+	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 
+	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
@@ -141,6 +140,13 @@ func (h *StudentHandler) Autosave(c *gin.Context) {
 		attemptID = id
 	}
 
+	// Scale mode: buffer writes in Redis and flush in batches (surge safety).
+	if h.AutosaveBuffer != nil {
+		h.AutosaveBuffer.Push(attemptID, req.Answers)
+		c.JSON(http.StatusOK, gin.H{"buffered": len(req.Answers)})
+		return
+	}
+
 	saved := 0
 	for _, ans := range req.Answers {
 		answerSeen := ans.SelectedAnswer != ""
@@ -247,6 +253,31 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 	}
 
 	if policy.ServerTiming {
+		if h.Cfg.RedisEnabled {
+			// Scale mode: validate synchronously, then enqueue finalization so
+			// the DB write is decoupled from the request (accept-fast pattern).
+			attemptID, err := h.AttemptService.ValidateTimedSubmit(assignmentID, studentID, h.graceSeconds())
+			if err != nil {
+				var svcErr *services.SubmitAnswersError
+				if errors.As(err, &svcErr) {
+					c.JSON(svcErr.Status, gin.H{"error": svcErr.Message})
+					return
+				}
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
+				return
+			}
+			h.Queue.EnqueueFinalize(queue.FinalizePayload{
+				AssignmentID: assignmentID,
+				AttemptID:    attemptID,
+				Answers:      toQueueAnswers(req.Answers),
+			})
+			c.JSON(http.StatusAccepted, gin.H{
+				"attempt_id": attemptID,
+				"status":     "queued",
+			})
+			return
+		}
+
 		res, err := h.AttemptService.SubmitTimed(assignmentID, studentID, h.graceSeconds(), req.Answers)
 		if err != nil {
 			var svcErr *services.SubmitAnswersError
@@ -318,16 +349,7 @@ func (h *StudentHandler) VideoChunk(c *gin.Context) {
 		return
 	}
 
-	uploadDir := "./uploads"
-	if h.Cfg != nil && h.Cfg.UploadDir != "" {
-		uploadDir = h.Cfg.UploadDir
-	}
-	dir := filepath.Join(uploadDir, "video", strconv.Itoa(attemptID))
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to prepare storage")
-		return
-	}
-
+	key := fmt.Sprintf("video/%d/%s.webm", attemptID, index)
 	src, err := chunk.Open()
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to read chunk")
@@ -335,23 +357,35 @@ func (h *StudentHandler) VideoChunk(c *gin.Context) {
 	}
 	defer src.Close()
 
-	dstPath := filepath.Join(dir, index+".webm")
-	dst, err := os.Create(dstPath)
+	storedURL, err := h.Storage.Put(c.Request.Context(), key, src)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to store chunk")
 		return
 	}
-	defer dst.Close()
 
-	if _, err := io.Copy(dst, src); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to write chunk")
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"received_index": index})
+	c.JSON(http.StatusOK, gin.H{"received_index": index, "url": storedURL})
 }
 
 // ServerTime returns the authoritative server clock for client skew calibration.
 func (h *StudentHandler) ServerTime(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"server_time": time.Now().Format(time.RFC3339)})
+}
+
+// toQueueAnswers converts handler answer inputs into the queue-local shape so
+// the services package is not imported by the queue package (avoids a cycle).
+func toQueueAnswers(in []services.AnswerInput) []queue.AnswerInput {
+	out := make([]queue.AnswerInput, len(in))
+	for i, a := range in {
+		out[i] = queue.AnswerInput{
+			QuestionID:        a.QuestionID,
+			SelectedAnswer:    a.SelectedAnswer,
+			TimeSpent:         a.TimeSpent,
+			Seen:              a.Seen,
+			MarkedForReview:   a.MarkedForReview,
+			Revisited:         a.Revisited,
+			ChangedAnswer:     a.ChangedAnswer,
+			WasInitiallyWrong: a.WasInitiallyWrong,
+		}
+	}
+	return out
 }
