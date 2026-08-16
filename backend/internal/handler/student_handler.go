@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/config"
+	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
+	"ai-student-diagnostic/backend/internal/storage"
 	"ai-student-diagnostic/backend/utils"
 	"encoding/json"
 	"errors"
@@ -21,6 +23,9 @@ type StudentHandler struct {
 	TestPaperRepo    *repository.TestPaperRepo
 	AttemptService   *services.AttemptService
 	LoginAttemptRepo *repository.LoginAttemptRepo
+	Queue            queue.Queue
+	AutosaveBuffer   *services.AutosaveBuffer
+	Storage          storage.Storage
 	Cfg              *config.Config
 }
 
@@ -31,6 +36,9 @@ func NewStudentHandler(
 	testPaperRepo *repository.TestPaperRepo,
 	attemptService *services.AttemptService,
 	loginAttemptRepo *repository.LoginAttemptRepo,
+	q queue.Queue,
+	autosaveBuffer *services.AutosaveBuffer,
+	storageBackend storage.Storage,
 	cfg *config.Config,
 ) *StudentHandler {
 	return &StudentHandler{
@@ -40,6 +48,9 @@ func NewStudentHandler(
 		TestPaperRepo:    testPaperRepo,
 		AttemptService:   attemptService,
 		LoginAttemptRepo: loginAttemptRepo,
+		Queue:            q,
+		AutosaveBuffer:   autosaveBuffer,
+		Storage:          storageBackend,
 		Cfg:              cfg,
 	}
 }

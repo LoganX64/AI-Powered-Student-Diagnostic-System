@@ -19,7 +19,7 @@ type AdminHandler struct {
 	AttemptService    *services.AttemptService
 	AssignmentService *services.AssignmentService
 	JobService        *services.JobService
-	Queue             *queue.Queue
+	Queue             queue.Queue
 	Cfg               *config.Config
 }
 
@@ -35,7 +35,7 @@ func NewAdminHandler(
 	attemptService *services.AttemptService,
 	assignmentService *services.AssignmentService,
 	jobService *services.JobService,
-	q *queue.Queue,
+	q queue.Queue,
 	cfg *config.Config,
 ) *AdminHandler {
 	return &AdminHandler{

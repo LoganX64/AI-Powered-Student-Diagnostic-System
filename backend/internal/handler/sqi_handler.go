@@ -15,7 +15,7 @@ type sqiJobPayload struct {
 }
 
 // enqueueComputeJob creates a compute_sqi job and enqueues it for the worker.
-func enqueueComputeJob(c *gin.Context, tenantID int, attemptIDs []int, jobRepo *repository.JobRepo, q *queue.Queue) {
+func enqueueComputeJob(c *gin.Context, tenantID int, attemptIDs []int, jobRepo *repository.JobRepo, q queue.Queue) {
 	if len(attemptIDs) == 0 {
 		utils.BadRequest(c, "no attempts to compute")
 		return
@@ -30,7 +30,7 @@ func enqueueComputeJob(c *gin.Context, tenantID int, attemptIDs []int, jobRepo *
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create job")
 		return
 	}
-	q.Enqueue(jobID)
+	q.EnqueueCompute(jobID)
 	c.JSON(http.StatusAccepted, gin.H{"job_id": jobID, "total": len(attemptIDs)})
 }
 
