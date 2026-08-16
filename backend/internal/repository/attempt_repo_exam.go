@@ -159,3 +159,36 @@ func (r *AttemptRepo) AttemptBelongsToTenant(attemptID, tenantID int) (bool, err
 	`, attemptID, tenantID).Scan(&exists)
 	return exists, err
 }
+
+// ExpiredInProgressAttempt attempts past their deadline+grace that are still
+// in_progress. Claimed with SKIP LOCKED so concurrent sweepers don't double-finalize.
+type ExpiredAttempt struct {
+	AssignmentID int
+	AttemptID    int
+}
+
+func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAttempt, error) {
+	rows, err := r.DB.Query(`
+		SELECT a.id, a.assignment_id FROM attempts a
+		JOIN assignments ass ON a.assignment_id = ass.id
+		WHERE a.status = 'in_progress'
+		  AND a.started_at + (ass.duration || ' seconds')::interval
+		      + ($1 || ' seconds')::interval < NOW()
+		ORDER BY a.id
+		FOR UPDATE SKIP LOCKED
+	`, graceSeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ExpiredAttempt
+	for rows.Next() {
+		var e ExpiredAttempt
+		if err := rows.Scan(&e.AttemptID, &e.AssignmentID); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
