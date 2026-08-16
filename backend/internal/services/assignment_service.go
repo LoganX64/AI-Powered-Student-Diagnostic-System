@@ -13,15 +13,17 @@ type AssignmentService struct {
 	TestPaperRepo       *repository.TestPaperRepo
 	CoachRepo      *repository.CoachRepo
 	UserRepo       *repository.UserRepo
+	RedisEnabled   bool
 }
 
-func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testPaperRepo *repository.TestPaperRepo, coachRepo *repository.CoachRepo, userRepo *repository.UserRepo) *AssignmentService {
+func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testPaperRepo *repository.TestPaperRepo, coachRepo *repository.CoachRepo, userRepo *repository.UserRepo, redisEnabled bool) *AssignmentService {
 	return &AssignmentService{
 		AssignmentRepo: assignmentRepo,
 		StudentRepo:    studentRepo,
 		TestPaperRepo:       testPaperRepo,
 		CoachRepo:      coachRepo,
 		UserRepo:       userRepo,
+		RedisEnabled:   redisEnabled,
 	}
 }
 
@@ -79,6 +81,10 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 		return 0, &CreateAssignmentError{Status: 403, Message: "only admin or coach can assign tests"}
 	}
 
+	if err := s.guardScaleMode(input.DeliveryMode); err != nil {
+		return 0, err
+	}
+
 	studentCoachID, studentTenantID, err := s.StudentRepo.GetCoachIDAndTenantID(input.StudentID)
 	if err != nil || studentCoachID != coachID || studentTenantID != tenantID {
 		return 0, &CreateAssignmentError{Status: 403, Message: "student not found, deactivated, or not in your organization"}
@@ -119,6 +125,10 @@ func (s *AssignmentService) CreateBatchAssignment(input CreateBatchAssignmentInp
 		return 0, &CreateAssignmentError{Status: 403, Message: "only admin or coach can assign tests"}
 	}
 
+	if err := s.guardScaleMode(input.DeliveryMode); err != nil {
+		return 0, err
+	}
+
 	testCoachID, testTenantID, err := s.TestPaperRepo.GetCoachAndTenant(input.TestID)
 	if err != nil || testCoachID != coachID || testTenantID != tenantID {
 		return 0, &CreateAssignmentError{Status: 403, Message: "test not found or not in your organization"}
@@ -156,4 +166,16 @@ func DeliveryModeForN(n, scaleBandC int) string {
 		return "scale"
 	}
 	return "standard"
+}
+
+// guardScaleMode enforces the plan rule: Band C (scale) delivery requires Redis.
+// Without Redis, block and tell the caller to use staggered sub-batches.
+func (s *AssignmentService) guardScaleMode(deliveryMode string) error {
+	if deliveryMode == "scale" && !s.RedisEnabled {
+		return &CreateAssignmentError{
+			Status:  400,
+			Message: "scale (Band C) delivery requires Redis; either set delivery_mode='standard' or split the cohort into staggered sub-batches",
+		}
+	}
+	return nil
 }
