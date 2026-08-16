@@ -2,16 +2,20 @@ package routes
 
 import (
 	"ai-student-diagnostic/backend/internal/auth"
+	"ai-student-diagnostic/backend/internal/cache"
 	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/config"
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
+	"ai-student-diagnostic/backend/internal/storage"
 	"ai-student-diagnostic/backend/utils"
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -71,16 +75,38 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	jobRepo := repository.NewJobRepo(db)
 
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
-	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo)
+	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo, cfg.RedisEnabled)
 	jobService := services.NewJobService(jobRepo, attemptService, cfg.ComputeChunkSize)
 	authService := services.NewAuthService(userRepo, coachRepo)
 
-	jobQueue := queue.New(1024)
+	redisClient := cache.NewRedis(cfg)
+
+	// Storage backend for the video proctoring tier (Cloudinary if configured, else local).
+	var storageBackend storage.Storage
+	if cfg.CloudinaryURL != "" {
+		if cs, err := storage.NewCloudinary(cfg.CloudinaryURL); err == nil {
+			storageBackend = cs
+		} else {
+			log.Printf("[STORAGE] cloudinary init failed, falling back to local: %v", err)
+		}
+	}
+	if storageBackend == nil {
+		storageBackend = storage.NewLocal(cfg.UploadDir)
+	}
+
+	// Autosave buffer (Redis-backed batched flush) only in scale mode.
+	var autosaveBuffer *services.AutosaveBuffer
+	if cfg.RedisEnabled && redisClient != nil {
+		autosaveBuffer = services.NewAutosaveBuffer(redisClient, attemptRepo)
+		autosaveBuffer.Start()
+	}
+
+	jobQueue := queue.New(cfg)
 
 	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
 	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, cfg)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, jobQueue, autosaveBuffer, storageBackend, cfg)
 
 	authRoute := r.Group("/auth")
 	authRoute.Use(middleware.RateLimit())
@@ -93,6 +119,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	{
 		student.POST("/login", middleware.RateLimit(), studentHandler.StudentLogin)
 
+		// Shared (Redis) rate limiter when available, else per-instance in-memory.
+		limiter := middleware.NewRateLimiter(redisClient)
+
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo))
 		{
@@ -100,10 +129,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			protected.GET("/assignments", studentHandler.ListStudentAssignments)
 			protected.GET("/assignments/:id/questions", studentHandler.GetAssignmentQuestions)
 			protected.POST("/assignments/:id/start", studentHandler.StartExam)
-			protected.POST("/assignments/:id/autosave", studentHandler.Autosave)
+			protected.POST("/assignments/:id/autosave", limiter, studentHandler.Autosave)
 			protected.GET("/assignments/:id/state", studentHandler.GetState)
-			protected.POST("/assignments/:id/submit", studentHandler.SubmitExam)
-			protected.POST("/assignments/:id/video-chunk", studentHandler.VideoChunk)
+			protected.POST("/assignments/:id/submit", limiter, studentHandler.SubmitExam)
+			protected.POST("/assignments/:id/video-chunk", limiter, studentHandler.VideoChunk)
 			protected.POST("/api/time", studentHandler.ServerTime)
 		}
 	}
@@ -210,9 +239,39 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.PUT("/password", authHandler.UpdatePassword)
 	}
 
-	jobQueue.Start(func(jobID int) {
-		jobService.Process(jobID)
-	})
+	jobQueue.Start(
+		func(jobID int) { jobService.Process(jobID) },
+		func(p queue.FinalizePayload) {
+			answers := make([]services.AnswerInput, len(p.Answers))
+			for i, a := range p.Answers {
+				answers[i] = services.AnswerInput{
+					QuestionID:        a.QuestionID,
+					SelectedAnswer:    a.SelectedAnswer,
+					TimeSpent:         a.TimeSpent,
+					Seen:              a.Seen,
+					MarkedForReview:   a.MarkedForReview,
+					Revisited:         a.Revisited,
+					ChangedAnswer:     a.ChangedAnswer,
+					WasInitiallyWrong: a.WasInitiallyWrong,
+				}
+			}
+			if err := attemptService.FinalizeSubmission(p.AssignmentID, p.AttemptID, answers); err != nil {
+				log.Printf("[QUEUE] finalize failed assignment %d attempt %d: %v", p.AssignmentID, p.AttemptID, err)
+			}
+		},
+	)
+
+	// Auto-submit sweeper (Band C): finalize expired in-progress attempts.
+	if cfg.RedisEnabled && redisClient != nil {
+		sweeper := services.NewSweeper(attemptRepo, jobQueue, cfg.SubmitGraceSeconds)
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				sweeper.RunOnce(context.Background())
+			}
+		}()
+	}
 
 	return r
 }
