@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Counts down from `initialSeconds` and calls `onExpire` when it hits zero.
@@ -27,62 +27,71 @@ export function useExamTimer(
   serverDeadlineMs?: number | null,
   serverSkewMs: number = 0,
 ) {
-  const calcRemaining = (startedAt: number) => {
-    const elapsed = (Date.now() - startedAt) / 1000;
-    return Math.max(0, Math.round(initialSeconds - elapsed));
-  };
-
-  const calcFromDeadline = () => {
-    if (serverDeadlineMs == null) return null;
-    const now = Date.now() + serverSkewMs;
-    return Math.max(0, Math.round((serverDeadlineMs - now) / 1000));
-  };
-
-  const getInitial = () => {
+  const getInitial = useCallback(() => {
     if (serverDeadlineMs != null) {
-      const fromDeadline = calcFromDeadline();
-      if (fromDeadline != null) return fromDeadline;
+      const now = Date.now() + serverSkewMs;
+      return Math.max(0, Math.round((serverDeadlineMs - now) / 1000));
     }
-    // If we have a start timestamp, derive remaining from it
     if (examStartedAt) {
-      return calcRemaining(examStartedAt);
+      const elapsed = (Date.now() - examStartedAt) / 1000;
+      return Math.max(0, Math.round(initialSeconds - elapsed));
     }
-    // Fallback: read from localStorage (for page-refresh within same session)
     const stored = localStorage.getItem(storageKey);
     if (stored !== null) {
       const parsed = parseInt(stored, 10);
       if (!isNaN(parsed) && parsed >= 0) return parsed;
     }
     return initialSeconds;
-  };
+  }, [serverDeadlineMs, serverSkewMs, examStartedAt, initialSeconds, storageKey]);
 
   const [timeLeft, setTimeLeft] = useState<number>(getInitial);
+
+  // Tracks the last `initialSeconds` seen while the exam hasn't started, so the
+  // timer can re-sync when the configured duration changes (e.g. data loaded
+  // asynchronously on the instructions page).
+  const [resyncInitial, setResyncInitial] = useState(initialSeconds);
+
+  // Latest values are mirrored into refs so the interval effect can read them
+  // without being torn down and recreated on every render or tick.
   const onExpireRef = useRef(onExpire);
+  const timeLeftRef = useRef(timeLeft);
+  const serverDeadlineRef = useRef(serverDeadlineMs);
+  const serverSkewRef = useRef(serverSkewMs);
+  const storageKeyRef = useRef(storageKey);
   useEffect(() => {
     onExpireRef.current = onExpire;
+    timeLeftRef.current = timeLeft;
+    serverDeadlineRef.current = serverDeadlineMs;
+    serverSkewRef.current = serverSkewMs;
+    storageKeyRef.current = storageKey;
   });
 
-  // Re-sync timer when initialSeconds changes before the exam starts (e.g. data
-  // loaded asynchronously on the instructions page).
-  useEffect(() => {
-    if (!started && serverDeadlineMs == null) {
-      setTimeLeft(getInitial());
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSeconds, started]);
+  // Re-sync while the exam hasn't started yet and the configured duration
+  // changes (e.g. data loaded asynchronously on the instructions page). Done
+  // during render (not in an effect) so the corrected value is reflected
+  // immediately. Only relevant for the client-stored / local-start timer;
+  // server-timing mode derives from the backend deadline on every tick.
+  if (!started && serverDeadlineMs == null && initialSeconds !== resyncInitial) {
+    setResyncInitial(initialSeconds);
+    setTimeLeft(getInitial());
+  }
 
   useEffect(() => {
     if (!started && serverDeadlineMs == null) return; // don't tick until exam has started
 
-    if (timeLeft <= 0) {
+    if (timeLeftRef.current <= 0) {
       onExpireRef.current?.();
       return;
     }
 
-    const id = setInterval(() => {
-      if (serverDeadlineMs != null) {
-        const remaining = calcFromDeadline();
-        if (remaining == null || remaining <= 0) {
+    const tick = () => {
+      const deadline = serverDeadlineRef.current;
+      const skew = serverSkewRef.current;
+      const key = storageKeyRef.current;
+      if (deadline != null) {
+        const now = Date.now() + skew;
+        const remaining = Math.max(0, Math.round((deadline - now) / 1000));
+        if (remaining <= 0) {
           onExpireRef.current?.();
           setTimeLeft(0);
         } else {
@@ -92,18 +101,17 @@ export function useExamTimer(
       }
       setTimeLeft((prev) => {
         const next = prev - 1;
-        localStorage.setItem(storageKey, String(next));
+        localStorage.setItem(key, String(next));
         if (next <= 0) {
-          clearInterval(id);
           onExpireRef.current?.();
         }
         return next;
       });
-    }, 1000);
+    };
 
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storageKey, started, serverDeadlineMs, serverSkewMs]);
+  }, [started, serverDeadlineMs]);
 
   return timeLeft;
 }
