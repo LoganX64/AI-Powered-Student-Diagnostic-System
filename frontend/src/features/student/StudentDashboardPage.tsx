@@ -44,6 +44,13 @@ export function StudentDashboardPage() {
   }, [refreshKey]);
 
   const handleStartExam = (assignmentId: number) => {
+    // Clear any stale exam state from a previously started/abandoned exam so
+    // useExamTimer doesn't inherit an old `exam_started_at` and instantly
+    // auto-submit the new assignment (F32).
+    localStorage.removeItem("exam_started");
+    localStorage.removeItem("exam_started_at");
+    localStorage.removeItem("exam_timer");
+    localStorage.removeItem("exam_ctx_" + assignmentId);
     localStorage.setItem("assignment_id", String(assignmentId));
     navigate("/instructions");
   };

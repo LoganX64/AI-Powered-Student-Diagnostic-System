@@ -87,9 +87,13 @@ export function StudentInstructionsPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Clear stale timer so useExamTimer always initializes with the correct duration
+  // Clear stale timer so useExamTimer always initializes with the correct duration.
+  // Also drop the stale started flags from any previously abandoned exam so the
+  // quiz page re-arms the timer fresh instead of inheriting an old start time (F32).
   useEffect(() => {
     localStorage.removeItem("exam_timer");
+    localStorage.removeItem("exam_started");
+    localStorage.removeItem("exam_started_at");
   }, []);
 
   // Timer does NOT start until the student clicks Accept
