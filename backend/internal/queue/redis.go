@@ -11,22 +11,22 @@ import (
 
 // inProcessQueue is the standard-mode queue: a buffered channel per type.
 type inProcessQueue struct {
-	computeCh  chan int
+	computeCh  chan ComputePayload
 	finalizeCh chan FinalizePayload
 }
 
-func (q *inProcessQueue) EnqueueCompute(jobID int) {
-	q.computeCh <- jobID
+func (q *inProcessQueue) EnqueueCompute(jobID, tenantID int) {
+	q.computeCh <- ComputePayload{JobID: jobID, TenantID: tenantID}
 }
 
 func (q *inProcessQueue) EnqueueFinalize(p FinalizePayload) {
 	q.finalizeCh <- p
 }
 
-func (q *inProcessQueue) Start(computeHandler func(int), finalizeHandler func(FinalizePayload)) {
+func (q *inProcessQueue) Start(computeHandler func(int, int), finalizeHandler func(FinalizePayload)) {
 	go func() {
-		for id := range q.computeCh {
-			computeHandler(id)
+		for pl := range q.computeCh {
+			computeHandler(pl.JobID, pl.TenantID)
 		}
 	}()
 	go func() {
@@ -54,8 +54,8 @@ func newRedisClient(cfg *config.Config) *redis.Client {
 	return redis.NewClient(opts)
 }
 
-func (q *redisQueue) EnqueueCompute(jobID int) {
-	payload, err := marshalCompute(jobID)
+func (q *redisQueue) EnqueueCompute(jobID, tenantID int) {
+	payload, err := marshalCompute(jobID, tenantID)
 	if err != nil {
 		return
 	}
@@ -76,7 +76,7 @@ func (q *redisQueue) EnqueueFinalize(p FinalizePayload) {
 	})
 }
 
-func (q *redisQueue) Start(computeHandler func(int), finalizeHandler func(FinalizePayload)) {
+func (q *redisQueue) Start(computeHandler func(int, int), finalizeHandler func(FinalizePayload)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	q.cancel = cancel
 
@@ -116,16 +116,14 @@ func (q *redisQueue) Start(computeHandler func(int), finalizeHandler func(Finali
 	}()
 }
 
-func (q *redisQueue) dispatch(msg redis.XMessage, computeHandler func(int), finalizeHandler func(FinalizePayload)) {
+func (q *redisQueue) dispatch(msg redis.XMessage, computeHandler func(int, int), finalizeHandler func(FinalizePayload)) {
 	msgType, _ := msg.Values["type"].(string)
 	payload, _ := msg.Values["payload"].(string)
 	switch msgType {
 	case TaskComputeSQI:
-		var pl struct {
-			JobID int `json:"job_id"`
-		}
+		var pl ComputePayload
 		if err := json.Unmarshal([]byte(payload), &pl); err == nil {
-			computeHandler(pl.JobID)
+			computeHandler(pl.JobID, pl.TenantID)
 		}
 	case TaskFinalize:
 		var pl FinalizePayload

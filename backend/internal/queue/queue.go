@@ -38,11 +38,18 @@ type FinalizePayload struct {
 	Answers      []AnswerInput `json:"answers"`
 }
 
+// ComputePayload carries the job id and its tenant for a compute task. The
+// tenant is threaded through so the worker can scope job reads/writes by tenant.
+type ComputePayload struct {
+	JobID    int `json:"job_id"`
+	TenantID int `json:"tenant_id"`
+}
+
 // Queue is the job interface used by handlers and the sweeper.
 type Queue interface {
-	EnqueueCompute(jobID int)
+	EnqueueCompute(jobID, tenantID int)
 	EnqueueFinalize(p FinalizePayload)
-	Start(computeHandler func(int), finalizeHandler func(FinalizePayload))
+	Start(computeHandler func(int, int), finalizeHandler func(FinalizePayload))
 	Stop()
 }
 
@@ -55,13 +62,13 @@ func New(cfg *config.Config) Queue {
 		}
 	}
 	return &inProcessQueue{
-		computeCh:  make(chan int, 1024),
+		computeCh:  make(chan ComputePayload, 1024),
 		finalizeCh: make(chan FinalizePayload, 1024),
 	}
 }
 
-func marshalCompute(jobID int) (string, error) {
-	b, err := json.Marshal(map[string]int{"job_id": jobID})
+func marshalCompute(jobID, tenantID int) (string, error) {
+	b, err := json.Marshal(ComputePayload{JobID: jobID, TenantID: tenantID})
 	return string(b), err
 }
 

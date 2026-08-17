@@ -241,7 +241,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	}
 
 	jobQueue.Start(
-		func(jobID int) { jobService.Process(jobID) },
+		func(jobID, tenantID int) { jobService.Process(jobID, tenantID) },
 		func(p queue.FinalizePayload) {
 			answers := make([]services.AnswerInput, len(p.Answers))
 			for i, a := range p.Answers {
