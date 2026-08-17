@@ -63,6 +63,8 @@ function isAuthenticated(role: Role): boolean {
       const tokenKey = "student_token";
       const token = localStorage.getItem(tokenKey);
       if (!token) return false;
+      const tokenRole = getRoleFromToken(tokenKey);
+      if (tokenRole !== "student") return false;
       if (isTokenExpired(token)) {
         clearExpiredToken(tokenKey);
         return false;
