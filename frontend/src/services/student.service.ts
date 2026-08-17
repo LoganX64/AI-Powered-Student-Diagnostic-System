@@ -57,8 +57,6 @@ export type AutosaveAnswer = {
   changed_answer: boolean;
 };
 
-export type ServerTimeResponse = { server_time: string };
-
 export type StartExamResponse = {
   attempt_id: number;
   deadline: string;
@@ -131,10 +129,6 @@ export async function submitAnswers(
     },
     "student_token"
   );
-}
-
-export async function getServerTime(): Promise<ServerTimeResponse> {
-  return apiFetch<ServerTimeResponse>("/api/time", {}, "student_token");
 }
 
 export async function startExam(
