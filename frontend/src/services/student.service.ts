@@ -55,6 +55,7 @@ export type AutosaveAnswer = {
   marked_for_review: boolean;
   revisited: boolean;
   changed_answer: boolean;
+  first_answer: string;
 };
 
 export type StartExamResponse = {
@@ -88,6 +89,7 @@ export type AnswerPayload = {
   marked_for_review: boolean;
   revisited: boolean;
   changed_answer: boolean;
+  first_answer: string;
 };
 
 export type SubmitResponse = {

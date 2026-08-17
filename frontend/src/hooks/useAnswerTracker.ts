@@ -29,6 +29,7 @@ export type AnswerPayload = {
   marked_for_review: boolean;
   revisited: boolean;
   changed_answer: boolean;
+  first_answer: string;
 };
 
 // ---------------------------------------------------------------------------
@@ -258,6 +259,7 @@ export function useAnswerTracker(questionIds: number[]) {
             marked_for_review: false,
             revisited: false,
             changed_answer: false,
+            first_answer: "",
           };
         }
         return {
@@ -268,6 +270,7 @@ export function useAnswerTracker(questionIds: number[]) {
           marked_for_review: r.marked_for_review,
           revisited: r.revisited,
           changed_answer: r.changed_answer,
+          first_answer: r.first_answer ?? "",
         };
       });
     },
@@ -299,6 +302,7 @@ export function useAnswerTracker(questionIds: number[]) {
       marked_for_review: r.marked_for_review,
       revisited: r.revisited,
       changed_answer: r.changed_answer,
+      first_answer: r.first_answer ?? "",
     }));
   }, [records]);
 
