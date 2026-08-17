@@ -58,6 +58,7 @@ export function useExamTimer(
   const serverDeadlineRef = useRef(serverDeadlineMs);
   const serverSkewRef = useRef(serverSkewMs);
   const storageKeyRef = useRef(storageKey);
+  const expiredRef = useRef(false);
   useEffect(() => {
     onExpireRef.current = onExpire;
     timeLeftRef.current = timeLeft;
@@ -79,8 +80,16 @@ export function useExamTimer(
   useEffect(() => {
     if (!started && serverDeadlineMs == null) return; // don't tick until exam has started
 
-    if (timeLeftRef.current <= 0) {
+    expiredRef.current = false;
+
+    const expire = () => {
+      if (expiredRef.current) return;
+      expiredRef.current = true;
       onExpireRef.current?.();
+    };
+
+    if (timeLeftRef.current <= 0) {
+      expire();
       return;
     }
 
@@ -92,21 +101,21 @@ export function useExamTimer(
         const now = Date.now() + skew;
         const remaining = Math.max(0, Math.round((deadline - now) / 1000));
         if (remaining <= 0) {
-          onExpireRef.current?.();
+          expire();
           setTimeLeft(0);
         } else {
           setTimeLeft(remaining);
         }
         return;
       }
-      setTimeLeft((prev) => {
-        const next = prev - 1;
-        localStorage.setItem(key, String(next));
-        if (next <= 0) {
-          onExpireRef.current?.();
-        }
-        return next;
-      });
+      const next = Math.max(0, timeLeftRef.current - 1);
+      localStorage.setItem(key, String(next));
+      if (next <= 0) {
+        expire();
+        setTimeLeft(0);
+      } else {
+        setTimeLeft(next);
+      }
     };
 
     const id = setInterval(tick, 1000);
