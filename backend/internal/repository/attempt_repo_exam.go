@@ -172,7 +172,7 @@ func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAtte
 		SELECT a.id, a.assignment_id FROM attempts a
 		JOIN assignments ass ON a.assignment_id = ass.id
 		WHERE a.status = 'in_progress'
-		  AND a.started_at + (ass.duration || ' seconds')::interval
+		  AND a.started_at + (ass.duration || ' minutes')::interval
 		      + ($1 || ' seconds')::interval < NOW()
 		ORDER BY a.id
 		FOR UPDATE SKIP LOCKED
