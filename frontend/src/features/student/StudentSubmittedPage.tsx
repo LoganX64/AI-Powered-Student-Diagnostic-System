@@ -20,6 +20,10 @@ function clearStudentSession() {
   localStorage.removeItem("quiz_answer_details");
   localStorage.removeItem("current_question_index");
   localStorage.removeItem("pending_submission");
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("exam_ctx_")) localStorage.removeItem(k);
+  }
   window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
 }
 

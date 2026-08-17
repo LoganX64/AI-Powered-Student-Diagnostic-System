@@ -62,6 +62,10 @@ export function StudentDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem("student_token");
     localStorage.removeItem("student_code");
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("exam_ctx_")) localStorage.removeItem(k);
+    }
     window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
     navigate("/", { replace: true });
   };

@@ -46,11 +46,6 @@ export function useExamTimer(
 
   const [timeLeft, setTimeLeft] = useState<number>(getInitial);
 
-  // Tracks the last `initialSeconds` seen while the exam hasn't started, so the
-  // timer can re-sync when the configured duration changes (e.g. data loaded
-  // asynchronously on the instructions page).
-  const [resyncInitial, setResyncInitial] = useState(initialSeconds);
-
   // Latest values are mirrored into refs so the interval effect can read them
   // without being torn down and recreated on every render or tick.
   const onExpireRef = useRef(onExpire);
@@ -66,16 +61,6 @@ export function useExamTimer(
     serverSkewRef.current = serverSkewMs;
     storageKeyRef.current = storageKey;
   });
-
-  // Re-sync while the exam hasn't started yet and the configured duration
-  // changes (e.g. data loaded asynchronously on the instructions page). Done
-  // during render (not in an effect) so the corrected value is reflected
-  // immediately. Only relevant for the client-stored / local-start timer;
-  // server-timing mode derives from the backend deadline on every tick.
-  if (!started && serverDeadlineMs == null && initialSeconds !== resyncInitial) {
-    setResyncInitial(initialSeconds);
-    setTimeLeft(getInitial());
-  }
 
   useEffect(() => {
     if (!started && serverDeadlineMs == null) return; // don't tick until exam has started
@@ -122,5 +107,11 @@ export function useExamTimer(
     return () => clearInterval(id);
   }, [started, serverDeadlineMs]);
 
-  return timeLeft;
+  // While the exam hasn't started (and isn't server-timed), the countdown just
+  // mirrors the configured duration, which may arrive asynchronously. Deriving
+  // it directly from `initialSeconds` avoids resyncing state during render or
+  // in an effect. Once started (or server-timed) the ticking `timeLeft` takes over.
+  const displayed =
+    !started && serverDeadlineMs == null ? initialSeconds : timeLeft;
+  return displayed;
 }
