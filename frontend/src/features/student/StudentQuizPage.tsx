@@ -315,7 +315,7 @@ export function StudentQuizPage() {
             const res = await startExam(assignmentId);
             const now = new Date(res.server_now).getTime();
             const deadline = new Date(res.deadline).getTime();
-            const skew = Date.now() - now;
+            const skew = now - Date.now();
             setServerSkewMs(skew);
             setServerDeadlineMs(deadline);
             localStorage.setItem(
