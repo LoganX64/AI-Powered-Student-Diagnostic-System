@@ -118,10 +118,10 @@ export type CoachDetail = {
   name: string;
   email: string;
   created_at: string;
-  deleted_at?: string;
-  deleted_by_name?: string;
-  deleted_by_email?: string;
-  deleted_by_role?: string;
+  deleted_at?: string | null;
+  deleted_by_name?: string | null;
+  deleted_by_email?: string | null;
+  deleted_by_role?: string | null;
 };
 
 export type CoachTest = {
@@ -268,7 +268,7 @@ export type SQIResponse = {
   student_id: number;
   name: string;
   attempts: SQIAttempt[];
-  average_sqi: number;
+  average_sqi: number | null;
   total_tests: number;
 };
 

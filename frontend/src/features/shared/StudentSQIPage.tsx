@@ -118,8 +118,8 @@ export function StudentSQIPage() {
               <div className="flex gap-8">
                 <div>
                   <p className="text-sm text-muted-foreground">Average SQI</p>
-                  <p className={`text-3xl font-bold ${sqiColor(data.average_sqi)}`}>
-                    {data.average_sqi.toFixed(1)}
+                  <p className={`text-3xl font-bold ${data.average_sqi != null ? sqiColor(data.average_sqi) : ""}`}>
+                    {data.average_sqi != null ? data.average_sqi.toFixed(1) : "—"}
                   </p>
                 </div>
                 <div>

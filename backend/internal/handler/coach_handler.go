@@ -219,3 +219,17 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"assignment_id": id})
 }
+
+// ListCoaches resolves the coach-dashboard counts request (GET /coach/coaches)
+// without leaking other coaches' data. A coach only sees their own scope, so we
+// return an empty paginated envelope — the dashboard only consumes `total` (0),
+// which matches the previous (404-swallowed) behavior but without the error.
+func (h *CoachHandler) ListCoaches(c *gin.Context) {
+	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
+	c.JSON(http.StatusOK, gin.H{
+		"total":  0,
+		"limit":  limit,
+		"offset": offset,
+		"data":   []interface{}{},
+	})
+}

@@ -124,21 +124,30 @@ func buildAssignmentResultsResponse(
 		return nil, err
 	}
 
-	var analysis interface{}
-	if analysisJSON.Valid && analysisJSON.String != "" {
-		var payload types.DiagnosticPayloadV2
-		if err := json.Unmarshal([]byte(analysisJSON.String), &payload); err == nil {
-			analysis = payload
-		}
-	}
+  var analysis interface{}
+  if analysisJSON.Valid && analysisJSON.String != "" {
+    var payload types.DiagnosticPayloadV2
+    if err := json.Unmarshal([]byte(analysisJSON.String), &payload); err == nil {
+      analysis = payload
+    }
+  }
 
-	return gin.H{
-		"student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
-		"test":       gin.H{"id": testID, "title": testTitle},
-		"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
-		"attempt":    gin.H{"id": attemptID, "submitted_at": submittedAt.Time},
-		"sqi_score":  sqiScore.Float64,
-		"analysis":   analysis,
-		"answers":    answers,
-	}, nil
+  var submittedAtVal interface{}
+  if submittedAt.Valid {
+    submittedAtVal = submittedAt.Time
+  }
+  var sqiScoreVal interface{}
+  if sqiScore.Valid {
+    sqiScoreVal = sqiScore.Float64
+  }
+
+  return gin.H{
+    "student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
+    "test":       gin.H{"id": testID, "title": testTitle},
+    "assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
+    "attempt":    gin.H{"id": attemptID, "submitted_at": submittedAtVal},
+    "sqi_score":  sqiScoreVal,
+    "analysis":   analysis,
+    "answers":    answers,
+  }, nil
 }

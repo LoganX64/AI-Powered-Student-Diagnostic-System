@@ -162,7 +162,7 @@ type StudentSQIResponse struct {
 	StudentID  int                 `json:"student_id"`
 	Name       string              `json:"name"`
 	Attempts   []AttemptResultItem `json:"attempts"`
-	AverageSQI float64             `json:"average_sqi"`
+	AverageSQI *float64            `json:"average_sqi"`
 	TotalTests int                 `json:"total_tests"`
 }
 
@@ -216,13 +216,17 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 		return nil, errors.New("failed to fetch average SQI")
 	}
 
-	return &StudentSQIResponse{
+	resp := &StudentSQIResponse{
 		StudentID:  input.StudentID,
 		Name:       name,
 		Attempts:   attempts,
-		AverageSQI: helper.Round2V2(avgSQI),
 		TotalTests: len(resultRows),
-	}, nil
+	}
+	if len(resultRows) > 0 {
+		avg := helper.Round2V2(avgSQI)
+		resp.AverageSQI = &avg
+	}
+	return resp, nil
 }
 
 func (s *AttemptService) GetStudentSQIBatch(studentIDs []int, tenantID, coachID int) ([]repository.StudentSQIMetric, error) {
