@@ -205,12 +205,13 @@ export function StudentQuizPage() {
 
     const payload = getPayload(questionIds);
 
-    // Sanity check: validate total time is plausible
-    const totalTimeMinutes = payload.reduce((sum, p) => sum + p.time_spent, 0);
-    const examDurationMinutes = Number(localStorage.getItem("exam_duration") || "60");
-    if (totalTimeMinutes > examDurationMinutes * 1.5) {
+    // Sanity check: validate total time is plausible (time_spent is in seconds,
+    // matching the autosave path; exam_duration is stored in minutes).
+    const totalTimeSeconds = payload.reduce((sum, p) => sum + p.time_spent, 0);
+    const examDurationSeconds = Number(localStorage.getItem("exam_duration") || "60") * 60;
+    if (totalTimeSeconds > examDurationSeconds * 1.5) {
       const proceed = window.confirm(
-        `Total time spent (${totalTimeMinutes.toFixed(1)} min) exceeds exam duration (${examDurationMinutes} min). Submit anyway?`
+        `Total time spent (${(totalTimeSeconds / 60).toFixed(1)} min) exceeds exam duration (${(examDurationSeconds / 60).toFixed(1)} min). Submit anyway?`
       );
       if (!proceed) {
         setSubmitting(false);
