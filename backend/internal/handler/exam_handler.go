@@ -11,6 +11,7 @@ import (
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
+	"ai-student-diagnostic/backend/internal/helper"
 	"ai-student-diagnostic/backend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -242,7 +243,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		return
 	}
 
-	policy, _, ok := h.loadPolicyAndOwnership(c, assignmentID, studentID)
+	policy, duration, ok := h.loadPolicyAndOwnership(c, assignmentID, studentID)
 	if !ok {
 		return
 	}
@@ -269,14 +270,22 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 				return
 			}
+			// Compute the same summary fields the synchronous path returns so
+			// the response contract is identical in scale mode.
+			var totalTimeSpent float64
+			for _, a := range req.Answers {
+				totalTimeSpent += a.TimeSpent
+			}
 			h.Queue.EnqueueFinalize(queue.FinalizePayload{
 				AssignmentID: assignmentID,
 				AttemptID:    attemptID,
 				Answers:      toQueueAnswers(req.Answers),
 			})
 			c.JSON(http.StatusAccepted, gin.H{
-				"attempt_id": attemptID,
-				"status":     "queued",
+				"attempt_id":       attemptID,
+				"status":           "queued",
+				"total_time_spent": helper.Round2V2(totalTimeSpent),
+				"test_duration":    float64(duration),
 			})
 			return
 		}
