@@ -244,7 +244,7 @@ func (r *AssignmentRepo) GetDetailForStudent(assignmentID int) (AssignmentStuden
 	return row, err
 }
 
-func (r *AssignmentRepo) MarkSubmittedTx(tx *sql.Tx, assignmentID int) error {
-	_, err := tx.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1", assignmentID)
+func (r *AssignmentRepo) MarkSubmittedTx(tx *sql.Tx, assignmentID, studentID int) error {
+	_, err := tx.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1 AND student_id = $2", assignmentID, studentID)
 	return err
 }

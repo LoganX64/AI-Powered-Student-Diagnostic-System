@@ -279,6 +279,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			h.Queue.EnqueueFinalize(queue.FinalizePayload{
 				AssignmentID: assignmentID,
 				AttemptID:    attemptID,
+				StudentID:    studentID,
 				Answers:      toQueueAnswers(req.Answers),
 			})
 			c.JSON(http.StatusAccepted, gin.H{

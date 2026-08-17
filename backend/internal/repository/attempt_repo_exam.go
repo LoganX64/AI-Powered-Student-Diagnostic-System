@@ -57,7 +57,7 @@ func (r *AttemptRepo) UpsertAnswer(
 
 // FinalizeAttemptTx marks the attempt submitted and flips the assignment status,
 // all in one transaction. No attempt_results write happens here.
-func (r *AttemptRepo) FinalizeAttemptTx(assignmentID, attemptID int) error {
+func (r *AttemptRepo) FinalizeAttemptTx(assignmentID, attemptID, studentID int) error {
 	tx, err := r.DB.Begin()
 	if err != nil {
 		return err
@@ -71,8 +71,8 @@ func (r *AttemptRepo) FinalizeAttemptTx(assignmentID, attemptID int) error {
 		return err
 	}
 	if _, err := tx.Exec(
-		`UPDATE assignments SET status = 'submitted' WHERE id = $1`,
-		assignmentID,
+		`UPDATE assignments SET status = 'submitted' WHERE id = $1 AND student_id = $2`,
+		assignmentID, studentID,
 	); err != nil {
 		return err
 	}
@@ -168,11 +168,12 @@ func (r *AttemptRepo) AttemptBelongsToTenant(attemptID, tenantID int) (bool, err
 type ExpiredAttempt struct {
 	AssignmentID int
 	AttemptID    int
+	StudentID    int
 }
 
 func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAttempt, error) {
 	rows, err := r.DB.Query(`
-		SELECT a.id, a.assignment_id FROM attempts a
+		SELECT a.id, a.assignment_id, ass.student_id FROM attempts a
 		JOIN assignments ass ON a.assignment_id = ass.id
 		WHERE a.status = 'in_progress'
 		  AND a.started_at + (ass.duration || ' minutes')::interval
@@ -188,7 +189,7 @@ func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAtte
 	var out []ExpiredAttempt
 	for rows.Next() {
 		var e ExpiredAttempt
-		if err := rows.Scan(&e.AttemptID, &e.AssignmentID); err != nil {
+		if err := rows.Scan(&e.AttemptID, &e.AssignmentID, &e.StudentID); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

@@ -31,6 +31,7 @@ func (s *Sweeper) RunOnce(ctx context.Context) {
 		s.Queue.EnqueueFinalize(queue.FinalizePayload{
 			AssignmentID: e.AssignmentID,
 			AttemptID:    e.AttemptID,
+			StudentID:    e.StudentID,
 			Answers:      nil,
 		})
 	}

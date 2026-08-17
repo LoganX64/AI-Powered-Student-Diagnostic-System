@@ -78,7 +78,7 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 	}
 
 	result, err := s.AttemptRepo.SubmitAnswersTx(assignmentID, correctMap, toRepoAnswers(answers), func(tx *sql.Tx) error {
-		return s.AssignmentRepo.MarkSubmittedTx(tx, assignmentID)
+		return s.AssignmentRepo.MarkSubmittedTx(tx, assignmentID, studentID)
 	})
 	if err != nil {
 		var pqErr *pq.Error
@@ -382,7 +382,7 @@ func (s *AttemptService) SubmitTimed(assignmentID, studentID, graceSeconds int, 
 		}
 	}
 
-	if err := s.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID); err != nil {
+	if err := s.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID, studentID); err != nil {
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to finalize submission"}
 	}
 
@@ -436,7 +436,7 @@ func (s *AttemptService) ValidateTimedSubmit(assignmentID, studentID, graceSecon
 // FinalizeSubmission persists answers and marks the attempt submitted in one
 // transaction. It is idempotent: if the attempt is already finalized it returns
 // nil. Used by the async worker (scale mode) and the sweeper.
-func (s *AttemptService) FinalizeSubmission(assignmentID, attemptID int, answers []AnswerInput) error {
+func (s *AttemptService) FinalizeSubmission(assignmentID, attemptID, studentID int, answers []AnswerInput) error {
 	if _, _, err := s.AttemptRepo.GetInProgressAttempt(assignmentID); err != nil {
 		// No in-progress attempt → already submitted/finalized. Idempotent no-op.
 		return nil
@@ -473,7 +473,7 @@ func (s *AttemptService) FinalizeSubmission(assignmentID, attemptID int, answers
 		}
 	}
 
-	if err := s.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID); err != nil {
+	if err := s.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID, studentID); err != nil {
 		return &SubmitAnswersError{Status: 500, Message: "failed to finalize submission"}
 	}
 	return nil

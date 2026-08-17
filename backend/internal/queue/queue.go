@@ -32,8 +32,9 @@ type AnswerInput struct {
 // FinalizePayload carries everything needed to finalize a submitted attempt.
 // Answers is empty when produced by the sweeper (answers were already autosaved).
 type FinalizePayload struct {
-	AssignmentID int          `json:"assignment_id"`
-	AttemptID    int          `json:"attempt_id"`
+	AssignmentID int           `json:"assignment_id"`
+	AttemptID    int           `json:"attempt_id"`
+	StudentID    int           `json:"student_id"`
 	Answers      []AnswerInput `json:"answers"`
 }
 

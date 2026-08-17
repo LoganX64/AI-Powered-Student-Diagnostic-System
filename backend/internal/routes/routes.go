@@ -256,7 +256,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 					WasInitiallyWrong: a.WasInitiallyWrong,
 				}
 			}
-			if err := attemptService.FinalizeSubmission(p.AssignmentID, p.AttemptID, answers); err != nil {
+			if err := attemptService.FinalizeSubmission(p.AssignmentID, p.AttemptID, p.StudentID, answers); err != nil {
 				log.Printf("[QUEUE] finalize failed assignment %d attempt %d: %v", p.AssignmentID, p.AttemptID, err)
 			}
 		},
