@@ -292,8 +292,8 @@ export function StudentQuizPage() {
         previous_answer: sel,
         time_spent: a.time_spent,
         marked_for_review: a.marked_for_review,
-        revisited: false,
-        changed_answer: false,
+        revisited: a.revisited,
+        changed_answer: a.changed_answer,
         first_answer: sel,
       };
     }

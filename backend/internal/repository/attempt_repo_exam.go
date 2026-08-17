@@ -80,18 +80,21 @@ func (r *AttemptRepo) FinalizeAttemptTx(assignmentID, attemptID int) error {
 }
 
 type SavedAnswer struct {
-	QuestionID     int     `json:"question_id"`
-	SelectedAnswer string  `json:"selected_answer"`
-	TimeSpent      float64 `json:"time_spent"`
-	MarkedForReview bool   `json:"marked_for_review"`
-	Seen           bool    `json:"seen"`
+	QuestionID      int     `json:"question_id"`
+	SelectedAnswer  string  `json:"selected_answer"`
+	TimeSpent       float64 `json:"time_spent"`
+	MarkedForReview bool    `json:"marked_for_review"`
+	Seen            bool    `json:"seen"`
+	Revisited       bool    `json:"revisited"`
+	ChangedAnswer   bool    `json:"changed_answer"`
 }
 
 // GetSavedAnswers returns persisted answers for resume (autosave tier).
 func (r *AttemptRepo) GetSavedAnswers(attemptID int) ([]SavedAnswer, error) {
 	rows, err := r.DB.Query(`
 		SELECT question_id, COALESCE(selected_answer, ''), COALESCE(time_spent, 0),
-		       COALESCE(marked_for_review, false), COALESCE(seen, true)
+		       COALESCE(marked_for_review, false), COALESCE(seen, true),
+		       COALESCE(revisited, false), COALESCE(changed_answer, false)
 		FROM answer_logs WHERE attempt_id = $1 ORDER BY question_id
 	`, attemptID)
 	if err != nil {
@@ -102,7 +105,7 @@ func (r *AttemptRepo) GetSavedAnswers(attemptID int) ([]SavedAnswer, error) {
 	var out []SavedAnswer
 	for rows.Next() {
 		var a SavedAnswer
-		if err := rows.Scan(&a.QuestionID, &a.SelectedAnswer, &a.TimeSpent, &a.MarkedForReview, &a.Seen); err != nil {
+		if err := rows.Scan(&a.QuestionID, &a.SelectedAnswer, &a.TimeSpent, &a.MarkedForReview, &a.Seen, &a.Revisited, &a.ChangedAnswer); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

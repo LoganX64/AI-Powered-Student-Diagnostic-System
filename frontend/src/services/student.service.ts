@@ -73,6 +73,8 @@ export type ExamStateResponse = {
     time_spent: number;
     marked_for_review: boolean;
     seen: boolean;
+    revisited: boolean;
+    changed_answer: boolean;
   }>;
 };
 
