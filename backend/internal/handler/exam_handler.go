@@ -143,7 +143,10 @@ func (h *StudentHandler) Autosave(c *gin.Context) {
 	// Scale mode: buffer writes in Redis and flush in batches (surge safety).
 	if h.AutosaveBuffer != nil {
 		h.AutosaveBuffer.Push(attemptID, req.Answers)
-		c.JSON(http.StatusOK, gin.H{"buffered": len(req.Answers)})
+		c.JSON(http.StatusOK, gin.H{
+			"saved":    len(req.Answers),
+			"buffered": len(req.Answers),
+		})
 		return
 	}
 
