@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -78,21 +79,44 @@ func inMemoryRateLimit(limit int) gin.HandlerFunc {
 // instances. It checks the current count first and only increments on allowed
 // requests, so rejected requests do not consume a counter slot.
 func redisRateLimit(rdb *redis.Client, limit int) gin.HandlerFunc {
+	fallback := newIPLimiter(limit)
+	tooMany := func(c *gin.Context) {
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+			"error":   "too many requests",
+			"message": "rate limit exceeded, please try again later",
+		})
+	}
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		key := "rl:" + ip + ":" + c.FullPath()
 		ctx := context.Background()
 		cur, err := rdb.Get(ctx, key).Int64()
+		if err != nil && err != redis.Nil {
+			// Redis unavailable: don't bypass the control. Fall back to the
+			// per-instance limiter so requests are still throttled.
+			log.Printf("[RATELIMIT] redis GET failed (ip=%s key=%s): %v", ip, key, err)
+			if !fallback.get(ip).Allow() {
+				tooMany(c)
+				return
+			}
+			c.Next()
+			return
+		}
 		if err == nil && cur >= int64(limit) {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error":   "too many requests",
-				"message": "rate limit exceeded, please try again later",
-			})
+			tooMany(c)
 			return
 		}
 		n, err := rdb.Incr(ctx, key).Result()
+		if err != nil && err != redis.Nil {
+			// Cannot record the request; deny rather than allow unlimited.
+			log.Printf("[RATELIMIT] redis INCR failed (ip=%s key=%s): %v", ip, key, err)
+			tooMany(c)
+			return
+		}
 		if err == nil && n == 1 {
-			_ = rdb.Expire(ctx, key, ipWindow).Err()
+			if e := rdb.Expire(ctx, key, ipWindow).Err(); e != nil {
+				log.Printf("[RATELIMIT] redis EXPIRE failed (key=%s): %v", key, e)
+			}
 		}
 		c.Next()
 	}

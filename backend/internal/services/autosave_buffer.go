@@ -138,10 +138,17 @@ func (b *AutosaveBuffer) flushAll() {
 	for iter.Next(ctx) {
 		key := iter.Val()
 		items, err := b.rdb.LRange(ctx, key, 0, int64(b.maxBatch-1)).Result()
-		if err != nil || len(items) == 0 {
+		if err != nil {
+			log.Printf("[AUTOSAVE] LRange failed for %s: %v", key, err)
+			continue
+		}
+		if len(items) == 0 {
 			continue
 		}
 		b.flushBatch(ctx, key, items)
+	}
+	if err := iter.Err(); err != nil {
+		log.Printf("[AUTOSAVE] scan failed, possible unflushed keys: %v", err)
 	}
 }
 

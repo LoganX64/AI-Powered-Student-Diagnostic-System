@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,13 +35,17 @@ func (q *inProcessQueue) Start(computeHandler func(int, int) error, finalizeHand
 	go func() {
 		defer q.wg.Done()
 		for pl := range q.computeCh {
-			_ = computeHandler(pl.JobID, pl.TenantID)
+			if err := computeHandler(pl.JobID, pl.TenantID); err != nil {
+				log.Printf("[QUEUE] compute handler failed (job %d, tenant %d): %v", pl.JobID, pl.TenantID, err)
+			}
 		}
 	}()
 	go func() {
 		defer q.wg.Done()
 		for p := range q.finalizeCh {
-			_ = finalizeHandler(p)
+			if err := finalizeHandler(p); err != nil {
+				log.Printf("[QUEUE] finalize handler failed (attempt %d, student %d): %v", p.AttemptID, p.StudentID, err)
+			}
 		}
 	}()
 }
@@ -118,7 +123,9 @@ func (q *redisQueue) Start(computeHandler func(int, int) error, finalizeHandler 
 	q.consumer = fmt.Sprintf("worker-%s-%d", host, os.Getpid())
 
 	// Ensure the stream + consumer group exist.
-	_ = q.client.XGroupCreateMkStream(ctx, StreamKey, ConsumerGroup, "$").Err()
+	if err := q.client.XGroupCreateMkStream(ctx, StreamKey, ConsumerGroup, "$").Err(); err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
+		log.Printf("[QUEUE] consumer group create failed: %v", err)
+	}
 
 	go func() {
 		for {
@@ -138,6 +145,13 @@ func (q *redisQueue) Start(computeHandler func(int, int) error, finalizeHandler 
 			if err != nil {
 				if err == redis.Nil || ctx.Err() != nil {
 					continue
+				}
+				log.Printf("[QUEUE] XReadGroup error: %v", err)
+				if strings.Contains(err.Error(), "NOGROUP") {
+					// Stream/group missing — recreate and keep reading (self-heal).
+					if crerr := q.client.XGroupCreateMkStream(ctx, StreamKey, ConsumerGroup, "$").Err(); crerr != nil && !strings.Contains(crerr.Error(), "BUSYGROUP") {
+						log.Printf("[QUEUE] recreate consumer group failed: %v", crerr)
+					}
 				}
 				time.Sleep(200 * time.Millisecond)
 				continue
