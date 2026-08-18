@@ -126,7 +126,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo))
 		{
-			protected.POST("/submit/:id", studentHandler.SubmitAnswers)
+			protected.POST("/submit/:id", studentHandler.SubmitExam)
 			protected.GET("/assignments", studentHandler.ListStudentAssignments)
 			protected.GET("/assignments/:id/questions", studentHandler.GetAssignmentQuestions)
 			protected.POST("/assignments/:id/start", studentHandler.StartExam)

@@ -8,7 +8,6 @@ import (
 	"ai-student-diagnostic/backend/internal/storage"
 	"ai-student-diagnostic/backend/utils"
 	"encoding/json"
-	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -99,51 +98,6 @@ func (h *StudentHandler) StudentLogin(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"token": token})
-}
-
-type SubmitRequest struct {
-	Answers []services.AnswerInput `json:"answers" binding:"required"`
-}
-
-func (h *StudentHandler) SubmitAnswers(c *gin.Context) {
-	assignmentID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		utils.BadRequest(c, "invalid assignment_id")
-		return
-	}
-
-	var req SubmitRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.BadRequest(c, "invalid payload")
-		return
-	}
-
-	studentID, err := getStudentIDFromContext(c)
-	if err != nil {
-		if err.Error() == "unauthorized" {
-			utils.Unauthorized(c, "unauthorized")
-		} else {
-			utils.Unauthorized(c, "invalid token data")
-		}
-		return
-	}
-
-	result, err := h.AttemptService.SubmitAnswers(assignmentID, studentID, req.Answers)
-	if err != nil {
-		var svcErr *services.SubmitAnswersError
-		if errors.As(err, &svcErr) {
-			c.JSON(svcErr.Status, gin.H{"error": svcErr.Message})
-			return
-		}
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit answers")
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"attempt_id":       result.AttemptID,
-		"total_time_spent": result.TotalTimeSpent,
-		"test_duration":    result.TestDuration,
-	})
 }
 
 func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {
