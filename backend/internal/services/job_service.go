@@ -23,26 +23,33 @@ type computeJobPayload struct {
 // Process runs a single job (currently only compute_sqi). It streams progress
 // into the jobs table so clients can poll done/total. A job never aborts on a
 // single attempt failure — failures are counted and the run continues.
-func (s *JobService) Process(jobID, tenantID int) {
+//
+// It returns an error only for transient failures (e.g. the job row or its
+// status cannot be read/written) so the queue can leave the message
+// unacknowledged and replay it (at-least-once). An unparseable payload or an
+// already-finished job is treated as terminal (nil error) so it is acked.
+func (s *JobService) Process(jobID, tenantID int) error {
 	job, err := s.JobRepo.GetByID(jobID, tenantID)
 	if err != nil {
-		return
+		return err
 	}
 	if job.Status == "completed" || job.Status == "failed" || job.Status == "partial" {
-		return
+		return nil
 	}
-	_ = 	s.JobRepo.SetStatus(jobID, tenantID,  "running")
+	if err := s.JobRepo.SetStatus(jobID, tenantID, "running"); err != nil {
+		return err
+	}
 
 	var pld computeJobPayload
 	if err := json.Unmarshal(job.Payload, &pld); err != nil {
-		_ = 	s.JobRepo.SetStatus(jobID, tenantID,  "failed")
-		return
+		_ = s.JobRepo.SetStatus(jobID, tenantID, "failed")
+		return nil
 	}
 
 	total := len(pld.AttemptIDs)
 	if total == 0 {
-		_ = 	s.JobRepo.SetStatus(jobID, tenantID,  "completed")
-		return
+		_ = s.JobRepo.SetStatus(jobID, tenantID, "completed")
+		return nil
 	}
 
 	chunk := s.ChunkSize
@@ -76,12 +83,13 @@ func (s *JobService) Process(jobID, tenantID int) {
 
 	switch {
 	case failed == 0:
-		_ = 	s.JobRepo.SetStatus(jobID, tenantID,  "completed")
+		_ = s.JobRepo.SetStatus(jobID, tenantID, "completed")
 	case done == 0:
-		_ = 	s.JobRepo.SetStatus(jobID, tenantID,  "failed")
+		_ = s.JobRepo.SetStatus(jobID, tenantID, "failed")
 	default:
-		_ = 	s.JobRepo.SetStatus(jobID, tenantID,  "partial")
+		_ = s.JobRepo.SetStatus(jobID, tenantID, "partial")
 	}
+	return nil
 }
 
 // TestIDForAttempt is a thin wrapper so the worker can resolve a test for an attempt.

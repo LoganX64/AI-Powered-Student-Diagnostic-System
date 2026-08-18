@@ -11,7 +11,7 @@ func TestInProcessQueue(t *testing.T) {
 
 	gotCompute := make(chan int, 1)
 	gotFinalize := make(chan FinalizePayload, 1)
-	q.Start(func(jobID, tenantID int) { gotCompute <- jobID }, func(p FinalizePayload) { gotFinalize <- p })
+	q.Start(func(jobID, tenantID int) error { gotCompute <- jobID; return nil }, func(p FinalizePayload) error { gotFinalize <- p; return nil })
 
 	q.EnqueueCompute(42, 1)
 	q.EnqueueFinalize(FinalizePayload{AssignmentID: 7, AttemptID: 8})

@@ -241,8 +241,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	}
 
 	jobQueue.Start(
-		func(jobID, tenantID int) { jobService.Process(jobID, tenantID) },
-		func(p queue.FinalizePayload) {
+		func(jobID, tenantID int) error { return jobService.Process(jobID, tenantID) },
+		func(p queue.FinalizePayload) error {
 			answers := make([]services.AnswerInput, len(p.Answers))
 			for i, a := range p.Answers {
 				answers[i] = services.AnswerInput{
@@ -258,7 +258,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			}
 			if err := attemptService.FinalizeSubmission(p.AssignmentID, p.AttemptID, p.StudentID, answers); err != nil {
 				log.Printf("[QUEUE] finalize failed assignment %d attempt %d: %v", p.AssignmentID, p.AttemptID, err)
+				return err
 			}
+			return nil
 		},
 	)
 

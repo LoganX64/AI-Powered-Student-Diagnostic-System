@@ -49,7 +49,7 @@ type ComputePayload struct {
 type Queue interface {
 	EnqueueCompute(jobID, tenantID int)
 	EnqueueFinalize(p FinalizePayload)
-	Start(computeHandler func(int, int), finalizeHandler func(FinalizePayload))
+	Start(computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error)
 	Stop()
 }
 
