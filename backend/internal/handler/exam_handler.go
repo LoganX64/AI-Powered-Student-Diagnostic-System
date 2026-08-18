@@ -285,12 +285,15 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			for _, a := range req.Answers {
 				totalTimeSpent += a.TimeSpent
 			}
-			h.Queue.EnqueueFinalize(queue.FinalizePayload{
+			if err := h.Queue.EnqueueFinalize(queue.FinalizePayload{
 				AssignmentID: assignmentID,
 				AttemptID:    attemptID,
 				StudentID:    studentID,
 				Answers:      toQueueAnswers(req.Answers),
-			})
+			}); err != nil {
+				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to enqueue finalization")
+				return
+			}
 			c.JSON(http.StatusAccepted, gin.H{
 				"attempt_id":       attemptID,
 				"status":           "queued",

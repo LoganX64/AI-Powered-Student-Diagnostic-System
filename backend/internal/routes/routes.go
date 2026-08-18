@@ -268,24 +268,32 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	)
 
 	// Auto-submit sweeper (Band C): finalize expired in-progress attempts.
+	// Runs in BOTH modes — the queue is mode-agnostic (it only calls
+	// Queue.EnqueueFinalize, which works for the in-process and Redis queues),
+	// so abandoned attempts are reclaimed even without Redis.
 	var sweeperCancel context.CancelFunc
-	if cfg.RedisEnabled && redisClient != nil {
-		sweeper := services.NewSweeper(attemptRepo, jobQueue, autosaveBuffer, cfg.SubmitGraceSeconds)
-		sweeperCtx, cancel := context.WithCancel(context.Background())
-		sweeperCancel = cancel
-		go func() {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-sweeperCtx.Done():
-					return
-				case <-ticker.C:
+	sweeper := services.NewSweeper(attemptRepo, jobQueue, autosaveBuffer, cfg.SubmitGraceSeconds)
+	sweeperCtx, cancel := context.WithCancel(context.Background())
+	sweeperCancel = cancel
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-sweeperCtx.Done():
+				return
+			case <-ticker.C:
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("[SWEEPER] panic during RunOnce: %v", r)
+						}
+					}()
 					sweeper.RunOnce(sweeperCtx)
-				}
+				}()
 			}
-		}()
-	}
+		}
+	}()
 
 	// Shutdown hook drains buffered exam answers before the DB is closed so a
 	// restart/deploy never loses the final ~1s of student input.

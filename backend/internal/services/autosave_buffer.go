@@ -111,10 +111,24 @@ func (b *AutosaveBuffer) Start() {
 		for {
 			select {
 			case <-b.shutdown:
-				b.flushAll()
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("[AUTOSAVE] flush panic on shutdown: %v", r)
+						}
+					}()
+					b.flushAll()
+				}()
 				return
 			case <-ticker.C:
-				b.flushAll()
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("[AUTOSAVE] flush panic: %v", r)
+						}
+					}()
+					b.flushAll()
+				}()
 			}
 		}
 	}()
@@ -156,6 +170,7 @@ func (b *AutosaveBuffer) flushBatch(ctx context.Context, key string, items []str
 	for _, it := range items {
 		var ba bufferedAnswer
 		if err := json.Unmarshal([]byte(it), &ba); err != nil {
+			log.Printf("[AUTOSAVE] dropping corrupt buffered item: %v (raw=%q)", err, it)
 			continue
 		}
 		a := ba.Answer
@@ -179,5 +194,8 @@ func (b *AutosaveBuffer) flushBatch(ctx context.Context, key string, items []str
 			return // keep items for retry on next tick
 		}
 	}
-	_ = b.rdb.LTrim(ctx, key, int64(len(items)), -1)
+	if err := b.rdb.LTrim(ctx, key, int64(len(items)), -1).Err(); err != nil {
+		log.Printf("[AUTOSAVE] LTrim failed for %s, will retry next tick: %v", key, err)
+		return // keep items for retry
+	}
 }

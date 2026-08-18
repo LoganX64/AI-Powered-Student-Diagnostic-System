@@ -124,7 +124,8 @@ Notes:
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | POST | `/student/login` | None | Student login (with student_code) |
-| POST | `/student/submit/:id` | JWT | Submit test answers for assignment `:id` |
+| POST | `/student/assignments/:id/submit` | JWT | Submit test answers for assignment `:id` (authoritative submission endpoint; handles server-timed vs simple tiers) |
+| POST | `/student/submit/:id` | JWT | Deprecated alias of `/student/assignments/:id/submit` (same handler, same attempt lifecycle) |
 
 ### Admin Routes (`/admin`) - _Requires Admin role_
 

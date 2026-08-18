@@ -8,11 +8,16 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"ai-student-diagnostic/backend/internal/config"
 	"github.com/redis/go-redis/v9"
 )
+
+// maxRetries caps how many times a failing message is replayed before it is
+// treated as poison and dropped (acked) so it cannot loop forever.
+const maxRetries = 5
 
 // inProcessQueue is the standard-mode queue: a buffered channel per type.
 type inProcessQueue struct {
@@ -20,14 +25,23 @@ type inProcessQueue struct {
 	finalizeCh chan FinalizePayload
 	wg         sync.WaitGroup
 	stopOnce   sync.Once
+	closed     atomic.Bool
 }
 
-func (q *inProcessQueue) EnqueueCompute(jobID, tenantID int) {
+func (q *inProcessQueue) EnqueueCompute(jobID, tenantID int) error {
+	if q.closed.Load() {
+		return fmt.Errorf("queue stopped")
+	}
 	q.computeCh <- ComputePayload{JobID: jobID, TenantID: tenantID}
+	return nil
 }
 
-func (q *inProcessQueue) EnqueueFinalize(p FinalizePayload) {
+func (q *inProcessQueue) EnqueueFinalize(p FinalizePayload) error {
+	if q.closed.Load() {
+		return fmt.Errorf("queue stopped")
+	}
 	q.finalizeCh <- p
+	return nil
 }
 
 func (q *inProcessQueue) Start(computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error) {
@@ -35,17 +49,31 @@ func (q *inProcessQueue) Start(computeHandler func(int, int) error, finalizeHand
 	go func() {
 		defer q.wg.Done()
 		for pl := range q.computeCh {
-			if err := computeHandler(pl.JobID, pl.TenantID); err != nil {
-				log.Printf("[QUEUE] compute handler failed (job %d, tenant %d): %v", pl.JobID, pl.TenantID, err)
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[QUEUE] compute handler panic (job %d): %v", pl.JobID, r)
+					}
+				}()
+				if err := computeHandler(pl.JobID, pl.TenantID); err != nil {
+					log.Printf("[QUEUE] compute handler failed (job %d, tenant %d): %v", pl.JobID, pl.TenantID, err)
+				}
+			}()
 		}
 	}()
 	go func() {
 		defer q.wg.Done()
 		for p := range q.finalizeCh {
-			if err := finalizeHandler(p); err != nil {
-				log.Printf("[QUEUE] finalize handler failed (attempt %d, student %d): %v", p.AttemptID, p.StudentID, err)
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[QUEUE] finalize handler panic (attempt %d): %v", p.AttemptID, r)
+					}
+				}()
+				if err := finalizeHandler(p); err != nil {
+					log.Printf("[QUEUE] finalize handler failed (attempt %d, student %d): %v", p.AttemptID, p.StudentID, err)
+				}
+			}()
 		}
 	}()
 }
@@ -55,6 +83,7 @@ func (q *inProcessQueue) Start(computeHandler func(int, int) error, finalizeHand
 // in-flight jobs on shutdown. Enqueue must not be called after Stop.
 func (q *inProcessQueue) Stop() {
 	q.stopOnce.Do(func() {
+		q.closed.Store(true)
 		close(q.computeCh)
 		close(q.finalizeCh)
 	})
@@ -68,9 +97,10 @@ func (q *inProcessQueue) Stop() {
 // actually distributed, and a periodic XAUTOCLAIM loop reclaims messages left
 // pending by crashed instances.
 type redisQueue struct {
-	client   *redis.Client
-	cancel   context.CancelFunc
-	consumer string
+	client    *redis.Client
+	cancel    context.CancelFunc
+	consumer  string
+	failCount sync.Map
 }
 
 func newRedisClient(cfg *config.Config) *redis.Client {
@@ -81,32 +111,36 @@ func newRedisClient(cfg *config.Config) *redis.Client {
 	return redis.NewClient(opts)
 }
 
-func (q *redisQueue) EnqueueCompute(jobID, tenantID int) {
+func (q *redisQueue) EnqueueCompute(jobID, tenantID int) error {
 	payload, err := marshalCompute(jobID, tenantID)
 	if err != nil {
 		log.Printf("[QUEUE] enqueue compute marshal failed (job %d): %v", jobID, err)
-		return
+		return err
 	}
 	if err := q.client.XAdd(context.Background(), &redis.XAddArgs{
 		Stream: StreamKey,
 		Values: map[string]interface{}{"type": TaskComputeSQI, "payload": payload},
 	}).Err(); err != nil {
 		log.Printf("[QUEUE] enqueue compute failed (job %d): %v", jobID, err)
+		return err
 	}
+	return nil
 }
 
-func (q *redisQueue) EnqueueFinalize(p FinalizePayload) {
+func (q *redisQueue) EnqueueFinalize(p FinalizePayload) error {
 	payload, err := marshalFinalize(p)
 	if err != nil {
 		log.Printf("[QUEUE] enqueue finalize marshal failed (attempt %d): %v", p.AttemptID, err)
-		return
+		return err
 	}
 	if err := q.client.XAdd(context.Background(), &redis.XAddArgs{
 		Stream: StreamKey,
 		Values: map[string]interface{}{"type": TaskFinalize, "payload": payload},
 	}).Err(); err != nil {
 		log.Printf("[QUEUE] enqueue finalize failed (attempt %d): %v", p.AttemptID, err)
+		return err
 	}
+	return nil
 }
 
 func (q *redisQueue) Start(computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error) {
@@ -159,14 +193,27 @@ func (q *redisQueue) Start(computeHandler func(int, int) error, finalizeHandler 
 
 			for _, stream := range res {
 				for _, msg := range stream.Messages {
-					if err := q.dispatch(msg, computeHandler, finalizeHandler); err != nil {
-						// Leave unacknowledged so the message replays (at-least-once).
-						log.Printf("[QUEUE] handler failed for message %s, will retry: %v", msg.ID, err)
-						continue
-					}
-					if err := q.client.XAck(ctx, StreamKey, ConsumerGroup, msg.ID).Err(); err != nil {
-						log.Printf("[QUEUE] XACK failed for message %s: %v", msg.ID, err)
-					}
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								log.Printf("[QUEUE] panic processing message %s: %v", msg.ID, r)
+							}
+						}()
+						if err := q.dispatch(msg, computeHandler, finalizeHandler); err != nil {
+							// Leave unacknowledged so the message replays, unless it
+							// has exhausted its retries and is treated as poison.
+							if q.recordFailure(msg.ID) {
+								log.Printf("[QUEUE] poison message %s dropped after %d retries: %v", msg.ID, maxRetries, err)
+								q.failCount.Delete(msg.ID)
+								q.ack(ctx, msg.ID)
+								return
+							}
+							log.Printf("[QUEUE] handler failed for message %s, will retry: %v", msg.ID, err)
+							return
+						}
+						q.failCount.Delete(msg.ID)
+						q.ack(ctx, msg.ID)
+					}()
 				}
 			}
 		}
@@ -209,13 +256,25 @@ func (q *redisQueue) recoverPending(ctx context.Context, computeHandler func(int
 			return
 		}
 		for _, msg := range msgs {
-			if err := q.dispatch(msg, computeHandler, finalizeHandler); err != nil {
-				log.Printf("[QUEUE] recovered handler failed for message %s, will retry: %v", msg.ID, err)
-				continue
-			}
-			if err := q.client.XAck(ctx, StreamKey, ConsumerGroup, msg.ID).Err(); err != nil {
-				log.Printf("[QUEUE] XACK failed for recovered message %s: %v", msg.ID, err)
-			}
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("[QUEUE] panic processing recovered message %s: %v", msg.ID, r)
+					}
+				}()
+				if err := q.dispatch(msg, computeHandler, finalizeHandler); err != nil {
+					if q.recordFailure(msg.ID) {
+						log.Printf("[QUEUE] poison recovered message %s dropped after %d retries: %v", msg.ID, maxRetries, err)
+						q.failCount.Delete(msg.ID)
+						q.ack(ctx, msg.ID)
+						return
+					}
+					log.Printf("[QUEUE] recovered handler failed for message %s, will retry: %v", msg.ID, err)
+					return
+				}
+				q.failCount.Delete(msg.ID)
+				q.ack(ctx, msg.ID)
+			}()
 		}
 		if next == "0-0" {
 			return
@@ -224,9 +283,36 @@ func (q *redisQueue) recoverPending(ctx context.Context, computeHandler func(int
 	}
 }
 
+// ack acknowledges a message with a bounded retry so a transient XACK failure
+// does not force a full replay of an already-completed task.
+func (q *redisQueue) ack(ctx context.Context, id string) {
+	for i := 0; i < 3; i++ {
+		if err := q.client.XAck(ctx, StreamKey, ConsumerGroup, id).Err(); err == nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	log.Printf("[QUEUE] XACK ultimately failed for message %s", id)
+}
+
+// recordFailure counts replays for a message and reports true once it should be
+// treated as poison (dropped) to avoid an infinite replay loop.
+func (q *redisQueue) recordFailure(id string) bool {
+	n, _ := q.failCount.LoadOrStore(id, 0)
+	cnt := n.(int) + 1
+	q.failCount.Store(id, cnt)
+	return cnt >= maxRetries
+}
+
 func (q *redisQueue) dispatch(msg redis.XMessage, computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error) error {
-	msgType, _ := msg.Values["type"].(string)
-	payload, _ := msg.Values["payload"].(string)
+	msgType, ok := msg.Values["type"].(string)
+	if !ok {
+		return fmt.Errorf("message %s: missing or invalid type", msg.ID)
+	}
+	payload, ok := msg.Values["payload"].(string)
+	if !ok {
+		return fmt.Errorf("message %s: missing or invalid payload", msg.ID)
+	}
 	switch msgType {
 	case TaskComputeSQI:
 		var pl ComputePayload
@@ -241,7 +327,7 @@ func (q *redisQueue) dispatch(msg redis.XMessage, computeHandler func(int, int) 
 		}
 		return finalizeHandler(pl)
 	}
-	return nil
+	return fmt.Errorf("unknown task type %q for message %s", msgType, msg.ID)
 }
 
 func (q *redisQueue) Stop() {

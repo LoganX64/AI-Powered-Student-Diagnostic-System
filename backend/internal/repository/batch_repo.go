@@ -75,7 +75,11 @@ func (r *BatchRepo) Delete(tenantID, id int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	reassigned, _ := res.RowsAffected()
+	rowsAffected, raErr := res.RowsAffected()
+	if raErr != nil {
+		return 0, raErr
+	}
+	reassigned := int(rowsAffected)
 
 	_, err = r.DB.Exec(
 		`DELETE FROM batches WHERE id = $1 AND tenant_id = $2`,

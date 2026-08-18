@@ -3,6 +3,7 @@ package services
 import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"errors"
+	"log"
 
 	"github.com/lib/pq"
 )
@@ -86,12 +87,20 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 	}
 
 	studentCoachID, studentTenantID, err := s.StudentRepo.GetCoachIDAndTenantID(input.StudentID)
-	if err != nil || studentCoachID != coachID || studentTenantID != tenantID {
+	if err != nil {
+		log.Printf("[ASSIGNMENT] GetCoachIDAndTenantID failed for student %d: %v", input.StudentID, err)
+		return 0, &CreateAssignmentError{Status: 500, Message: "failed to verify student"}
+	}
+	if studentCoachID != coachID || studentTenantID != tenantID {
 		return 0, &CreateAssignmentError{Status: 403, Message: "student not found, deactivated, or not in your organization"}
 	}
 
 	testCoachID, testTenantID, err := s.TestPaperRepo.GetCoachAndTenant(input.TestID)
-	if err != nil || testCoachID != coachID || testTenantID != tenantID {
+	if err != nil {
+		log.Printf("[ASSIGNMENT] GetCoachAndTenant failed for test %d: %v", input.TestID, err)
+		return 0, &CreateAssignmentError{Status: 500, Message: "failed to verify test"}
+	}
+	if testCoachID != coachID || testTenantID != tenantID {
 		return 0, &CreateAssignmentError{Status: 403, Message: "test not found or not in your organization"}
 	}
 

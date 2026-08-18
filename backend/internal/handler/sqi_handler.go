@@ -30,7 +30,10 @@ func enqueueComputeJob(c *gin.Context, tenantID int, attemptIDs []int, jobRepo *
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create job")
 		return
 	}
-	q.EnqueueCompute(jobID, tenantID)
+	if err := q.EnqueueCompute(jobID, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to enqueue compute job")
+		return
+	}
 	c.JSON(http.StatusAccepted, gin.H{"job_id": jobID, "total": len(attemptIDs)})
 }
 

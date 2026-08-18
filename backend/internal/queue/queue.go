@@ -47,8 +47,8 @@ type ComputePayload struct {
 
 // Queue is the job interface used by handlers and the sweeper.
 type Queue interface {
-	EnqueueCompute(jobID, tenantID int)
-	EnqueueFinalize(p FinalizePayload)
+	EnqueueCompute(jobID, tenantID int) error
+	EnqueueFinalize(p FinalizePayload) error
 	Start(computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error)
 	Stop()
 }

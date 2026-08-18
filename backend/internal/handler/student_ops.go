@@ -235,8 +235,15 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 
 	if req.BatchID != nil {
 		ok, err := h.BatchRepo.Exists(tenantID, *req.BatchID)
-		if err == nil && ok {
-			_ = h.BatchRepo.SetStudentBatch(tenantID, id, req.BatchID)
+		if err != nil {
+			utils.InternalError(c, err, "failed to verify batch")
+			return
+		}
+		if ok {
+			if serr := h.BatchRepo.SetStudentBatch(tenantID, id, req.BatchID); serr != nil {
+				utils.InternalError(c, serr, "failed to assign student to batch")
+				return
+			}
 		}
 	}
 

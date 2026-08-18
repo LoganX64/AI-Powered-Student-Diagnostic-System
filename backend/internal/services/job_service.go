@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"log"
 
 	"ai-student-diagnostic/backend/internal/repository"
 )
@@ -42,13 +43,17 @@ func (s *JobService) Process(jobID, tenantID int) error {
 
 	var pld computeJobPayload
 	if err := json.Unmarshal(job.Payload, &pld); err != nil {
-		_ = s.JobRepo.SetStatus(jobID, tenantID, "failed")
+		if err := s.JobRepo.SetStatus(jobID, tenantID, "failed"); err != nil {
+			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
+		}
 		return nil
 	}
 
 	total := len(pld.AttemptIDs)
 	if total == 0 {
-		_ = s.JobRepo.SetStatus(jobID, tenantID, "completed")
+		if err := s.JobRepo.SetStatus(jobID, tenantID, "completed"); err != nil {
+			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
+		}
 		return nil
 	}
 
@@ -67,27 +72,39 @@ func (s *JobService) Process(jobID, tenantID int) error {
 		for _, attemptID := range pld.AttemptIDs[i:end] {
 			testID, err := s.AttemptService.TestIDForAttempt(attemptID)
 			if err != nil {
-				_ = 	s.JobRepo.Increment(jobID, tenantID,  0, 1)
+				if ierr := s.JobRepo.Increment(jobID, tenantID, 0, 1); ierr != nil {
+					log.Printf("[JOB] increment failed for job %d: %v", jobID, ierr)
+				}
 				failed++
 				continue
 			}
 			if err := s.AttemptService.ComputeAndStoreAttempt(attemptID, testID); err != nil {
-				_ = 	s.JobRepo.Increment(jobID, tenantID,  0, 1)
+				if ierr := s.JobRepo.Increment(jobID, tenantID, 0, 1); ierr != nil {
+					log.Printf("[JOB] increment failed for job %d: %v", jobID, ierr)
+				}
 				failed++
 				continue
 			}
-			_ = 	s.JobRepo.Increment(jobID, tenantID,  1, 0)
+			if ierr := s.JobRepo.Increment(jobID, tenantID, 1, 0); ierr != nil {
+				log.Printf("[JOB] increment failed for job %d: %v", jobID, ierr)
+			}
 			done++
 		}
 	}
 
 	switch {
 	case failed == 0:
-		_ = s.JobRepo.SetStatus(jobID, tenantID, "completed")
+		if err := s.JobRepo.SetStatus(jobID, tenantID, "completed"); err != nil {
+			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
+		}
 	case done == 0:
-		_ = s.JobRepo.SetStatus(jobID, tenantID, "failed")
+		if err := s.JobRepo.SetStatus(jobID, tenantID, "failed"); err != nil {
+			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
+		}
 	default:
-		_ = s.JobRepo.SetStatus(jobID, tenantID, "partial")
+		if err := s.JobRepo.SetStatus(jobID, tenantID, "partial"); err != nil {
+			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
+		}
 	}
 	return nil
 }
