@@ -329,6 +329,12 @@ func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, ana
 	_, err := r.DB.Exec(`
 		INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
 		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (attempt_id) DO UPDATE SET
+			sqi_score = EXCLUDED.sqi_score,
+			raw_score = EXCLUDED.raw_score,
+			analysis_json = EXCLUDED.analysis_json,
+			version = EXCLUDED.version,
+			updated_at = CURRENT_TIMESTAMP
 	`, attemptID, sqiScore, rawScore, analysisJSON, version)
 	return err
 }
