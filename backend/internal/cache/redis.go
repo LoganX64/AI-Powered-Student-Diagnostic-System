@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"context"
 	"log"
 
 	"ai-student-diagnostic/backend/internal/config"
@@ -18,5 +19,9 @@ func NewRedis(cfg *config.Config) *redis.Client {
 		log.Printf("[CACHE] invalid REDIS_URL %q: %v", cfg.RedisURL, err)
 		return nil
 	}
-	return redis.NewClient(opts)
+	client := redis.NewClient(opts)
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		log.Printf("[CACHE] REDIS_URL %q reachable check failed: %v", cfg.RedisURL, err)
+	}
+	return client
 }

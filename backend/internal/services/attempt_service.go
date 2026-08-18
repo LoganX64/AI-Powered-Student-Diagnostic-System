@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/lib/pq"
@@ -185,7 +186,9 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 			committed := false
 			defer func() {
 				if !committed {
-					_ = tx.Rollback()
+					if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+						log.Printf("[SQI] rollback failed: %v", err)
+					}
 				}
 			}()
 			for _, pair := range uncomputed {

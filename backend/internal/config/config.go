@@ -174,6 +174,8 @@ func intEnv(key string, def int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			return n
+		} else {
+			log.Printf("[CONFIG] invalid int for %s=%q, using default %d: %v", key, v, def, err)
 		}
 	}
 	return def
@@ -183,6 +185,8 @@ func floatEnv(key string, def float64) float64 {
 	if v := os.Getenv(key); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			return f
+		} else {
+			log.Printf("[CONFIG] invalid float for %s=%q, using default %v: %v", key, v, def, err)
 		}
 	}
 	return def

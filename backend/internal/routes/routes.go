@@ -28,7 +28,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			log.Fatalf("invalid TRUSTED_PROXIES: %v", err)
 		}
 	} else {
-		r.SetTrustedProxies(nil)
+		if err := r.SetTrustedProxies(nil); err != nil {
+			log.Fatalf("invalid SetTrustedProxies(nil): %v", err)
+		}
 	}
 
 	r.NoRoute(func(c *gin.Context) {

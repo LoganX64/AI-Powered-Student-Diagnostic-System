@@ -110,7 +110,11 @@ func (q *redisQueue) Start(computeHandler func(int, int) error, finalizeHandler 
 
 	// Unique consumer per instance so multiple API instances share the group
 	// and distribute pending entries instead of colliding as one "worker-1".
-	host, _ := os.Hostname()
+	host, err := os.Hostname()
+	if err != nil {
+		log.Printf("[QUEUE] hostname lookup failed, using fallback: %v", err)
+		host = "unknown"
+	}
 	q.consumer = fmt.Sprintf("worker-%s-%d", host, os.Getpid())
 
 	// Ensure the stream + consumer group exist.
@@ -173,13 +177,14 @@ func (q *redisQueue) Start(computeHandler func(int, int) error, finalizeHandler 
 // (e.g. owned by a crashed instance) and redelivers them to this consumer.
 func (q *redisQueue) recoverPending(ctx context.Context, computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error) {
 	const minIdle = 60 * time.Second
+	cursor := "0-0"
 	for {
-		msgs, _, err := q.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{
+		msgs, next, err := q.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{
 			Stream:   StreamKey,
 			Group:    ConsumerGroup,
 			Consumer: q.consumer,
 			MinIdle:  minIdle,
-			Start:    "0",
+			Start:    cursor,
 			Count:    10,
 		}).Result()
 		if err != nil {
@@ -187,9 +192,6 @@ func (q *redisQueue) recoverPending(ctx context.Context, computeHandler func(int
 				return
 			}
 			log.Printf("[QUEUE] XAUTOCLAIM failed: %v", err)
-			return
-		}
-		if len(msgs) == 0 {
 			return
 		}
 		for _, msg := range msgs {
@@ -201,6 +203,10 @@ func (q *redisQueue) recoverPending(ctx context.Context, computeHandler func(int
 				log.Printf("[QUEUE] XACK failed for recovered message %s: %v", msg.ID, err)
 			}
 		}
+		if next == "0-0" {
+			return
+		}
+		cursor = next
 	}
 }
 

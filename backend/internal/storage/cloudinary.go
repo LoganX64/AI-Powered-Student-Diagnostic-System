@@ -69,13 +69,24 @@ func (c *CloudinaryStorage) Put(ctx context.Context, key string, r io.Reader) (s
 
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
-	_ = w.WriteField("api_key", c.APIKey)
-	_ = w.WriteField("timestamp", timestamp)
-	_ = w.WriteField("signature", signature)
-	if c.Folder != "" {
-		_ = w.WriteField("folder", c.Folder)
+	writeField := func(name, val string) error { return w.WriteField(name, val) }
+	if err := writeField("api_key", c.APIKey); err != nil {
+		return "", err
 	}
-	_ = w.WriteField("public_id", params["public_id"])
+	if err := writeField("timestamp", timestamp); err != nil {
+		return "", err
+	}
+	if err := writeField("signature", signature); err != nil {
+		return "", err
+	}
+	if c.Folder != "" {
+		if err := writeField("folder", c.Folder); err != nil {
+			return "", err
+		}
+	}
+	if err := writeField("public_id", params["public_id"]); err != nil {
+		return "", err
+	}
 	fw, err := w.CreateFormFile("file", filepath.Base(key))
 	if err != nil {
 		return "", err
@@ -83,7 +94,9 @@ func (c *CloudinaryStorage) Put(ctx context.Context, key string, r io.Reader) (s
 	if _, err := io.Copy(fw, r); err != nil {
 		return "", err
 	}
-	_ = w.Close()
+	if err := w.Close(); err != nil {
+		return "", err
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/video/upload", &body)
 	if err != nil {
