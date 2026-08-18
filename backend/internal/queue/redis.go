@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"ai-student-diagnostic/backend/internal/config"
@@ -16,6 +17,8 @@ import (
 type inProcessQueue struct {
 	computeCh  chan ComputePayload
 	finalizeCh chan FinalizePayload
+	wg         sync.WaitGroup
+	stopOnce   sync.Once
 }
 
 func (q *inProcessQueue) EnqueueCompute(jobID, tenantID int) {
@@ -27,19 +30,31 @@ func (q *inProcessQueue) EnqueueFinalize(p FinalizePayload) {
 }
 
 func (q *inProcessQueue) Start(computeHandler func(int, int) error, finalizeHandler func(FinalizePayload) error) {
+	q.wg.Add(2)
 	go func() {
+		defer q.wg.Done()
 		for pl := range q.computeCh {
 			_ = computeHandler(pl.JobID, pl.TenantID)
 		}
 	}()
 	go func() {
+		defer q.wg.Done()
 		for p := range q.finalizeCh {
 			_ = finalizeHandler(p)
 		}
 	}()
 }
 
-func (q *inProcessQueue) Stop() {}
+// Stop closes the channels so the consumer goroutines drain any buffered jobs
+// and exit, then waits for them to finish — no goroutine leak and no dropped
+// in-flight jobs on shutdown (M3). Enqueue must not be called after Stop.
+func (q *inProcessQueue) Stop() {
+	q.stopOnce.Do(func() {
+		close(q.computeCh)
+		close(q.finalizeCh)
+	})
+	q.wg.Wait()
+}
 
 // redisQueue is the scale-mode queue backed by a Redis Stream. A single
 // consumer group drains both task types; in-flight messages are ACKed only
