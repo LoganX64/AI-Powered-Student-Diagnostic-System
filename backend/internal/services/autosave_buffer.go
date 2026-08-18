@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strconv"
 	"sync"
@@ -45,18 +46,57 @@ func autosaveKey(attemptID int) string {
 	return "autosave:" + strconv.Itoa(attemptID)
 }
 
-// Push records an answer into the Redis buffer.
-func (b *AutosaveBuffer) Push(attemptID int, answers []AnswerInput) {
+// Push records answers into the Redis buffer. It returns an error if the
+// buffer cannot be written so the caller can signal the client — answers are
+// never silently dropped under a Redis hiccup.
+func (b *AutosaveBuffer) Push(attemptID int, answers []AnswerInput) error {
 	if b.rdb == nil {
-		return
+		return nil
 	}
 	ctx := context.Background()
 	pipe := b.rdb.Pipeline()
 	for _, a := range answers {
-		ba, _ := json.Marshal(bufferedAnswer{AttemptID: attemptID, Answer: a})
+		ba, err := json.Marshal(bufferedAnswer{AttemptID: attemptID, Answer: a})
+		if err != nil {
+			return fmt.Errorf("autosave: marshal answer for attempt %d: %w", attemptID, err)
+		}
 		pipe.RPush(ctx, autosaveKey(attemptID), string(ba))
 	}
-	_, _ = pipe.Exec(ctx)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("autosave: failed to buffer answers for attempt %d: %w", attemptID, err)
+	}
+	return nil
+}
+
+// FlushAttempt synchronously drains and persists any buffered answers for a
+// single attempt. Used by the sweeper before finalizing an expired attempt so
+// no late answers are lost because the background flush had not yet run.
+func (b *AutosaveBuffer) FlushAttempt(attemptID int) error {
+	if b.rdb == nil {
+		return nil
+	}
+	ctx := context.Background()
+	key := autosaveKey(attemptID)
+	const maxAttempts = 5
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		items, err := b.rdb.LRange(ctx, key, 0, int64(b.maxBatch-1)).Result()
+		if err != nil {
+			return fmt.Errorf("autosave: read attempt %d failed: %w", attemptID, err)
+		}
+		if len(items) == 0 {
+			return nil
+		}
+		b.flushBatch(ctx, key, items)
+		remaining, err := b.rdb.LLen(ctx, key).Result()
+		if err != nil {
+			return fmt.Errorf("autosave: len attempt %d failed: %w", attemptID, err)
+		}
+		if remaining == 0 {
+			return nil
+		}
+		// flushBatch kept items due to a write error; retry.
+	}
+	return fmt.Errorf("autosave: failed to flush attempt %d after %d attempts", attemptID, maxAttempts)
 }
 
 // Start launches the background flush loop. It first performs a synchronous

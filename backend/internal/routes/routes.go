@@ -267,7 +267,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	// Auto-submit sweeper (Band C): finalize expired in-progress attempts.
 	var sweeperCancel context.CancelFunc
 	if cfg.RedisEnabled && redisClient != nil {
-		sweeper := services.NewSweeper(attemptRepo, jobQueue, cfg.SubmitGraceSeconds)
+		sweeper := services.NewSweeper(attemptRepo, jobQueue, autosaveBuffer, cfg.SubmitGraceSeconds)
 		sweeperCtx, cancel := context.WithCancel(context.Background())
 		sweeperCancel = cancel
 		go func() {

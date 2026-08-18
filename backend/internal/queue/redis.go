@@ -47,7 +47,7 @@ func (q *inProcessQueue) Start(computeHandler func(int, int) error, finalizeHand
 
 // Stop closes the channels so the consumer goroutines drain any buffered jobs
 // and exit, then waits for them to finish — no goroutine leak and no dropped
-// in-flight jobs on shutdown (M3). Enqueue must not be called after Stop.
+// in-flight jobs on shutdown. Enqueue must not be called after Stop.
 func (q *inProcessQueue) Stop() {
 	q.stopOnce.Do(func() {
 		close(q.computeCh)
