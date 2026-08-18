@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,7 +29,12 @@ type IntegrityPolicy struct {
 func parsePolicy(raw []byte) IntegrityPolicy {
 	var p IntegrityPolicy
 	if len(raw) > 0 {
-		_ = json.Unmarshal(raw, &p)
+		if err := json.Unmarshal(raw, &p); err != nil {
+			// A corrupt policy must not silently disable proctoring. Fail
+			// closed to the strictest policy and log so it can be repaired.
+			log.Printf("[POLICY] invalid integrity_policy JSON, defaulting to strict: %v", err)
+			return IntegrityPolicy{ServerTiming: true, Autosave: true, VideoProctoring: true, TabSwitchDetect: true}
+		}
 	}
 	return p
 }

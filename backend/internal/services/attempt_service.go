@@ -457,8 +457,11 @@ func (s *AttemptService) ValidateTimedSubmit(assignmentID, studentID, graceSecon
 // nil. Used by the async worker (scale mode) and the sweeper.
 func (s *AttemptService) FinalizeSubmission(assignmentID, attemptID, studentID int, answers []AnswerInput) error {
 	if _, _, err := s.AttemptRepo.GetInProgressAttempt(assignmentID); err != nil {
-		// No in-progress attempt → already submitted/finalized. Idempotent no-op.
-		return nil
+		if errors.Is(err, sql.ErrNoRows) {
+			// No in-progress attempt → already submitted/finalized. Idempotent no-op.
+			return nil
+		}
+		return &SubmitAnswersError{Status: 500, Message: "failed to resolve in-progress attempt"}
 	}
 
 	testID, err := s.AttemptRepo.GetTestIDForAttempt(attemptID)
