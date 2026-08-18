@@ -110,7 +110,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, jobQueue, autosaveBuffer, storageBackend, cfg)
 
 	authRoute := r.Group("/auth")
-	authRoute.Use(middleware.RateLimit())
+	authRoute.Use(middleware.NewRateLimiter(redisClient, middleware.LoginLimit))
 	{
 		authRoute.POST("/login", authHandler.UserLogin)
 		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
@@ -118,10 +118,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	student := r.Group("/student")
 	{
-		student.POST("/login", middleware.RateLimit(), studentHandler.StudentLogin)
+		student.POST("/login", middleware.NewRateLimiter(redisClient, middleware.LoginLimit), studentHandler.StudentLogin)
 
 		// Shared (Redis) rate limiter when available, else per-instance in-memory.
-		limiter := middleware.NewRateLimiter(redisClient)
+		limiter := middleware.NewRateLimiter(redisClient, middleware.DefaultLimit)
 
 		protected := student.Group("")
 		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo))

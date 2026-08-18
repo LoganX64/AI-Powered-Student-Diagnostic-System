@@ -12,47 +12,55 @@ import (
 )
 
 const (
-	ipLimit  = 10
-	ipBurst  = 10
-	ipWindow = time.Minute
+	// DefaultLimit is the per-IP budget for normal routes (requests/min).
+	DefaultLimit = 10
+	// LoginLimit is a stricter per-IP budget for auth/login routes.
+	LoginLimit = 5
+	ipBurst   = 10
+	ipWindow  = time.Minute
 )
 
 type ipLimiter struct {
+	limit    int
 	limiters *sync.Map
 }
 
-func newIPLimiter() *ipLimiter {
-	return &ipLimiter{limiters: &sync.Map{}}
+func newIPLimiter(limit int) *ipLimiter {
+	return &ipLimiter{limit: limit, limiters: &sync.Map{}}
 }
 
 func (l *ipLimiter) get(ip string) *rate.Limiter {
 	val, ok := l.limiters.Load(ip)
 	if !ok {
-		limiter := rate.NewLimiter(rate.Limit(ipLimit)/rate.Limit(ipWindow/time.Second), ipBurst)
+		limiter := rate.NewLimiter(rate.Limit(l.limit)/rate.Limit(ipWindow/time.Second), l.limit)
 		loaded, _ := l.limiters.LoadOrStore(ip, limiter)
 		return loaded.(*rate.Limiter)
 	}
 	return val.(*rate.Limiter)
 }
 
-// RateLimit throttles each client IP to ipLimit requests per minute (in-memory,
-// per-instance). Retained for auth/login routes.
+// RateLimit throttles each client IP to DefaultLimit requests per minute
+// in-memory (single-instance fallback). Retained for standard (non-Redis) mode.
 func RateLimit() gin.HandlerFunc {
-	return NewRateLimiter(nil)
+	return NewRateLimiter(nil, DefaultLimit)
 }
 
 // NewRateLimiter returns a rate-limit middleware. When rdb is non-nil, limits
 // are shared across all API instances via Redis (fixed window keyed by IP+route)
-// so a multi-instance deployment enforces a single global budget.
-func NewRateLimiter(rdb *redis.Client) gin.HandlerFunc {
-	if rdb != nil {
-		return redisRateLimit(rdb)
+// so a multi-instance deployment enforces a single global budget. The limit
+// (requests per minute per IP) is configurable per route.
+func NewRateLimiter(rdb *redis.Client, limit int) gin.HandlerFunc {
+	if limit <= 0 {
+		limit = DefaultLimit
 	}
-	return inMemoryRateLimit()
+	if rdb != nil {
+		return redisRateLimit(rdb, limit)
+	}
+	return inMemoryRateLimit(limit)
 }
 
-func inMemoryRateLimit() gin.HandlerFunc {
-	limiter := newIPLimiter()
+func inMemoryRateLimit(limit int) gin.HandlerFunc {
+	limiter := newIPLimiter(limit)
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		if !limiter.get(ip).Allow() {
@@ -66,23 +74,25 @@ func inMemoryRateLimit() gin.HandlerFunc {
 	}
 }
 
-func redisRateLimit(rdb *redis.Client) gin.HandlerFunc {
+// redisRateLimit enforces a fixed-window per-IP+route limit shared across
+// instances. It checks the current count first and only increments on allowed
+// requests, so rejected requests do not consume a counter slot.
+func redisRateLimit(rdb *redis.Client, limit int) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		key := "rl:" + ip + ":" + c.FullPath()
 		ctx := context.Background()
+		cur, err := rdb.Get(ctx, key).Int64()
+		if err == nil && cur >= int64(limit) {
+			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+				"error":   "too many requests",
+				"message": "rate limit exceeded, please try again later",
+			})
+			return
+		}
 		n, err := rdb.Incr(ctx, key).Result()
-		if err == nil {
-			if n == 1 {
-				_ = rdb.Expire(ctx, key, ipWindow).Err()
-			}
-			if n > int64(ipLimit) {
-				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-					"error":   "too many requests",
-					"message": "rate limit exceeded, please try again later",
-				})
-				return
-			}
+		if err == nil && n == 1 {
+			_ = rdb.Expire(ctx, key, ipWindow).Err()
 		}
 		c.Next()
 	}
