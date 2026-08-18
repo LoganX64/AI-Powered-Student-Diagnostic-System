@@ -157,7 +157,7 @@ export function CreateStudentForm() {
               placeholder="Auto-generated if blank"
             />
             <p className="text-xs text-muted-foreground">
-              Leave blank to auto-generate a unique tenant code.
+              Leave blank to auto-generate a unique code.
             </p>
             {errors.student_code && (
               <p className="text-sm text-destructive">{errors.student_code}</p>

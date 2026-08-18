@@ -20,9 +20,10 @@ func generateStudentCode(tenantID int) string {
 	return fmt.Sprintf("T%d%s", tenantID, string(b))
 }
 
-// ensureStudentCode creates a student, auto-generating a unique tenant-scoped
-// code (format T{tenant}{base36-6}) when none is provided, retrying on the
-// partial unique index (tenant_id, student_code) collision.
+// ensureStudentCode creates a student, auto-generating a globally unique code
+// (format T{tenant}{base36-6}) when none is provided, retrying on a unique
+// constraint violation. Student codes are the login secret, so they must be
+// unique across the whole table, not just per tenant.
 func ensureStudentCode(studentRepo *repository.StudentRepo, tenantID int, name, providedCode string, coachID int) (int, string, error) {
 	code := providedCode
 	for attempt := 0; attempt < 10; attempt++ {
