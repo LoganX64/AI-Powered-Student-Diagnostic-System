@@ -38,22 +38,23 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
 	})
 
-	r.Use(func(c *gin.Context) {
-		origin := c.GetHeader("Origin")
-		for _, o := range allowedOrigins {
-			if o == origin {
-				c.Header("Access-Control-Allow-Origin", origin)
-				break
+		r.Use(func(c *gin.Context) {
+			origin := c.GetHeader("Origin")
+			for _, o := range allowedOrigins {
+				if o == origin {
+					c.Header("Access-Control-Allow-Origin", origin)
+					c.Header("Vary", "Origin")
+					break
+				}
 			}
-		}
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-		c.Next()
-	})
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+			if c.Request.Method == "OPTIONS" {
+				c.AbortWithStatus(204)
+				return
+			}
+			c.Next()
+		})
 
 	r.GET("/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {

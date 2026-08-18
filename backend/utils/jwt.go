@@ -69,6 +69,9 @@ func (m *JWTManager) GenerateToken(userID int, role string, studentID int, tenan
 
 func (m *JWTManager) ValidateToken(tokenStr string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
+		}
 		return m.secret, nil
 	})
 

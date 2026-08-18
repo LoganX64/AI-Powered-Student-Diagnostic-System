@@ -177,19 +177,35 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 		if err != nil {
 			return nil, errors.New("failed to fetch uncomputed attempts")
 		}
-		for _, pair := range uncomputed {
-			attemptID, testID := pair[0], pair[1]
-			payload, err := s.calculateAttemptSQIAnalysis(attemptID, testID)
+		if len(uncomputed) > 0 {
+			tx, err := s.AttemptRepo.DB.Begin()
 			if err != nil {
-				return nil, errors.New("failed to calculate sqi")
+				return nil, errors.New("failed to start sqi transaction")
 			}
-			analysisJSON, err := json.Marshal(payload)
-			if err != nil {
-				return nil, errors.New("failed to marshal analysis")
+			committed := false
+			defer func() {
+				if !committed {
+					_ = tx.Rollback()
+				}
+			}()
+			for _, pair := range uncomputed {
+				attemptID, testID := pair[0], pair[1]
+				payload, err := s.calculateAttemptSQIAnalysis(attemptID, testID)
+				if err != nil {
+					return nil, errors.New("failed to calculate sqi")
+				}
+				analysisJSON, err := json.Marshal(payload)
+				if err != nil {
+					return nil, errors.New("failed to marshal analysis")
+				}
+				if err := s.AttemptRepo.StoreResultTx(tx, attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version); err != nil {
+					return nil, errors.New("failed to store result")
+				}
 			}
-			if err := s.AttemptRepo.StoreResult(attemptID, payload.OverallSQI, payload.ExamSummary.NetScore, analysisJSON, payload.Version); err != nil {
-				return nil, errors.New("failed to store result")
+			if err := tx.Commit(); err != nil {
+				return nil, errors.New("failed to commit sqi results")
 			}
+			committed = true
 		}
 	}
 

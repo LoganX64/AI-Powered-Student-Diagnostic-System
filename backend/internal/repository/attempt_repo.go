@@ -325,8 +325,14 @@ func (r *AttemptRepo) GetAnswerLogsForAnalysis(attemptID int) ([]AnswerLogForAna
 	return logs, nil
 }
 
-func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, analysisJSON []byte, version string) error {
-	_, err := r.DB.Exec(`
+// execer is satisfied by both *sql.DB and *sql.Tx so the upsert can run inside
+// or outside a transaction.
+type execer interface {
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
+
+func (r *AttemptRepo) StoreResultTx(tx execer, attemptID int, sqiScore, rawScore float64, analysisJSON []byte, version string) error {
+	_, err := tx.Exec(`
 		INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json, version)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (attempt_id) DO UPDATE SET
@@ -337,6 +343,10 @@ func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, ana
 			updated_at = CURRENT_TIMESTAMP
 	`, attemptID, sqiScore, rawScore, analysisJSON, version)
 	return err
+}
+
+func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, analysisJSON []byte, version string) error {
+	return r.StoreResultTx(r.DB, attemptID, sqiScore, rawScore, analysisJSON, version)
 }
 
 func (r *AttemptRepo) GetAverageSQI(studentID int) (float64, error) {
