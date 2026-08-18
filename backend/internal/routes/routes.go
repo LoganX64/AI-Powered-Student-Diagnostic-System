@@ -3,8 +3,8 @@ package routes
 import (
 	"ai-student-diagnostic/backend/internal/auth"
 	"ai-student-diagnostic/backend/internal/cache"
-	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/config"
+	handlers "ai-student-diagnostic/backend/internal/handler"
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
@@ -20,7 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, trustedProxies []string) *gin.Engine {
+func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, trustedProxies []string) (*gin.Engine, func() error) {
 	r := gin.Default()
 
 	if len(trustedProxies) > 0 {
@@ -81,7 +81,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	redisClient := cache.NewRedis(cfg)
 
-	// Storage backend for the video proctoring tier (Cloudinary if configured, else local).
+	// Storage backend for the video proctoring tier
 	var storageBackend storage.Storage
 	if cfg.CloudinaryURL != "" {
 		if cs, err := storage.NewCloudinary(cfg.CloudinaryURL); err == nil {
@@ -263,16 +263,37 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	)
 
 	// Auto-submit sweeper (Band C): finalize expired in-progress attempts.
+	var sweeperCancel context.CancelFunc
 	if cfg.RedisEnabled && redisClient != nil {
 		sweeper := services.NewSweeper(attemptRepo, jobQueue, cfg.SubmitGraceSeconds)
+		sweeperCtx, cancel := context.WithCancel(context.Background())
+		sweeperCancel = cancel
 		go func() {
 			ticker := time.NewTicker(30 * time.Second)
 			defer ticker.Stop()
-			for range ticker.C {
-				sweeper.RunOnce(context.Background())
+			for {
+				select {
+				case <-sweeperCtx.Done():
+					return
+				case <-ticker.C:
+					sweeper.RunOnce(sweeperCtx)
+				}
 			}
 		}()
 	}
 
-	return r
+	// Shutdown hook drains buffered exam answers before the DB is closed so a
+	// restart/deploy never loses the final ~1s of student input.
+	shutdown := func() error {
+		if sweeperCancel != nil {
+			sweeperCancel()
+		}
+		jobQueue.Stop()
+		if autosaveBuffer != nil {
+			autosaveBuffer.Stop() // blocks until the final flush completes
+		}
+		return nil
+	}
+
+	return r, shutdown
 }

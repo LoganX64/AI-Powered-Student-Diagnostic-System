@@ -21,6 +21,7 @@ type AutosaveBuffer struct {
 	flushEvery   time.Duration
 	maxBatch     int
 	shutdown     chan struct{}
+	done         chan struct{}
 	once         sync.Once
 }
 
@@ -31,6 +32,7 @@ func NewAutosaveBuffer(rdb *redis.Client, attemptRepo *repository.AttemptRepo) *
 		flushEvery:  1 * time.Second,
 		maxBatch:    200,
 		shutdown:    make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 }
 
@@ -57,9 +59,13 @@ func (b *AutosaveBuffer) Push(attemptID int, answers []AnswerInput) {
 	_, _ = pipe.Exec(ctx)
 }
 
-// Start launches the background flush loop.
+// Start launches the background flush loop. It first performs a synchronous
+// drain of any residual buffered answers left in Redis by a previous run, so
+// no data is lost across restarts before new traffic is accepted.
 func (b *AutosaveBuffer) Start() {
+	b.flushAll()
 	go func() {
+		defer close(b.done)
 		ticker := time.NewTicker(b.flushEvery)
 		defer ticker.Stop()
 		for {
@@ -74,9 +80,12 @@ func (b *AutosaveBuffer) Start() {
 	}()
 }
 
-// Stop signals the flush loop to drain and exit.
+// Stop signals the flush loop to drain and blocks until the final flush to
+// Postgres has completed, guaranteeing no buffered answers are lost on
+// shutdown.
 func (b *AutosaveBuffer) Stop() {
 	b.once.Do(func() { close(b.shutdown) })
+	<-b.done
 }
 
 func (b *AutosaveBuffer) flushAll() {

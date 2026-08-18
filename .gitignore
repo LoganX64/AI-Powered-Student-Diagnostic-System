@@ -43,7 +43,6 @@ observability.md
 HANDLER_HELPERS.md
 delete.md
 planning.md
-code_review.md
 TEST_PAYLOADS.md
 tracker.md
 frontend-issues.md
@@ -51,3 +50,4 @@ backend-issues.md
 demo-account.md
 EXAM_TIERING_PLAN.md
 TODO_PLAN.md
+code-review.md

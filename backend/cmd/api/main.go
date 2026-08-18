@@ -46,7 +46,7 @@ func main() {
 
 	conn := repository.InitDB(cfg)
 
-	r := routes.SetupRouter(conn, cfg, cfg.AllowedOrigins, cfg.TrustedProxies)
+	r, shutdown := routes.SetupRouter(conn, cfg, cfg.AllowedOrigins, cfg.TrustedProxies)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -73,6 +73,12 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	// Drain buffered answers and stop background workers before closing the DB
+	// so no student input is lost on shutdown.
+	if err := shutdown(); err != nil {
+		log.Printf("Error during shutdown drain: %v", err)
 	}
 
 	if err := conn.Close(); err != nil {
