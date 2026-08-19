@@ -175,8 +175,9 @@ func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAtte
 	rows, err := r.DB.Query(`
 		SELECT a.id, a.assignment_id, ass.student_id FROM attempts a
 		JOIN assignments ass ON a.assignment_id = ass.id
+		JOIN tests t ON ass.test_id = t.id
 		WHERE a.status = 'in_progress'
-		  AND a.started_at + (ass.duration || ' minutes')::interval
+		  AND a.started_at + (COALESCE(t.duration, 0) || ' minutes')::interval
 		      + ($1 || ' seconds')::interval < NOW()
 		ORDER BY a.id
 		FOR UPDATE SKIP LOCKED
