@@ -42,7 +42,7 @@ export function ExamHeader({ candidateName, timeLeft, className }: ExamHeaderPro
         className={cn(
           "min-w-[80px] rounded-xl border px-4 py-1.5 text-center text-sm font-semibold tabular-nums",
           isLow
-            ? "border-red-300 bg-red-50 text-red-600 dark:border-red-700 dark:bg-red-950 dark:text-red-400"
+            ? "border-red-300 bg-red-50 text-red-600   "
             : "border-border bg-muted text-foreground",
         )}
       >

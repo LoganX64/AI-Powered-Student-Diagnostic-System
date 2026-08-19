@@ -90,7 +90,7 @@ function toStudentRows(students: StudentWithSQI[]): StudentRow[] {
 // ─── Helper Functions ─────────────────────────────────────────────────────────
 
 const studentStatusIcon = (status: StudentRow["status"]) => {
-  if (status === "Passing") return <CircleCheckIcon className="size-3.5 fill-green-500 dark:fill-green-400" />;
+  if (status === "Passing") return <CircleCheckIcon className="size-3.5 fill-green-500 " />;
   if (status === "At Risk") return <AlertCircleIcon className="size-3.5 text-destructive" />;
   return <ClockIcon className="size-3.5 text-muted-foreground" />;
 };
@@ -100,7 +100,7 @@ const studentStatusVariant = (status: StudentRow["status"]): "outline" | "second
 };
 
 const coachStatusIcon = (status: CoachRow["status"]) => {
-  if (status === "Active") return <CircleCheckIcon className="size-3.5 fill-green-500 dark:fill-green-400" />;
+  if (status === "Active") return <CircleCheckIcon className="size-3.5 fill-green-500 " />;
   return <ClockIcon className="size-3.5 text-muted-foreground" />;
 };
 

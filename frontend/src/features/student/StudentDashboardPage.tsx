@@ -96,10 +96,10 @@ export function StudentDashboardPage() {
 
       {/* Resume exam banner */}
       {examInProgress && (
-        <div className="mt-4 flex items-center justify-between rounded-2xl border border-yellow-300 bg-yellow-50 px-5 py-3 dark:border-yellow-700 dark:bg-yellow-950">
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-yellow-300 bg-yellow-50 px-5 py-3  ">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-            <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 " />
+            <span className="text-sm font-medium text-yellow-800 ">
               You have an exam in progress. Your previous answers are saved.
             </span>
           </div>
@@ -130,8 +130,8 @@ export function StudentDashboardPage() {
           {/* Error state */}
           {!loading && error && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-4 dark:border-red-800 dark:bg-red-950">
-                <p className="text-sm font-medium text-red-700 dark:text-red-400">
+              <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-4  ">
+                <p className="text-sm font-medium text-red-700 ">
                   {error}
                 </p>
               </div>

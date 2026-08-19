@@ -124,9 +124,9 @@ export function StudentSubmittedPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-xl rounded-2xl border border-border bg-card p-12 shadow-sm text-center">
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 ">
           <CheckCircle
-            className="h-8 w-8 text-green-600 dark:text-green-400"
+            className="h-8 w-8 text-green-600 "
             aria-hidden="true"
           />
         </div>
@@ -141,8 +141,8 @@ export function StudentSubmittedPage() {
         </p>
 
         {hasPendingSubmission && (
-          <div className="mt-6 rounded-xl border border-yellow-300 bg-yellow-50 px-6 py-4 dark:bg-yellow-900/20 dark:border-yellow-700">
-            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+          <div className="mt-6 rounded-xl border border-yellow-300 bg-yellow-50 px-6 py-4  ">
+            <p className="text-sm text-yellow-800 ">
               Your submission is pending. Click below to retry.
             </p>
             <Button
@@ -160,8 +160,8 @@ export function StudentSubmittedPage() {
         )}
 
         {retrySuccess && (
-          <div className="mt-6 rounded-xl border border-green-300 bg-green-50 px-6 py-4 dark:bg-green-900/20 dark:border-green-700">
-            <p className="text-sm text-green-800 dark:text-green-300">
+          <div className="mt-6 rounded-xl border border-green-300 bg-green-50 px-6 py-4  ">
+            <p className="text-sm text-green-800 ">
               Submission successful!
             </p>
           </div>

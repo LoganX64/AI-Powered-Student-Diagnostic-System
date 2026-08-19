@@ -254,7 +254,7 @@ export function SettingsPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              Theme customization coming soon. Currently using the default theme.
+              This app uses a light theme.
             </p>
           </CardContent>
         </Card>

@@ -489,8 +489,8 @@ export function StudentQuizPage() {
         <ExamHeader candidateName={studentCode} timeLeft={0} />
         <div className="mt-6 flex flex-1 items-center justify-center">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertTriangle className="h-7 w-7 text-red-600 dark:text-red-400" />
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-100 ">
+              <AlertTriangle className="h-7 w-7 text-red-600 " />
             </div>
             <h2 className="text-base font-semibold text-foreground">
               Unable to Load Questions
@@ -673,9 +673,9 @@ export function StudentQuizPage() {
                       isCurrent
                         ? "bg-primary text-primary-foreground"
                         : marked
-                          ? "bg-yellow-100 text-yellow-700 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                          ? "bg-yellow-100 text-yellow-700 border border-yellow-300   "
                           : answered
-                            ? "bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                            ? "bg-green-100 text-green-700 border border-green-300   "
                             : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border",
                     )}
                   >

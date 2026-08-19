@@ -75,7 +75,7 @@ export function QuestionCard({ index, question: q, onEdit, onDelete }: QuestionC
             key={opt.label}
             className={`flex items-start gap-2 rounded-md border p-2 text-sm ${
               q.correct_answer === opt.label
-                ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                ? "border-green-500 bg-green-50 "
                 : ""
             }`}
           >

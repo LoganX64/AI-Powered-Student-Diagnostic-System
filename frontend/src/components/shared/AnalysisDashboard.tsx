@@ -42,11 +42,11 @@ function progressColor(score: number): string {
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; className: string }> = {
-    mastered: { label: "Mastered", className: "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400" },
-    almost_there: { label: "Almost There", className: "bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400" },
-    confused: { label: "Confused", className: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400" },
-    not_studied: { label: "Not Studied", className: "bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400" },
-    not_reached: { label: "Not Reached", className: "bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-400" },
+    mastered: { label: "Mastered", className: "bg-green-100 text-green-700 border-green-300  " },
+    almost_there: { label: "Almost There", className: "bg-yellow-100 text-yellow-700 border-yellow-300  " },
+    confused: { label: "Confused", className: "bg-red-100 text-red-700 border-red-300  " },
+    not_studied: { label: "Not Studied", className: "bg-gray-100 text-gray-600 border-gray-300  " },
+    not_reached: { label: "Not Reached", className: "bg-gray-100 text-gray-600 border-gray-300  " },
   };
   const { label, className } = map[status] ?? { label: status, className: "" };
   return <Badge variant="outline" className={className}>{label}</Badge>;
@@ -236,7 +236,7 @@ function BehaviorFlags({ data }: { data: SQIAnalysis }) {
           {detected.map(([key, flag]) => (
             <Tooltip key={key}>
               <TooltipTrigger>
-                <Badge variant="outline" className="gap-1 bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400">
+                <Badge variant="outline" className="gap-1 bg-orange-50 text-orange-700 border-orange-300  ">
                   <AlertTriangleIcon className="size-3" />
                   {formatFlagName(key)}
                   <span className="text-xs opacity-70">
