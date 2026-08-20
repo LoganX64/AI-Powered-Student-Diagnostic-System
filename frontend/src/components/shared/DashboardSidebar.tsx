@@ -10,6 +10,7 @@ import {
   Settings2Icon,
   CircleHelpIcon,
   CommandIcon,
+  ListChecksIcon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -61,6 +62,11 @@ const adminNavItems = [
     url: "/admin/all-tests",
     icon: <ClipboardListIcon />,
   },
+  {
+    title: "Test Details",
+    url: "/admin/test-details",
+    icon: <ListChecksIcon />,
+  },
 ];
 
 const coachNavItems = [
@@ -93,6 +99,11 @@ const coachNavItems = [
     title: "All Tests",
     url: "/coach/all-tests",
     icon: <ClipboardListIcon />,
+  },
+  {
+    title: "Test Details",
+    url: "/coach/test-details",
+    icon: <ListChecksIcon />,
   },
 ];
 

@@ -2,8 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeftIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   SaveIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +9,7 @@ import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -319,35 +318,27 @@ export function QuestionsPage() {
           )}
 
           {questionTotal > PAGE_SIZE && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-sm text-muted-foreground">
-                Showing {questionOffset + 1}–
-                {Math.min(questionOffset + PAGE_SIZE, questionTotal)} of{" "}
-                {questionTotal}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={questionOffset === 0}
-                  onClick={() =>
-                    setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))
-                  }
-                >
-                  <ChevronLeftIcon className="size-4" /> Prev
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={questionOffset + PAGE_SIZE >= questionTotal}
-                  onClick={() =>
-                    setQuestionOffset((o) => o + PAGE_SIZE)
-                  }
-                >
-                  Next <ChevronRightIcon className="size-4" />
-                </Button>
-              </div>
-            </div>
+            <Pagination>
+              <PaginationContent className="flex items-center justify-between w-full">
+                <p className="text-sm text-muted-foreground">
+                  Showing {questionOffset + 1}–{Math.min(questionOffset + PAGE_SIZE, questionTotal)} of {questionTotal}
+                </p>
+                <div className="flex gap-2">
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                      className={questionOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setQuestionOffset((o) => o + PAGE_SIZE)}
+                      className={questionOffset + PAGE_SIZE >= questionTotal ? "pointer-events-none opacity-50" : ""}
+                    />
+                  </PaginationItem>
+                </div>
+              </PaginationContent>
+            </Pagination>
           )}
         </>
       )}

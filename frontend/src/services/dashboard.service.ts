@@ -78,21 +78,23 @@ function buildQuery(params?: PaginationParams): string {
   return qs ? `?${qs}` : "";
 }
 
-function buildListQuery(params?: PaginationParams & { include_deactivated?: boolean }): string {
+function buildListQuery(params?: PaginationParams & { include_deactivated?: boolean; batch_id?: number }): string {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   if (params?.include_deactivated) query.set("include_deactivated", "true");
+  if (params?.batch_id != null) query.set("batch_id", params.batch_id.toString());
   if (params?.search) query.set("search", params.search);
   const qs = query.toString();
   return qs ? `?${qs}` : "";
 }
 
-function buildAssignmentQuery(params?: PaginationParams & { test_id?: number }): string {
+function buildAssignmentQuery(params?: PaginationParams & { test_id?: number; status?: string }): string {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   if (params?.test_id) query.set("test_id", params.test_id.toString());
+  if (params?.status) query.set("status", params.status);
   const qs = query.toString();
   return qs ? `?${qs}` : "";
 }
@@ -160,12 +162,15 @@ export const updateStudent = (studentId: number, data: UpdateStudentPayload) =>
 export const getStudent = (studentId: number) =>
   apiFetch<StudentDetail>(`${getPrefix()}/students/${studentId}`);
 
-export const getStudentAssignments = (studentId: number) =>
+export const getStudentAssignments = (
+  studentId: number,
+  params?: PaginationParams & { status?: string }
+) =>
   apiFetch<{ total: number; limit: number; offset: number; data: StudentAssignment[] }>(
-    `${getPrefix()}/students/${studentId}/assignments`
+    `${getPrefix()}/students/${studentId}/assignments${buildAssignmentQuery(params)}`
   );
 
-export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean }) =>
+export const getStudents = (params?: PaginationParams & { include_deactivated?: boolean; batch_id?: number }) =>
   apiFetch<PaginatedResponse<Student>>(`${getPrefix()}/students${buildListQuery(params)}`);
 
 // ─── Batch endpoints (role-aware, tenant-wide) ────────────────────────────────
@@ -273,8 +278,13 @@ export const createBatchAssignment = (data: CreateBatchAssignmentPayload) =>
     body: JSON.stringify(data),
   });
 
-export const getAssignments = (params?: PaginationParams & { test_id?: number }) =>
+export const getAssignments = (params?: PaginationParams & { test_id?: number; status?: string }) =>
   apiFetch<PaginatedResponse<Assignment>>(`${getPrefix()}/assignments${buildAssignmentQuery(params)}`);
+
+export const deleteAssignment = (assignmentId: number) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/assignments/${assignmentId}`, {
+    method: "DELETE",
+  });
 
 // ─── Assignment Detail endpoint (role-aware) ───────────────────────────────
 

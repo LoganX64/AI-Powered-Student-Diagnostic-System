@@ -112,7 +112,8 @@ export const createAssignmentSchema = z.object({
 
 export const createBatchAssignmentSchema = z.object({
   test_id: z.number().int().positive("Please select a test"),
-  student_ids: z.array(z.number().int()).min(1, "Select at least one student"),
+  student_ids: z.array(z.number().int()).min(1, "Select at least one student").optional(),
+  batch_ids: z.array(z.number().int()).min(1, "Select at least one batch").optional(),
   coach_id: z.number().int(),
   integrity_policy: integrityPolicySchema.optional(),
   estimated_cost: z.number().optional(),

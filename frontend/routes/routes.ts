@@ -11,17 +11,18 @@ import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
 import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
 
-// Unified pages
-import { DashboardPage } from "../src/features/shared/DashboardPage.tsx";
-import { CoachesPage } from "../src/features/shared/CoachesPage.tsx";
-import { CoachDetailPage } from "../src/features/shared/CoachDetailPage.tsx";
-import { StudentsPage } from "../src/features/shared/StudentsPage.tsx";
-import { StudentDetailPage } from "../src/features/shared/StudentDetailPage.tsx";
-import { StudentSQIPage } from "../src/features/shared/StudentSQIPage.tsx";
-import { SubjectsPage } from "../src/features/shared/SubjectsPage.tsx";
-import { TestsPage } from "../src/features/shared/TestsPage.tsx";
-import { AllTestsPage } from "../src/features/shared/AllTestsPage.tsx";
-import { TestDetailPage } from "../src/features/shared/TestDetailPage.tsx";
+  // Unified pages
+  import { DashboardPage } from "../src/features/shared/DashboardPage.tsx";
+  import { CoachesPage } from "../src/features/shared/CoachesPage.tsx";
+  import { CoachDetailPage } from "../src/features/shared/CoachDetailPage.tsx";
+  import { StudentsPage } from "../src/features/shared/StudentsPage.tsx";
+  import { StudentDetailPage } from "../src/features/shared/StudentDetailPage.tsx";
+  import { StudentSQIPage } from "../src/features/shared/StudentSQIPage.tsx";
+  import { SubjectsPage } from "../src/features/shared/SubjectsPage.tsx";
+  import { TestsPage } from "../src/features/shared/TestsPage.tsx";
+  import { AllTestsPage } from "../src/features/shared/AllTestsPage.tsx";
+  import { TestDetailPage } from "../src/features/shared/TestDetailPage.tsx";
+  import { TestDetailsPage } from "../src/features/shared/TestDetailsPage.tsx";
 import { QuestionsPage } from "../src/features/shared/QuestionsPage.tsx";
 import { SettingsPage } from "../src/features/shared/SettingsPage.tsx";
 import { GetHelpPage } from "../src/features/shared/GetHelpPage.tsx";
@@ -59,6 +60,7 @@ const router = createBrowserRouter([
       { path: "admin/subjects", Component: SubjectsPage },
       { path: "admin/tests", Component: TestsPage },
       { path: "admin/all-tests", Component: AllTestsPage },
+      { path: "admin/test-details", Component: TestDetailsPage },
       { path: "admin/tests/:id", Component: TestDetailPage },
       { path: "admin/tests/:id/questions", Component: QuestionsPage },
       { path: "admin/settings", Component: SettingsPage },
@@ -77,6 +79,7 @@ const router = createBrowserRouter([
       { path: "coach/subjects", Component: SubjectsPage },
       { path: "coach/tests", Component: TestsPage },
       { path: "coach/all-tests", Component: AllTestsPage },
+      { path: "coach/test-details", Component: TestDetailsPage },
       { path: "coach/tests/:id", Component: TestDetailPage },
       { path: "coach/tests/:id/questions", Component: QuestionsPage },
       { path: "coach/settings", Component: SettingsPage },

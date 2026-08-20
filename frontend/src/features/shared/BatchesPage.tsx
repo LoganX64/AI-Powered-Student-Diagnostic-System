@@ -16,6 +16,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -44,14 +51,18 @@ import {
 } from "@/services/dashboard.service";
 
 export function BatchesPage() {
+  const PAGE_SIZE = 50;
+
   const [batches, setBatches] = useState<Batch[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [members, setMembers] = useState<Student[]>([]);
+  const [memberTotal, setMemberTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
 
   const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [memberOffset, setMemberOffset] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [transferringId, setTransferringId] = useState<number | null>(null);
@@ -59,12 +70,8 @@ export function BatchesPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [batchRes, studentRes] = await Promise.all([
-        getBatches(),
-        getStudents({ limit: 10000 }),
-      ]);
+      const batchRes = await getBatches();
       setBatches(batchRes.data ?? []);
-      setStudents(studentRes.data ?? []);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -72,17 +79,28 @@ export function BatchesPage() {
     }
   }, []);
 
+  const fetchMembers = useCallback(async (batchId: string, off: number) => {
+    if (!batchId) return;
+    try {
+      const res = await getStudents({
+        limit: PAGE_SIZE,
+        offset: off,
+        batch_id: Number(batchId),
+      });
+      setMembers(res.data ?? []);
+      setMemberTotal(res.total);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [batchRes, studentRes] = await Promise.all([
-          getBatches(),
-          getStudents({ limit: 10000 }),
-        ]);
+        const batchRes = await getBatches();
         if (!active) return;
         setBatches(batchRes.data ?? []);
-        setStudents(studentRes.data ?? []);
       } catch (err) {
         toast.error((err as Error).message);
       } finally {
@@ -94,9 +112,15 @@ export function BatchesPage() {
     };
   }, []);
 
-  const members = students.filter(
-    (s) => String(s.batch_id ?? "") === selectedBatchId
-  );
+  useEffect(() => {
+    if (!selectedBatchId) return;
+    getStudents({ limit: PAGE_SIZE, offset: memberOffset, batch_id: Number(selectedBatchId) })
+      .then((res) => {
+        setMembers(res.data ?? []);
+        setMemberTotal(res.total);
+      })
+      .catch((err) => toast.error((err as Error).message));
+  }, [selectedBatchId, memberOffset]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +164,7 @@ export function BatchesPage() {
       await transferStudentBatch(studentId, target);
       toast.success("Student batch updated");
       await refresh();
+      fetchMembers(selectedBatchId, memberOffset);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -248,7 +273,13 @@ export function BatchesPage() {
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-2 sm:max-w-xs">
             <Label>Batch</Label>
-            <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+            <Select
+              value={selectedBatchId}
+              onValueChange={(v) => {
+                setSelectedBatchId(v);
+                setMemberOffset(0);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select a batch" />
               </SelectTrigger>
@@ -270,56 +301,81 @@ export function BatchesPage() {
                 No students in this batch yet.
               </p>
             ) : (
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">ID</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Code</TableHead>
-                      <TableHead className="w-64">Move to</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {members.map((s) => (
-                      <TableRow key={s.student_id}>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {s.student_id}
-                        </TableCell>
-                        <TableCell className="font-medium">{s.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono">
-                            {s.student_code}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={selectedBatchId}
-                            disabled={transferringId === s.student_id}
-                            onValueChange={(v) => handleTransfer(s.student_id, v)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value="none">No batch</SelectItem>
-                                {batches
-                                  .filter((b) => String(b.id) !== selectedBatchId)
-                                  .map((b) => (
-                                    <SelectItem key={b.id} value={b.id.toString()}>
-                                      {b.name}
-                                    </SelectItem>
-                                  ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
+              <>
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Code</TableHead>
+                        <TableHead className="w-64">Move to</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {members.map((s) => (
+                        <TableRow key={s.student_id}>
+                          <TableCell className="font-mono text-sm text-muted-foreground">
+                            {s.student_id}
+                          </TableCell>
+                          <TableCell className="font-medium">{s.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono">
+                              {s.student_code}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={selectedBatchId}
+                              disabled={transferringId === s.student_id}
+                              onValueChange={(v) => handleTransfer(s.student_id, v)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectGroup>
+                                  <SelectItem value="none">No batch</SelectItem>
+                                  {batches
+                                    .filter((b) => String(b.id) !== selectedBatchId)
+                                    .map((b) => (
+                                      <SelectItem key={b.id} value={b.id.toString()}>
+                                        {b.name}
+                                      </SelectItem>
+                                    ))}
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {memberTotal > PAGE_SIZE && (
+                  <Pagination>
+                    <PaginationContent className="flex items-center justify-between w-full">
+                      <p className="text-sm text-muted-foreground">
+                        Showing {memberOffset + 1}–{Math.min(memberOffset + PAGE_SIZE, memberTotal)} of {memberTotal}
+                      </p>
+                      <div className="flex gap-2">
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => setMemberOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                            className={memberOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => setMemberOffset((o) => o + PAGE_SIZE)}
+                            className={memberOffset + PAGE_SIZE >= memberTotal ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </div>
+                    </PaginationContent>
+                  </Pagination>
+                )}
+              </>
             )
           )}
         </CardContent>

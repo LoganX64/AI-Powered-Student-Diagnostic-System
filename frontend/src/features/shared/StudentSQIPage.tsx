@@ -142,10 +142,10 @@ export function StudentSQIPage() {
                 }}
               />
             )}
-            {data.attempts.length === 0 && (
+            {(data.attempts ?? []).length === 0 && (
               <p className="text-sm text-muted-foreground">No attempts found.</p>
             )}
-            {data.attempts.map((attempt) => (
+            {(data.attempts ?? []).map((attempt) => (
               <Card key={attempt.attempt_id}>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between gap-2">
@@ -193,7 +193,7 @@ export function StudentSQIPage() {
         </>
       )}
 
-      {!loading && !error && data && data.attempts.length === 0 && (
+      {!loading && !error && data && (data.attempts ?? []).length === 0 && (
         <Card>
           <CardContent className="py-6 text-center text-muted-foreground">
             No SQI data available. The student hasn&apos;t submitted any tests yet.

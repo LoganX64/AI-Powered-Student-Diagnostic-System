@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -190,19 +191,27 @@ export function CoachDetailPage() {
             </div>
 
             {studentTotal > PAGE_SIZE && (
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-muted-foreground">
-                  Showing {studentOffset + 1}–{Math.min(studentOffset + PAGE_SIZE, studentTotal)} of {studentTotal}
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={studentOffset === 0} onClick={() => setStudentOffset((o) => Math.max(0, o - PAGE_SIZE))}>
-                    <ChevronLeftIcon className="size-4" /> Prev
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={studentOffset + PAGE_SIZE >= studentTotal} onClick={() => setStudentOffset((o) => o + PAGE_SIZE)}>
-                    Next <ChevronRightIcon className="size-4" />
-                  </Button>
-                </div>
-              </div>
+              <Pagination>
+                <PaginationContent className="flex items-center justify-between w-full">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {studentOffset + 1}–{Math.min(studentOffset + PAGE_SIZE, studentTotal)} of {studentTotal}
+                  </p>
+                  <div className="flex gap-2">
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setStudentOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                        className={studentOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setStudentOffset((o) => o + PAGE_SIZE)}
+                        className={studentOffset + PAGE_SIZE >= studentTotal ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </div>
+                </PaginationContent>
+              </Pagination>
             )}
           </>
         )}
@@ -259,19 +268,27 @@ export function CoachDetailPage() {
             </div>
 
             {testTotal > PAGE_SIZE && (
-              <div className="flex items-center justify-between pt-2">
-                <p className="text-sm text-muted-foreground">
-                  Showing {testOffset + 1}–{Math.min(testOffset + PAGE_SIZE, testTotal)} of {testTotal}
-                </p>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={testOffset === 0} onClick={() => setTestOffset((o) => Math.max(0, o - PAGE_SIZE))}>
-                    <ChevronLeftIcon className="size-4" /> Prev
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={testOffset + PAGE_SIZE >= testTotal} onClick={() => setTestOffset((o) => o + PAGE_SIZE)}>
-                    Next <ChevronRightIcon className="size-4" />
-                  </Button>
-                </div>
-              </div>
+              <Pagination>
+                <PaginationContent className="flex items-center justify-between w-full">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {testOffset + 1}–{Math.min(testOffset + PAGE_SIZE, testTotal)} of {testTotal}
+                  </p>
+                  <div className="flex gap-2">
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setTestOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                        className={testOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setTestOffset((o) => o + PAGE_SIZE)}
+                        className={testOffset + PAGE_SIZE >= testTotal ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </div>
+                </PaginationContent>
+              </Pagination>
             )}
           </>
         )}

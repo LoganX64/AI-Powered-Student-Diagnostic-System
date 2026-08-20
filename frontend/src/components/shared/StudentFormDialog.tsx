@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ export type StudentFormInitial = {
   student_code: string;
   coach_id: number;
   batch_id: number | null;
+  coach_name?: string;
 };
 
 interface StudentFormDialogProps {
@@ -73,6 +74,7 @@ function StudentFormFields({
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const prefilledRef = useRef(false);
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -84,25 +86,35 @@ function StudentFormFields({
       .catch(() => setBatches([]));
   }, []);
 
-  const fetchCoaches = useCallback(async (search: string) => {
-    try {
-      const res = await getCoaches({ search, limit: 20 });
-      setCoaches(res.data ?? []);
-    } catch {
-      setCoaches([]);
-    }
-  }, []);
-
+  // Loads coaches and, on first load in edit mode, prefills the already-assigned coach.
+  const initialCoachId = initial?.coach_id;
+  const initialCoachName = initial?.coach_name;
   useEffect(() => {
     if (!isAdmin) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchCoaches(coachSearch);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await getCoaches({ search: coachSearch, limit: 200 });
+        const list = res.data ?? [];
+        setCoaches(list);
+        if (mode === "edit" && !prefilledRef.current && initialCoachId) {
+          const match = list.find((c) => c.coach_id === initialCoachId);
+          if (match) {
+            setSelectedCoach(match);
+            setCoachSearch(match.name);
+          } else {
+            setCoachSearch(initialCoachName || `Coach #${initialCoachId}`);
+          }
+          prefilledRef.current = true;
+        }
+      } catch {
+        setCoaches([]);
+      }
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [coachSearch, fetchCoaches, isAdmin]);
+  }, [coachSearch, isAdmin, mode, initialCoachId, initialCoachName]);
 
   useEffect(() => {
     if (!isAdmin) return;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon, BarChartIcon, CalculatorIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon, BarChartIcon, CalculatorIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
@@ -52,6 +52,7 @@ import {
 } from "@/components/admin/forms/QuestionFormFields";
 import { QuestionCard } from "@/components/admin/QuestionCard";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { createQuestionSchema, zodErrors } from "@/lib/validations";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
@@ -370,19 +371,27 @@ export function TestDetailPage() {
               </div>
 
               {assignmentTotal > PAGE_SIZE && (
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {assignmentOffset + 1}–{Math.min(assignmentOffset + PAGE_SIZE, assignmentTotal)} of {assignmentTotal}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={assignmentOffset === 0} onClick={() => setAssignmentOffset((o) => Math.max(0, o - PAGE_SIZE))}>
-                      <ChevronLeftIcon className="size-4" /> Prev
-                    </Button>
-                    <Button variant="outline" size="sm" disabled={assignmentOffset + PAGE_SIZE >= assignmentTotal} onClick={() => setAssignmentOffset((o) => o + PAGE_SIZE)}>
-                      Next <ChevronRightIcon className="size-4" />
-                    </Button>
-                  </div>
-                </div>
+                <Pagination>
+                  <PaginationContent className="flex items-center justify-between w-full">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {assignmentOffset + 1}–{Math.min(assignmentOffset + PAGE_SIZE, assignmentTotal)} of {assignmentTotal}
+                    </p>
+                    <div className="flex gap-2">
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => setAssignmentOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                          className={assignmentOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => setAssignmentOffset((o) => o + PAGE_SIZE)}
+                          className={assignmentOffset + PAGE_SIZE >= assignmentTotal ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                    </div>
+                  </PaginationContent>
+                </Pagination>
               )}
             </>
           )}
@@ -454,19 +463,27 @@ export function TestDetailPage() {
               )}
 
               {questionTotal > PAGE_SIZE && (
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {questionOffset + 1}–{Math.min(questionOffset + PAGE_SIZE, questionTotal)} of {questionTotal}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" disabled={questionOffset === 0} onClick={() => setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))}>
-                      <ChevronLeftIcon className="size-4" /> Prev
-                    </Button>
-                    <Button variant="outline" size="sm" disabled={questionOffset + PAGE_SIZE >= questionTotal} onClick={() => setQuestionOffset((o) => o + PAGE_SIZE)}>
-                      Next <ChevronRightIcon className="size-4" />
-                    </Button>
-                  </div>
-                </div>
+                <Pagination>
+                  <PaginationContent className="flex items-center justify-between w-full">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {questionOffset + 1}–{Math.min(questionOffset + PAGE_SIZE, questionTotal)} of {questionTotal}
+                    </p>
+                    <div className="flex gap-2">
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                          className={questionOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => setQuestionOffset((o) => o + PAGE_SIZE)}
+                          className={questionOffset + PAGE_SIZE >= questionTotal ? "pointer-events-none opacity-50" : ""}
+                        />
+                      </PaginationItem>
+                    </div>
+                  </PaginationContent>
+                </Pagination>
               )}
             </>
           )}

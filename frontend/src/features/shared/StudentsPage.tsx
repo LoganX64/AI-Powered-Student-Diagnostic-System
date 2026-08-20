@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon, SearchIcon, PencilIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, RotateCcwIcon, SearchIcon, PencilIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { deleteStudent, reactivateStudent, getStudents, type Student } from "@/services/dashboard.service";
 import { StudentFormDialog } from "@/components/shared/StudentFormDialog";
 
@@ -318,29 +319,27 @@ export function StudentsPage() {
 
         {/* Pagination */}
         {total > PAGE_SIZE && (
-          <div className="flex items-center justify-between pt-2">
-            <p className="text-sm text-muted-foreground">
-              Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={offset === 0}
-                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-              >
-                <ChevronLeftIcon className="size-4" /> Prev
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={offset + PAGE_SIZE >= total}
-                onClick={() => setOffset((o) => o + PAGE_SIZE)}
-              >
-                Next <ChevronRightIcon className="size-4" />
-              </Button>
-            </div>
-          </div>
+          <Pagination>
+            <PaginationContent className="flex items-center justify-between w-full">
+              <p className="text-sm text-muted-foreground">
+                Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+              </p>
+              <div className="flex gap-2">
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                    className={offset === 0 ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                    className={offset + PAGE_SIZE >= total ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+              </div>
+            </PaginationContent>
+          </Pagination>
         )}
       </div>
 
