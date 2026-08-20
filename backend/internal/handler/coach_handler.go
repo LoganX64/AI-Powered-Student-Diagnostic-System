@@ -177,6 +177,22 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"student_id": id, "student_code": code})
 }
 
+func (h *CoachHandler) UpdateStudent(c *gin.Context) {
+	var req UpdateStudentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	coachID, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
+	if err != nil {
+		utils.Unauthorized(c, "coach not found")
+		return
+	}
+
+	updateStudentHelper(c, req, tenantID, coachID, &coachID, h.StudentRepo, h.BatchRepo)
+}
+
 func (h *CoachHandler) CreateTest(c *gin.Context) {
 	var req CreateTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

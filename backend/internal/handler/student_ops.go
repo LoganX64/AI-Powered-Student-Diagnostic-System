@@ -17,6 +17,74 @@ type CreateStudentRequest struct {
 	BatchID     *int   `json:"batch_id"`
 }
 
+type UpdateStudentRequest struct {
+	Name        string `json:"name" binding:"required"`
+	StudentCode string `json:"student_code"`
+	CoachID     int    `json:"coach_id"`
+	BatchID     *int   `json:"batch_id"`
+}
+
+func updateStudentHelper(c *gin.Context, req UpdateStudentRequest, tenantID, coachID int, scopeCoachID *int, studentRepo *repository.StudentRepo, batchRepo *repository.BatchRepo) {
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid student id")
+		return
+	}
+
+	if scopeCoachID != nil {
+		exists, err := studentRepo.ExistsActive(studentID, tenantID, *scopeCoachID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+			return
+		}
+		if !exists {
+			utils.NotFound(c, "student not found")
+			return
+		}
+	} else {
+		exists, err := studentRepo.Exists(studentID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student")
+			return
+		}
+		if !exists {
+			utils.NotFound(c, "student not found")
+			return
+		}
+	}
+
+	if req.StudentCode != "" {
+		dup, err := studentRepo.StudentCodeExists(tenantID, req.StudentCode, studentID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student code")
+			return
+		}
+		if dup {
+			utils.BadRequest(c, "student code already in use")
+			return
+		}
+	}
+
+	if req.BatchID != nil {
+		ok, err := batchRepo.Exists(tenantID, *req.BatchID)
+		if err != nil {
+			utils.InternalError(c, err, "failed to verify batch")
+			return
+		}
+		if !ok {
+			utils.BadRequest(c, "invalid batch_id for your organization")
+			return
+		}
+	}
+
+	if err := studentRepo.UpdateStudent(tenantID, studentID, req.Name, req.StudentCode, coachID, req.BatchID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update student")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "student updated"})
+}
+
 func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -248,6 +316,52 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"student_id": id, "student_code": code})
+}
+
+func (h *AdminHandler) UpdateStudent(c *gin.Context) {
+	var req UpdateStudentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	studentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid student id")
+		return
+	}
+
+	var coachID int
+	if req.CoachID != 0 {
+		exists, err := h.CoachRepo.Exists(req.CoachID, tenantID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify coach")
+			return
+		}
+		if !exists {
+			utils.BadRequest(c, "invalid coach_id for your organization")
+			return
+		}
+		coachID = req.CoachID
+	} else {
+		coachID, err = h.StudentRepo.GetCoachID(studentID, tenantID)
+		if err != nil {
+			utils.NotFound(c, "student not found")
+			return
+		}
+		if coachID == 0 {
+			utils.BadRequest(c, "coach_id is required")
+			return
+		}
+	}
+
+	updateStudentHelper(c, req, tenantID, coachID, nil, h.StudentRepo, h.BatchRepo)
 }
 
 func (h *AdminHandler) ListStudents(c *gin.Context) {

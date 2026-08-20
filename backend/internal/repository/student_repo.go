@@ -90,6 +90,15 @@ func (r *StudentRepo) GetCoachIDAndTenantID(studentID int) (int, int, error) {
 	return coachID, tenantID, err
 }
 
+func (r *StudentRepo) GetCoachID(studentID, tenantID int) (int, error) {
+	var coachID int
+	err := r.DB.QueryRow(
+		"SELECT coach_id FROM students WHERE id=$1 AND tenant_id=$2",
+		studentID, tenantID,
+	).Scan(&coachID)
+	return coachID, err
+}
+
 func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, search string, limit, offset int) ([]StudentRow, int, error) {
 	where := "tenant_id=$1"
 	args := []interface{}{tenantID}
@@ -198,6 +207,24 @@ func (r *StudentRepo) SoftDelete(studentID, tenantID, deletedBy int, coachID *in
 		return false, err
 	}
 	return rowsAffected > 0, nil
+}
+
+func (r *StudentRepo) UpdateStudent(tenantID, studentID int, name, studentCode string, coachID int, batchID *int) error {
+	_, err := r.DB.Exec(`
+		UPDATE students
+		SET name = $1, student_code = $2, coach_id = $3, batch_id = $4
+		WHERE id = $5 AND tenant_id = $6 AND deleted_at IS NULL
+	`, name, studentCode, coachID, batchID, studentID, tenantID)
+	return err
+}
+
+func (r *StudentRepo) StudentCodeExists(tenantID int, studentCode string, exceptStudentID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM students WHERE tenant_id=$1 AND student_code=$2 AND id<>$3 AND deleted_at IS NULL)",
+		tenantID, studentCode, exceptStudentID,
+	).Scan(&exists)
+	return exists, err
 }
 
 func (r *StudentRepo) Reactivate(studentID, tenantID int, coachID *int) (bool, error) {
