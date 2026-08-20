@@ -90,34 +90,41 @@ func (r *AssignmentRepo) GetPolicy(assignmentID int) ([]byte, error) {
 	return policy, err
 }
 
-func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, limit, offset int) ([]AssignmentRow, int, error) {
-	var total int
-	var dataQuery string
-	var args []interface{}
-
-	if coachID != nil {
-		err := r.DB.QueryRow("SELECT COUNT(*) FROM assignments WHERE student_id=$1 AND coach_id=$2", studentID, *coachID).Scan(&total)
-		if err != nil {
-			return nil, 0, err
-		}
-		dataQuery = `SELECT a.id, a.test_id, t.title, a.status, a.assigned_at,
-		       (a.status = 'submitted') AS submitted
-		FROM assignments a JOIN tests t ON a.test_id = t.id
-		WHERE a.student_id = $1 AND a.coach_id = $2
-		ORDER BY a.id DESC LIMIT $3 OFFSET $4`
-		args = []interface{}{studentID, *coachID, limit, offset}
-	} else {
-		err := r.DB.QueryRow("SELECT COUNT(*) FROM assignments WHERE student_id=$1", studentID).Scan(&total)
-		if err != nil {
-			return nil, 0, err
-		}
-		dataQuery = `SELECT a.id, a.test_id, t.title, a.status, a.assigned_at,
-		       (a.status = 'submitted') AS submitted
-		FROM assignments a JOIN tests t ON a.test_id = t.id
-		WHERE a.student_id = $1
-		ORDER BY a.id DESC LIMIT $2 OFFSET $3`
-		args = []interface{}{studentID, limit, offset}
+// applyStatusFilter appends an assignment status predicate to the WHERE clause
+// and appends the corresponding argument. "submitted" matches submitted rows;
+// "active" matches everything except submitted (assigned/in-progress/etc.).
+func applyStatusFilter(where string, args []interface{}, status string) (string, []interface{}) {
+	switch status {
+	case "submitted":
+		where += " AND a.status = $" + strconv.Itoa(len(args)+1)
+		args = append(args, "submitted")
+	case "active":
+		where += " AND a.status <> $" + strconv.Itoa(len(args)+1)
+		args = append(args, "submitted")
 	}
+	return where, args
+}
+
+func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, status string, limit, offset int) ([]AssignmentRow, int, error) {
+	where := "a.student_id = $1"
+	args := []interface{}{studentID}
+	if coachID != nil {
+		where += " AND a.coach_id = $" + strconv.Itoa(len(args)+1)
+		args = append(args, *coachID)
+	}
+	where, args = applyStatusFilter(where, args, status)
+
+	var total int
+	if err := r.DB.QueryRow("SELECT COUNT(*) FROM assignments a WHERE "+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	dataQuery := `SELECT a.id, a.test_id, t.title, a.status, a.assigned_at,
+		       (a.status = 'submitted') AS submitted
+		FROM assignments a JOIN tests t ON a.test_id = t.id
+		WHERE ` + where + `
+		ORDER BY a.id DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+	args = append(args, limit, offset)
 
 	rows, err := r.DB.Query(dataQuery, args...)
 	if err != nil {
@@ -139,7 +146,7 @@ func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, limit, offse
 	return assignments, total, nil
 }
 
-func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, limit, offset int) ([]AssignmentDetailRow, int, error) {
+func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, status string, limit, offset int) ([]AssignmentDetailRow, int, error) {
 	where := "s.tenant_id=$1 AND s.deleted_at IS NULL"
 	args := []interface{}{tenantID}
 
@@ -155,6 +162,7 @@ func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, l
 		where += " AND a.test_id=$" + strconv.Itoa(len(args)+1)
 		args = append(args, testID)
 	}
+	where, args = applyStatusFilter(where, args, status)
 
 	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE " + where
 
@@ -247,4 +255,25 @@ func (r *AssignmentRepo) GetDetailForStudent(assignmentID int) (AssignmentStuden
 func (r *AssignmentRepo) MarkSubmittedTx(tx *sql.Tx, assignmentID, studentID int) error {
 	_, err := tx.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1 AND student_id = $2", assignmentID, studentID)
 	return err
+}
+
+// Delete removes an assignment (and its attempts via ON DELETE CASCADE),
+// scoped to the tenant (and optionally the coach) for safety.
+func (r *AssignmentRepo) Delete(assignmentID, tenantID int, coachID *int) (bool, error) {
+	query := `DELETE FROM assignments a USING students s
+		WHERE a.id = $1 AND a.student_id = s.id AND s.tenant_id = $2`
+	args := []interface{}{assignmentID, tenantID}
+	if coachID != nil {
+		query += " AND a.coach_id = $3"
+		args = append(args, *coachID)
+	}
+	result, err := r.DB.Exec(query, args...)
+	if err != nil {
+		return false, err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
 }

@@ -217,15 +217,15 @@ func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIRes
 		return nil, errors.New("failed to fetch results")
 	}
 
-	var attempts []AttemptResultItem
+	attempts := make([]AttemptResultItem, 0)
 	for _, r := range resultRows {
 		item := AttemptResultItem{
 			AttemptID: r.AttemptID,
 			TestID:    r.TestID,
-			SQI:       r.SQI,
+			SQI:       r.SQI.Float64,
 		}
-		if r.Analysis.Valid {
-			item.Analysis = json.RawMessage(r.Analysis.String)
+		if len(r.Analysis) > 0 {
+			item.Analysis = json.RawMessage(r.Analysis)
 		}
 		attempts = append(attempts, item)
 	}

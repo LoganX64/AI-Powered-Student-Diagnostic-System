@@ -111,7 +111,7 @@ func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {
 		return
 	}
 
-	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, nil, 100, 0)
+	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, nil, "", 100, 0)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch assignments")
 		return

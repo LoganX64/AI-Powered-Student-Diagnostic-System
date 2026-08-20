@@ -125,9 +125,9 @@ func buildAssignmentResultsResponse(
 	}
 
   var analysis interface{}
-  if analysisJSON.Valid && analysisJSON.String != "" {
+  if len(analysisJSON) > 0 {
     var payload types.DiagnosticPayloadV2
-    if err := json.Unmarshal([]byte(analysisJSON.String), &payload); err == nil {
+    if err := json.Unmarshal(analysisJSON, &payload); err == nil {
       analysis = payload
     }
   }

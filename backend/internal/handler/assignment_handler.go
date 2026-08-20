@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -179,8 +180,9 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	testID := c.Query("test_id")
+	status := c.Query("status")
 
-	assignments, total, err := h.AssignmentRepo.ListAll(tenantID, coachID, testID, limit, offset)
+	assignments, total, err := h.AssignmentRepo.ListAll(tenantID, coachID, testID, status, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
@@ -191,4 +193,56 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": assignments})
+}
+
+func (h *AdminHandler) DeleteAssignment(c *gin.Context) {
+	assignmentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid assignment id")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	removed, err := h.AssignmentRepo.Delete(assignmentID, tenantID, nil)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete assignment")
+		return
+	}
+	if !removed {
+		utils.NotFound(c, "assignment not found")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "assignment cancelled"})
+}
+
+func (h *CoachHandler) DeleteAssignment(c *gin.Context) {
+	assignmentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid assignment id")
+		return
+	}
+
+	coachID, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
+	if err != nil {
+		utils.Unauthorized(c, "coach not found")
+		return
+	}
+
+	removed, err := h.AssignmentRepo.Delete(assignmentID, tenantID, &coachID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to delete assignment")
+		return
+	}
+	if !removed {
+		utils.NotFound(c, "assignment not found")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "assignment cancelled"})
 }

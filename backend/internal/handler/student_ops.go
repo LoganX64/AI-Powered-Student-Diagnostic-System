@@ -386,7 +386,14 @@ func (h *AdminHandler) ListStudents(c *gin.Context) {
 	includeDeactivated := c.Query("include_deactivated") == "true"
 	search := c.Query("search")
 
-	students, total, err := h.StudentRepo.List(tenantID, coachID, includeDeactivated, search, limit, offset)
+	var batchID *int
+	if b := c.Query("batch_id"); b != "" {
+		if id, err := strconv.Atoi(b); err == nil {
+			batchID = &id
+		}
+	}
+
+	students, total, err := h.StudentRepo.List(tenantID, coachID, includeDeactivated, search, batchID, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch students")
 		return
@@ -477,7 +484,8 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 	}
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
-	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, coachID, limit, offset)
+	status := c.Query("status")
+	assignments, total, err := h.AssignmentRepo.ListByStudent(studentID, coachID, status, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return

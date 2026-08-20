@@ -37,8 +37,8 @@ type AnswerDetail struct {
 type AttemptResultRow struct {
 	AttemptID int
 	TestID    int
-	SQI       float64
-	Analysis  sql.NullString
+	SQI       sql.NullFloat64
+	Analysis  []byte
 }
 
 type AnswerInput struct {
@@ -193,9 +193,9 @@ func (r *AttemptRepo) HasSubmittedAttempt(assignmentID int) (bool, error) {
 	return err == nil, err
 }
 
-func (r *AttemptRepo) GetSQIResult(attemptID int) (sql.NullFloat64, sql.NullString, error) {
+func (r *AttemptRepo) GetSQIResult(attemptID int) (sql.NullFloat64, []byte, error) {
 	var sqiScore sql.NullFloat64
-	var analysisJSON sql.NullString
+	var analysisJSON []byte
 	err := r.DB.QueryRow(
 		"SELECT sqi_score, analysis_json FROM attempt_results WHERE attempt_id=$1",
 		attemptID,
@@ -352,13 +352,15 @@ func (r *AttemptRepo) StoreResult(attemptID int, sqiScore, rawScore float64, ana
 func (r *AttemptRepo) GetAverageSQI(studentID int) (float64, error) {
 	var avg sql.NullFloat64
 	err := r.DB.QueryRow(`
-		SELECT AVG(ar.sqi_score)
-		FROM attempt_results ar
-		JOIN attempts a ON ar.attempt_id = a.id
-		JOIN assignments ass ON a.assignment_id = ass.id
-		WHERE ass.student_id = $1
-		ORDER BY a.id DESC
-		LIMIT 100
+		SELECT AVG(sqi_score) FROM (
+			SELECT ar.sqi_score
+			FROM attempt_results ar
+			JOIN attempts a ON ar.attempt_id = a.id
+			JOIN assignments ass ON a.assignment_id = ass.id
+			WHERE ass.student_id = $1
+			ORDER BY a.id DESC
+			LIMIT 100
+		) sub
 	`, studentID).Scan(&avg)
 	if err != nil {
 		return 0, err
