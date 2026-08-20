@@ -66,6 +66,12 @@ export function BatchesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [transferringId, setTransferringId] = useState<number | null>(null);
+  const [pendingTransfer, setPendingTransfer] = useState<{
+    studentId: number;
+    studentName: string;
+    targetBatchId: number | null;
+    targetBatchName: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -157,11 +163,24 @@ export function BatchesPage() {
     }
   };
 
-  const handleTransfer = async (studentId: number, value: string) => {
+  const handleTransfer = (studentId: number, value: string) => {
     const target = value === "none" ? null : Number(value);
+    const student = members.find((m) => m.student_id === studentId);
+    const targetBatch = target !== null ? batches.find((b) => b.id === target) : null;
+    setPendingTransfer({
+      studentId,
+      studentName: student?.name ?? "",
+      targetBatchId: target,
+      targetBatchName: targetBatch?.name ?? "No batch",
+    });
+  };
+
+  const confirmTransfer = async () => {
+    if (!pendingTransfer) return;
+    const { studentId, targetBatchId } = pendingTransfer;
     try {
       setTransferringId(studentId);
-      await transferStudentBatch(studentId, target);
+      await transferStudentBatch(studentId, targetBatchId);
       toast.success("Student batch updated");
       await refresh();
       fetchMembers(selectedBatchId, memberOffset);
@@ -169,6 +188,7 @@ export function BatchesPage() {
       toast.error((err as Error).message);
     } finally {
       setTransferringId(null);
+      setPendingTransfer(null);
     }
   };
 
@@ -398,6 +418,24 @@ export function BatchesPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete Batch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingTransfer !== null} onOpenChange={(o) => !o && setPendingTransfer(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move Student</AlertDialogTitle>
+            <AlertDialogDescription>
+              Move <span className="font-semibold">{pendingTransfer?.studentName}</span> to{" "}
+              <span className="font-semibold">{pendingTransfer?.targetBatchName}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmTransfer}>
+              Move Student
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

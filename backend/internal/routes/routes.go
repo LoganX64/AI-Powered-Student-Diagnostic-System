@@ -49,7 +49,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 					break
 				}
 			}
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
 			if c.Request.Method == "OPTIONS" {
 				c.AbortWithStatus(204)
