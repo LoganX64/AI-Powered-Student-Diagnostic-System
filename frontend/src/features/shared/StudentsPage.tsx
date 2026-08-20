@@ -1,14 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon, SearchIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, ChevronLeftIcon, ChevronRightIcon, RotateCcwIcon, SearchIcon, PencilIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -29,8 +25,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createStudent, deleteStudent, reactivateStudent, getStudents, getCoaches, type Student, type Coach } from "@/services/dashboard.service";
-import { createStudentSchema, zodErrors } from "@/lib/validations";
+import { Separator } from "@/components/ui/separator";
+import { deleteStudent, reactivateStudent, getStudents, type Student } from "@/services/dashboard.service";
+import { StudentFormDialog } from "@/components/shared/StudentFormDialog";
 
 const PAGE_SIZE = 50;
 
@@ -41,8 +38,6 @@ export function StudentsPage() {
   const isAdmin = role === "admin";
 
   const [students, setStudents] = useState<Student[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
   const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [dialogOpenId, setDialogOpenId] = useState<number | null>(null);
@@ -50,44 +45,15 @@ export function StudentsPage() {
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [coachFetchError, setCoachFetchError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Coach search (admin only)
-  const [coachSearch, setCoachSearch] = useState("");
-  const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
-  const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  const fetchCoaches = useCallback(async (search: string) => {
-    if (!isAdmin) return;
-    try {
-      const res = await getCoaches({ search, limit: 10 });
-      setCoaches(res.data ?? []);
-      setCoachFetchError(null);
-    } catch (err) {
-      setCoaches([]);
-      setCoachFetchError((err as Error).message || "Failed to load coaches");
-    }
-  }, [isAdmin]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchCoaches(coachSearch);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [coachSearch, fetchCoaches, isAdmin]);
+  // Dialog (create / edit)
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -97,17 +63,6 @@ export function StudentsPage() {
     }, 300);
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
   }, [searchInput]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isAdmin]);
 
   const fetchStudents = useCallback(async (off: number, deactivated: boolean, searchTerm: string) => {
     try {
@@ -126,53 +81,16 @@ export function StudentsPage() {
     fetchStudents(offset, includeDeactivated, search);
   }, [offset, includeDeactivated, search, fetchStudents]);
 
-  const handleCoachSelect = (coach: Coach) => {
-    setSelectedCoach(coach);
-    setCoachSearch(coach.name);
-    setShowDropdown(false);
+  const openCreate = () => {
+    setDialogMode("create");
+    setEditingStudent(null);
+    setDialogOpen(true);
   };
 
-  const handleCoachInputChange = (value: string) => {
-    setCoachSearch(value);
-    setSelectedCoach(null);
-    setShowDropdown(true);
-    if (inputRef.current) {
-      const rect = inputRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-    }
-  };
-
-  const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
-    e.preventDefault();
-
-    const fd = new FormData(e.currentTarget);
-
-    const raw = {
-      name: fd.get("name") as string,
-      student_code: fd.get("student_code") as string,
-      coach_id: isAdmin ? (selectedCoach?.coach_id ?? 0) : 0,
-    };
-
-    const result = createStudentSchema.safeParse(raw);
-    if (!result.success) {
-      setCreateErrors(zodErrors(result.error));
-      return;
-    }
-    setCreateErrors({});
-
-    try {
-      setCreating(true);
-      const res = await createStudent(result.data);
-      toast.success(`Student "${result.data.name}" created — ID: ${res.student_id}`);
-      (e.target as HTMLFormElement).reset();
-      setCoachSearch("");
-      setSelectedCoach(null);
-      fetchStudents(offset, includeDeactivated, search);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setCreating(false);
-    }
+  const openEdit = (student: Student) => {
+    setDialogMode("edit");
+    setEditingStudent(student);
+    setDialogOpen(true);
   };
 
   const handleDeactivate = async (student: Student) => {
@@ -201,107 +119,28 @@ export function StudentsPage() {
     }
   };
 
+  const studentInitial = editingStudent
+    ? {
+        name: editingStudent.name,
+        student_code: editingStudent.student_code,
+        coach_id: editingStudent.coach_id,
+        batch_id: editingStudent.batch_id ?? null,
+      }
+    : undefined;
+
   return (
     <DashboardLayout title="Students">
-      {/* Create form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserPlusIcon className="size-5" />
-            Create Student
-          </CardTitle>
-          <CardDescription>
-            Add a new student and assign them to a coach.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleCreate} className="flex flex-col gap-4">
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="student-name">Full Name</Label>
-                <Input
-                  id="student-name"
-                  name="name"
-                  placeholder="Alice"
-                  required
-                />
-                {createErrors.name && <p className="text-sm text-destructive">{createErrors.name}</p>}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="student-code">Student Code</Label>
-                <Input
-                  id="student-code"
-                  name="student_code"
-                  placeholder="STU001"
-                  required
-                />
-                {createErrors.student_code && <p className="text-sm text-destructive">{createErrors.student_code}</p>}
-              </div>
-              {isAdmin && (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="student-coach">Coach</Label>
-                  <Input
-                    ref={inputRef}
-                    id="student-coach"
-                    placeholder="Search coach by name…"
-                    value={coachSearch}
-                    onChange={(e) => handleCoachInputChange(e.target.value)}
-                    onFocus={() => {
-                      setShowDropdown(true);
-                      if (inputRef.current) {
-                        const rect = inputRef.current.getBoundingClientRect();
-                        setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-                      }
-                    }}
-                    required
-                  />
-                  {showDropdown && coaches.length > 0 && (
-                    <div
-                      ref={dropdownRef}
-                      style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                      className="z-50 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
-                    >
-                      {coaches.map((coach) => (
-                        <button
-                          type="button"
-                          key={coach.coach_id}
-                          className={`flex w-full items-center px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${
-                            selectedCoach?.coach_id === coach.coach_id ? "bg-accent text-accent-foreground" : ""
-                          }`}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => handleCoachSelect(coach)}
-                        >
-                          {coach.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {showDropdown && coachSearch && coachFetchError && (
-                    <div
-                      style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                      className="z-50 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive shadow-md"
-                    >
-                      {coachFetchError}
-                    </div>
-                  )}
-                  {showDropdown && coachSearch && !coachFetchError && coaches.length === 0 && (
-                    <div
-                      style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                      className="z-50 rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md"
-                    >
-                      No coaches found
-                    </div>
-                  )}
-                  {createErrors.coach_id && <p className="text-sm text-destructive">{createErrors.coach_id}</p>}
-                </div>
-              )}
-            </div>
-            <Button type="submit" disabled={creating} className="w-fit">
-              {creating ? "Creating…" : "Create Student"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Students</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage student accounts and their batch assignments.
+          </p>
+        </div>
+        <Button onClick={openCreate} className="w-fit">
+          <UserPlusIcon className="size-4 mr-2" /> Add Student
+        </Button>
+      </div>
 
       <Separator />
 
@@ -312,11 +151,11 @@ export function StudentsPage() {
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-sm">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-              <Input
+              <input
                 placeholder="Search by name or code..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-9"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
             <Button
@@ -362,7 +201,7 @@ export function StudentsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Code</TableHead>
                   {isAdmin && <TableHead className="w-24">Coach ID</TableHead>}
-                  <TableHead className="w-20 text-right">Action</TableHead>
+                  <TableHead className="w-28 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -391,75 +230,84 @@ export function StudentsPage() {
                       </TableCell>
                     )}
                     <TableCell className="text-right">
-                      {student.deleted_at ? (
-                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? student.student_id : null)}>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-muted-foreground hover:text-green-600"
-                              disabled={reactivatingId === student.student_id}
-                              aria-label={`Reactivate account for ${student.name}`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <RotateCcwIcon className="size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Reactivate Account</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to reactivate the account for{" "}
-                                <span className="font-semibold">{student.name}</span>{" "}
-                                ({student.student_code})?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={(e) => { e.stopPropagation(); handleReactivate(student); }}
-                                className="bg-green-600 text-white hover:bg-green-700"
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-foreground"
+                          aria-label={`Edit ${student.name}`}
+                          onClick={() => openEdit(student)}
+                        >
+                          <PencilIcon className="size-4" />
+                        </Button>
+                        {student.deleted_at ? (
+                          <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? student.student_id : null)}>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-muted-foreground hover:text-green-600"
+                                disabled={reactivatingId === student.student_id}
+                                aria-label={`Reactivate account for ${student.name}`}
                               >
-                                Reactivate Account
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      ) : (
-                        <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? student.student_id : null)}>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 text-muted-foreground hover:text-destructive"
-                              disabled={deactivatingId === student.student_id}
-                              aria-label={`Deactivate account for ${student.name}`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Trash2Icon className="size-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Deactivate Account</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to deactivate the account for{" "}
-                                <span className="font-semibold">{student.name}</span>{" "}
-                                ({student.student_code})?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={(e) => { e.stopPropagation(); handleDeactivate(student); }}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                <RotateCcwIcon className="size-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Reactivate Account</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to reactivate the account for{" "}
+                                  <span className="font-semibold">{student.name}</span>{" "}
+                                  ({student.student_code})?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={(e) => { e.stopPropagation(); handleReactivate(student); }}
+                                  className="bg-green-600 text-white hover:bg-green-700"
+                                >
+                                  Reactivate Account
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        ) : (
+                          <AlertDialog onOpenChange={(open) => setDialogOpenId(open ? student.student_id : null)}>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-muted-foreground hover:text-destructive"
+                                disabled={deactivatingId === student.student_id}
+                                aria-label={`Deactivate account for ${student.name}`}
                               >
-                                Deactivate Account
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
+                                <Trash2Icon className="size-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Deactivate Account</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to deactivate the account for{" "}
+                                  <span className="font-semibold">{student.name}</span>{" "}
+                                  ({student.student_code})?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={(e) => { e.stopPropagation(); handleDeactivate(student); }}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Deactivate Account
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -495,6 +343,15 @@ export function StudentsPage() {
           </div>
         )}
       </div>
+
+      <StudentFormDialog
+        mode={dialogMode}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initial={studentInitial}
+        studentId={editingStudent?.student_id}
+        onSaved={() => fetchStudents(offset, includeDeactivated, search)}
+      />
     </DashboardLayout>
   );
 }

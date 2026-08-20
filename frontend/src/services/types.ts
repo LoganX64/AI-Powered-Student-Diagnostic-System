@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   createCoachSchema,
   createStudentSchema,
+  updateStudentSchema,
   createSubjectSchema,
   createTestSchema,
   createQuestionSchema,
@@ -13,6 +14,7 @@ import {
 
 export type CreateCoachPayload = z.infer<typeof createCoachSchema>;
 export type CreateStudentPayload = z.infer<typeof createStudentSchema>;
+export type UpdateStudentPayload = z.infer<typeof updateStudentSchema>;
 export type CreateSubjectPayload = z.infer<typeof createSubjectSchema>;
 export type CreateTestPayload = z.infer<typeof createTestSchema>;
 export type CreateQuestionPayload = z.infer<typeof createQuestionSchema>;

@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, BarChart3Icon, BarChartIcon } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { PencilIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,8 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getStudent, getStudentAssignments, type StudentDetail, type StudentAssignment } from "@/services/dashboard.service";
+import { getStudent, getStudentAssignments, getBatches, type StudentDetail, type StudentAssignment, type Batch } from "@/services/dashboard.service";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
+import { StudentFormDialog } from "@/components/shared/StudentFormDialog";
 
 const PAGE_SIZE = 50;
 
@@ -30,26 +32,29 @@ export function StudentDetailPage() {
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
   const [assignmentOffset, setAssignmentOffset] = useState(0);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     if (studentId === null) return;
     getStudent(studentId).then(setStudent).catch(() => {});
   }, [studentId]);
 
-  const fetchAssignments = useCallback(async () => {
-    if (studentId === null) return;
-    try {
-      const res = await getStudentAssignments(studentId);
-      setAssignments(res.data ?? []);
-      setAssignmentTotal(res.total);
-    } catch {
-      // silently ignore
-    }
-  }, [studentId]);
+  useEffect(() => {
+    getBatches()
+      .then((res) => setBatches(res.data ?? []))
+      .catch(() => setBatches([]));
+  }, []);
 
   useEffect(() => {
-    fetchAssignments();
-  }, [assignmentOffset, fetchAssignments]);
+    if (studentId === null) return;
+    getStudentAssignments(studentId)
+      .then((res) => {
+        setAssignments(res.data ?? []);
+        setAssignmentTotal(res.total);
+      })
+      .catch(() => {});
+  }, [assignmentOffset, studentId]);
 
   if (studentId === null) {
     return (
@@ -106,6 +111,14 @@ export function StudentDetailPage() {
               </div>
             )}
             <div>
+              <span className="text-muted-foreground">Batch: </span>
+              <span className="font-medium">
+                {student.batch_id != null
+                  ? (batches.find((b) => b.id === student.batch_id)?.name ?? `Batch #${student.batch_id}`)
+                  : "—"}
+              </span>
+            </div>
+            <div>
               <span className="text-muted-foreground">Created: </span>
               <span className="font-medium">{formatDateDDMMYYYY(student.created_at)}</span>
             </div>
@@ -123,14 +136,23 @@ export function StudentDetailPage() {
         </CardContent>
       </Card>
 
-      {/* SQI Score button */}
-      <Button
-        variant="outline"
-        className="w-fit"
-        onClick={() => navigate(`${prefix}/students/${studentId}/sqi`)}
-      >
-        <BarChart3Icon className="size-4 mr-2" /> View SQI Score
-      </Button>
+      {/* Actions */}
+      <div className="flex flex-wrap gap-3">
+        <Button
+          variant="outline"
+          className="w-fit"
+          onClick={() => setDialogOpen(true)}
+        >
+          <PencilIcon className="size-4 mr-2" /> Edit Student
+        </Button>
+        <Button
+          variant="outline"
+          className="w-fit"
+          onClick={() => navigate(`${prefix}/students/${studentId}/sqi`)}
+        >
+          <BarChart3Icon className="size-4 mr-2" /> View SQI Score
+        </Button>
+      </div>
 
       {/* Assigned tests table */}
       <div className="flex flex-col gap-3">
@@ -208,6 +230,28 @@ export function StudentDetailPage() {
           </>
         )}
       </div>
+
+      <StudentFormDialog
+        mode="edit"
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        studentId={studentId ?? undefined}
+        initial={
+          student
+            ? {
+                name: student.name,
+                student_code: student.student_code,
+                coach_id: student.coach_id,
+                batch_id: student.batch_id,
+              }
+            : undefined
+        }
+        onSaved={() => {
+          if (studentId != null) {
+            getStudent(studentId).then(setStudent).catch(() => {});
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

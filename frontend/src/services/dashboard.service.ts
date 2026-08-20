@@ -3,6 +3,7 @@ import { getActiveRole } from "@/lib/token";
 import type {
   CreateCoachPayload,
   CreateStudentPayload,
+  UpdateStudentPayload,
   CreateSubjectPayload,
   CreateTestPayload,
   CreateQuestionPayload,
@@ -148,6 +149,12 @@ export const deleteStudent = (studentId: number) =>
 export const reactivateStudent = (studentId: number) =>
   apiFetch<{ message: string }>(`${getPrefix()}/students/${studentId}/reactivate`, {
     method: "PUT",
+  });
+
+export const updateStudent = (studentId: number, data: UpdateStudentPayload) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/students/${studentId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 
 export const getStudent = (studentId: number) =>

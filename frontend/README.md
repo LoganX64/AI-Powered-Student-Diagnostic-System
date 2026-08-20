@@ -41,7 +41,6 @@ frontend/
     │   │       ├── CreateAssignmentForm.tsx
     │   │       ├── CreateCoachForm.tsx
     │   │       ├── CreateQuestionsForm.tsx
-    │   │       ├── CreateStudentForm.tsx
     │   │       ├── CreateSubjectForm.tsx
     │   │       ├── CreateTestForm.tsx
     │   │       ├── EditTestDialog.tsx
@@ -54,6 +53,7 @@ frontend/
     │   │   ├── DashboardSectionCards.tsx
     │   │   ├── DashboardSidebar.tsx
     │   │   ├── DashboardTable.tsx
+    │   │   ├── StudentFormDialog.tsx
     │   │   ├── login-page.tsx
     │   │   ├── nav-main.tsx
     │   │   ├── nav-secondary.tsx
