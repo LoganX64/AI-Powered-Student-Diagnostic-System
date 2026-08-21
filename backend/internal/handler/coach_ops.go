@@ -11,7 +11,7 @@ import (
 )
 
 func (h *AdminHandler) ListCoaches(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -37,7 +37,7 @@ func (h *AdminHandler) GetCoach(c *gin.Context) {
 		return
 	}
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -60,7 +60,7 @@ func (h *AdminHandler) DeleteCoach(c *gin.Context) {
 	}
 
 	userID := c.GetInt("user_id")
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -86,7 +86,7 @@ func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
 		return
 	}
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -118,7 +118,7 @@ func (h *AdminHandler) UpdateCoach(c *gin.Context) {
 		return
 	}
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -190,7 +190,7 @@ func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 		return
 	}
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -221,7 +221,7 @@ func (h *AdminHandler) ListCoachStudents(c *gin.Context) {
 		return
 	}
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -274,7 +274,7 @@ func (h *AdminHandler) GetCoachStatsBatch(c *gin.Context) {
 		return
 	}
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return

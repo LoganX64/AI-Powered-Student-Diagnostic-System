@@ -12,7 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func resolveTenantID(c *gin.Context, userRepo *repository.UserRepo) (int, error) {
+func resolveTenantID(c *gin.Context) (int, error) {
 	return c.GetInt("tenant_id"), nil
 }
 

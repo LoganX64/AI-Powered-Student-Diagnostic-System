@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AutosaveAnswer } from "@/services/student.service";
+import type { AutosaveAnswer, AnswerPayload } from "@/services/student.service";
 
 // ---------------------------------------------------------------------------
 // Types

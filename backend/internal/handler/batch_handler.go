@@ -113,7 +113,7 @@ func transferStudentBatchHelper(c *gin.Context, tenantID int, studentRepo *repos
 // ─────────────────────────────────────────────
 
 func (h *AdminHandler) CreateBatch(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -122,7 +122,7 @@ func (h *AdminHandler) CreateBatch(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListBatches(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -131,7 +131,7 @@ func (h *AdminHandler) ListBatches(c *gin.Context) {
 }
 
 func (h *AdminHandler) DeleteBatch(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -140,7 +140,7 @@ func (h *AdminHandler) DeleteBatch(c *gin.Context) {
 }
 
 func (h *AdminHandler) TransferStudentBatch(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return

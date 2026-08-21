@@ -29,7 +29,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	role := c.GetString("role")
 	userID := c.GetInt("user_id")
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -82,7 +82,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 
 	role := c.GetString("role")
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -125,7 +125,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 
 	role := c.GetString("role")
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -152,7 +152,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 }
 
 func (h *AdminHandler) ListTests(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -186,7 +186,7 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetTest(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -207,7 +207,7 @@ func (h *AdminHandler) GetTest(c *gin.Context) {
 }
 
 func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -258,7 +258,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 
 	role := c.GetString("role")
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -325,7 +325,7 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 
 	role := c.GetString("role")
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return
@@ -364,7 +364,7 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 
 	role := c.GetString("role")
 
-	tenantID, err := resolveTenantID(c, h.UserRepo)
+	tenantID, err := resolveTenantID(c)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenant info")
 		return

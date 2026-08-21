@@ -1,11 +1,11 @@
 import { apiFetch } from "@/lib/api";
 
-export interface LoginPayload {
+interface LoginPayload {
   email: string;
   password: string;
 }
 
-export interface RegisterPayload {
+interface RegisterPayload {
   email: string;
   password: string;
   org_name: string;

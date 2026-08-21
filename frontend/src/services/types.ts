@@ -284,7 +284,7 @@ export type SQIResponse = {
   total_tests: number;
 };
 
-export type StudentSQIMetric = {
+type StudentSQIMetric = {
   student_id: number;
   average_sqi: number;
   total_tests: number;
