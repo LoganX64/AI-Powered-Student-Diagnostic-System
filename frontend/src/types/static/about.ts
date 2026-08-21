@@ -1,14 +1,14 @@
-export interface AboutMission {
+interface AboutMission {
   title: string;
   description: string;
 }
 
-export interface AboutWhatWeDoItem {
+interface AboutWhatWeDoItem {
   title: string;
   description: string;
 }
 
-export interface AboutContact {
+interface AboutContact {
   company: string;
   helpline: string;
   helplineEmail: string;
@@ -16,7 +16,7 @@ export interface AboutContact {
   addressFull: string;
 }
 
-export interface AboutPageText {
+interface AboutPageText {
   hero: {
     title: string;
     description: string;

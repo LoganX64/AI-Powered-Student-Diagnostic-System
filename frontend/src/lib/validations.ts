@@ -151,11 +151,3 @@ export const changePasswordSchema = z
     message: "Passwords do not match",
     path: ["confirmNewPassword"],
   });
-
-export const notificationPreferencesSchema = z.object({
-  emailNotifications: z.boolean(),
-  pushNotifications: z.boolean(),
-  weeklyDigest: z.boolean(),
-  testAlerts: z.boolean(),
-  studentActivity: z.boolean(),
-});

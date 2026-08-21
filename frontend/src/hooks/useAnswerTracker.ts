@@ -20,18 +20,6 @@ export type AnswerRecord = {
   first_answer: Option; // snapshot of first selection (for backend to derive was_initially_wrong)
 };
 
-/** Payload sent to backend (no internal fields) */
-export type AnswerPayload = {
-  question_id: number;
-  seen: boolean;
-  selected_answer: string;
-  time_spent: number;
-  marked_for_review: boolean;
-  revisited: boolean;
-  changed_answer: boolean;
-  first_answer: string;
-};
-
 // ---------------------------------------------------------------------------
 // localStorage helpers
 // ---------------------------------------------------------------------------

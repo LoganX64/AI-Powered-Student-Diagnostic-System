@@ -74,7 +74,7 @@ export type Subject = {
   name: string;
 };
 
-export type CoachSubject = {
+type CoachSubject = {
   subject_id: number;
   subject_name: string;
 };
@@ -170,7 +170,7 @@ export type PaginationParams = {
 
 // ─── Assignment Detail ──────────────────────────────────────────────────────
 
-export type AnswerDetail = {
+type AnswerDetail = {
   question_id: number;
   question_text: string;
   option_a: string;
@@ -269,7 +269,7 @@ export type SQIAnalysis = {
   second_half_accuracy: number;
 };
 
-export type SQIAttempt = {
+type SQIAttempt = {
   attempt_id: number;
   test_id: number;
   sqi_score: number;

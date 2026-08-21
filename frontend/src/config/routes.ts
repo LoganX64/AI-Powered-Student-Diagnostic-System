@@ -5,5 +5,3 @@ export const ROLE_REDIRECT_MAP = {
   coach: "/coach-signin",
   student: "/student-login",
 } as const;
-
-export type Role = "admin" | "coach" | "student";

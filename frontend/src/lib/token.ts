@@ -1,6 +1,6 @@
 export type Role = "admin" | "coach" | "student";
 
-export interface TokenPayload {
+interface TokenPayload {
   user_id: number;
   role: Role;
   student_id: number;

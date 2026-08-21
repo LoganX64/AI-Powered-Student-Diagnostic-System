@@ -11,13 +11,13 @@ export interface RegisterPayload {
   org_name: string;
 }
 
-export interface AuthResponse {
+interface AuthResponse {
   token: string;
   role: string;
   tenant_id: number;
 }
 
-export interface RegisterResponse {
+interface RegisterResponse {
   message: string;
   tenant_id: number;
   user_id: number;
@@ -28,7 +28,7 @@ export interface StudentLoginPayload {
   student_code: string;
 }
 
-export interface StudentLoginResponse {
+interface StudentLoginResponse {
   token: string;
 }
 

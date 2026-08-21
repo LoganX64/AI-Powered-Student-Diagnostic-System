@@ -1,7 +1,7 @@
 import { apiFetch } from "@/lib/api";
 
 // Re-export login types from auth.service for backward compatibility
-export type { StudentLoginPayload, StudentLoginResponse } from "./auth.service";
+export type { StudentLoginPayload } from "./auth.service";
 export { loginStudent } from "./auth.service";
 
 // ---------------------------------------------------------------------------
@@ -16,7 +16,7 @@ export type Assignment = {
   assigned_at: string;
 };
 
-export type QuestionFromAPI = {
+type QuestionFromAPI = {
   id: number;
   question_text: string;
   option_a: string;
@@ -58,7 +58,7 @@ export type AutosaveAnswer = {
   first_answer: string;
 };
 
-export type StartExamResponse = {
+type StartExamResponse = {
   attempt_id: number;
   deadline: string;
   server_now: string;
@@ -79,7 +79,7 @@ export type ExamStateResponse = {
   }>;
 };
 
-export type AutosaveResponse = { saved: number };
+type AutosaveResponse = { saved: number };
 
 export type AnswerPayload = {
   question_id: number;

@@ -1,4 +1,4 @@
-export interface LandingHero {
+interface LandingHero {
   badge: string;
   headingLine1: string;
   headingLine2: string;
@@ -7,24 +7,24 @@ export interface LandingHero {
   ctaSecondary: string;
 }
 
-export interface LandingFeature {
+interface LandingFeature {
   title: string;
   description: string;
 }
 
-export interface LandingFeatures {
+interface LandingFeatures {
   sectionTitle: string;
   sectionDescription: string;
   items: LandingFeature[];
 }
 
-export interface LandingCta {
+interface LandingCta {
   heading: string;
   description: string;
   buttonText: string;
 }
 
-export interface LandingPageText {
+interface LandingPageText {
   brand: string;
   nav: {
     features: string;
