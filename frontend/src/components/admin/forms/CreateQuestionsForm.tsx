@@ -13,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { createQuestions as adminCreateQuestions, type CreateQuestionPayload } from "@/services/dashboard.service";
 
@@ -88,37 +90,21 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-0">
         <CardTitle>Add Questions to Test</CardTitle>
-        <CardDescription>
+        <CardDescription className="flex items-center gap-2">
           Add one or more questions to an existing test.
+          {testId && <Badge variant="outline" className="font-mono">Test ID: {testId}</Badge>}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-          {/* Test ID */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="q-test-id">Test ID</Label>
-            <Input
-              id="q-test-id"
-              type="number"
-              min={1}
-              placeholder="1"
-              value={testId}
-              onChange={(e) => setTestId(e.target.value)}
-              readOnly={!!testIdProp}
-              required
-              className="max-w-[180px]"
-            />
-            {errors.test_id && <p className="text-sm text-destructive">{errors.test_id}</p>}
-          </div>
-
+      <CardContent className="pt-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Separator />
 
           {/* Question list */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {questions.map((q, idx) => (
-              <div key={idx} className="flex flex-col gap-4 rounded-lg border p-4">
+              <div key={idx} className="flex flex-col gap-3 rounded-lg border p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-muted-foreground">
                     Question {idx + 1}
@@ -138,21 +124,27 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                 </div>
 
                 {/* Question text */}
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5">
                   <Label>Question Text</Label>
-                  <Input
+                  <Textarea
+                    rows={2}
                     value={q.question_text}
-                    onChange={(e) => update(idx, "question_text", e.target.value)}
+                    onChange={(e) => {
+                      update(idx, "question_text", e.target.value);
+                      e.target.style.height = "auto";
+                      e.target.style.height = e.target.scrollHeight + "px";
+                    }}
                     placeholder="What is 2 + 2?"
                     required
+                    className="resize-none overflow-hidden"
                   />
                 </div>
 
-                {/* Options */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Options — 2×2 grid */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
                   {(["option_a", "option_b", "option_c", "option_d"] as const).map((opt, oi) => (
-                    <div key={opt} className="flex flex-col gap-1.5">
-                      <Label>{["A", "B", "C", "D"][oi]}</Label>
+                    <div key={opt} className="flex flex-col gap-1">
+                      <Label className="text-xs">{["A", "B", "C", "D"][oi]}</Label>
                       <Input
                         value={q[opt]}
                         onChange={(e) => update(idx, opt, e.target.value)}
@@ -163,10 +155,10 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                   ))}
                 </div>
 
-                {/* Correct answer + Marks */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Correct Answer</Label>
+                {/* All metadata in a single 4-col row */}
+                <div className="grid grid-cols-4 gap-x-3 gap-y-1.5">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Answer</Label>
                     <Select
                       value={q.correct_answer}
                       onValueChange={(v) => update(idx, "correct_answer", v)}
@@ -183,8 +175,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Marks</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Marks</Label>
                     <Input
                       type="number"
                       min={0}
@@ -194,8 +186,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       required
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Neg. Marks</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Neg Marks</Label>
                     <Input
                       type="number"
                       min={0}
@@ -205,8 +197,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       required
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Exp. Time (min)</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Time (min)</Label>
                     <Input
                       type="number"
                       min={0}
@@ -218,10 +210,10 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                   </div>
                 </div>
 
-                {/* Importance / Difficulty / Type / Concept Tag */}
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Importance</Label>
+                {/* Second metadata row */}
+                <div className="grid grid-cols-4 gap-x-3 gap-y-1.5">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Importance</Label>
                     <Select
                       value={q.importance}
                       onValueChange={(v) => update(idx, "importance", v)}
@@ -238,8 +230,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Difficulty</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Difficulty</Label>
                     <Select
                       value={q.difficulty}
                       onValueChange={(v) => update(idx, "difficulty", v)}
@@ -256,8 +248,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Type</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Type</Label>
                     <Select
                       value={q.type}
                       onValueChange={(v) => update(idx, "type", v)}
@@ -274,8 +266,8 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label>Concept Tag</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Concept Tag</Label>
                     <Input
                       value={q.concept_tag}
                       onChange={(e) => update(idx, "concept_tag", e.target.value)}
@@ -290,11 +282,12 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
           <Button
             type="button"
             variant="outline"
-            className="w-fit gap-2"
+            size="sm"
+            className="w-fit gap-1.5"
             onClick={addQuestion}
           >
-            <PlusIcon className="size-4" />
-            Add Another Question
+            <PlusIcon className="size-3.5" />
+            Add Question
           </Button>
 
           <Separator />
