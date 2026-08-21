@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/types"
 	"ai-student-diagnostic/backend/utils"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -116,7 +117,7 @@ func buildAssignmentResultsResponse(
 	}
 
 	sqiScore, analysisJSON, err := attemptRepo.GetSQIResult(attemptID)
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
 	answers, err := attemptRepo.GetAnswerDetails(attemptID)
