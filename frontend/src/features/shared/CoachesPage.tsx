@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Trash2Icon, UserPlusIcon, RotateCcwIcon } from "lucide-react";
+import { Trash2Icon, UserPlusIcon, RotateCcwIcon, PencilIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationNext, Paginati
 import { createCoach, deleteCoach, reactivateCoach, getCoaches, type Coach } from "@/services/dashboard.service";
 import { createCoachSchema, zodErrors } from "@/lib/validations";
 import { SubjectPicker } from "@/components/admin/forms/SubjectPicker";
+import { EditCoachDialog } from "@/components/admin/forms/EditCoachDialog";
 
 const PAGE_SIZE = 50;
 
@@ -46,6 +47,7 @@ export function CoachesPage() {
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
   const [selectedSubjectIds, setSelectedSubjectIds] = useState<number[]>([]);
+  const [editingCoach, setEditingCoach] = useState<Coach | null>(null);
 
   const fetchCoaches = useCallback(async (off: number, deactivated: boolean) => {
     try {
@@ -250,6 +252,19 @@ export function CoachesPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
+                      {!coach.deleted_at && (
+                         <span onClick={(e) => e.stopPropagation()}>
+                           <Button
+                             variant="ghost"
+                             size="icon"
+                             className="size-8 text-muted-foreground hover:text-foreground"
+                             aria-label={`Edit coach ${coach.name}`}
+                             onClick={() => setEditingCoach(coach)}
+                           >
+                             <PencilIcon className="size-4" />
+                           </Button>
+                         </span>
+                      )}
                       {coach.deleted_at ? (
                          <span onClick={(e) => e.stopPropagation()}>
                            <AlertDialog>
@@ -352,6 +367,13 @@ export function CoachesPage() {
           </Pagination>
         )}
       </div>
+
+      <EditCoachDialog
+        coach={editingCoach}
+        open={editingCoach !== null}
+        onOpenChange={(open) => { if (!open) setEditingCoach(null); }}
+        onUpdated={() => fetchCoaches(offset, includeDeactivated)}
+      />
     </DashboardLayout>
   );
 }

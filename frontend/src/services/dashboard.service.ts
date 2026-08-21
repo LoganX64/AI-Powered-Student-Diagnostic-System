@@ -139,6 +139,12 @@ export const reactivateCoach = (coachId: number) =>
     method: "PUT",
   });
 
+export const updateCoach = (coachId: number, data: { name: string; email: string; subject_ids: number[] }) =>
+  apiFetch<{ message: string }>(`/admin/coaches/${coachId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+
 // ─── Student endpoints (role-aware) ───────────────────────────────────────────
 
 export const createStudent = (data: CreateStudentPayload) =>

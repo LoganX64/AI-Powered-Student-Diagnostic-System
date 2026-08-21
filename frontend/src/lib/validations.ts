@@ -42,6 +42,12 @@ export const createCoachSchema = z.object({
   subject_ids: z.array(z.number().int().positive()).min(1, "At least one subject is required"),
 });
 
+export const updateCoachSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().min(1, "Email is required").email("Invalid email"),
+  subject_ids: z.array(z.number().int().positive()).min(1, "At least one subject is required"),
+});
+
 export const createStudentSchema = z.object({
   name: z.string().min(1, "Name is required"),
   student_code: z.string().optional(),
