@@ -19,6 +19,7 @@ type StudentRow struct {
 	StudentCode string  `json:"student_code"`
 	CoachID     int     `json:"coach_id"`
 	BatchID     *int    `json:"batch_id"`
+	CreatedAt   string  `json:"created_at"`
 	DeletedAt   *string `json:"deleted_at"`
 }
 
@@ -122,7 +123,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	}
 
 	countQuery := "SELECT COUNT(*) FROM students WHERE " + where
-	dataQuery := "SELECT id, name, student_code, coach_id, batch_id, deleted_at FROM students WHERE " + where
+	dataQuery := "SELECT id, name, student_code, coach_id, batch_id, created_at, deleted_at FROM students WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
@@ -142,7 +143,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	var students []StudentRow
 	for rows.Next() {
 		var s StudentRow
-		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.BatchID, &s.DeletedAt); err != nil {
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.BatchID, &s.CreatedAt, &s.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		students = append(students, s)

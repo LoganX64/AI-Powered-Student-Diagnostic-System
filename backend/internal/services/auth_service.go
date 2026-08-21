@@ -50,19 +50,35 @@ func (s *AuthService) RegisterAdmin(email, hashedPassword, orgName string) (int,
 	return tenantID, userID, nil
 }
 
-func (s *AuthService) RegisterCoach(adminUserID int, email, hashedPassword, name string) (int, int, error) {
+func (s *AuthService) RegisterCoach(adminUserID int, email, hashedPassword, name string, subjectIDs []int) (int, int, error) {
 	tenantID, err := s.UserRepo.GetTenantID(adminUserID)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	userID, err := s.UserRepo.Create(tenantID, email, hashedPassword, "coach")
+	tx, err := s.CoachRepo.DB.Begin()
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
+	userID, err := s.UserRepo.CreateInTx(tx, tenantID, email, hashedPassword, "coach")
 	if err != nil {
 		return 0, 0, err
 	}
 
-	coachID, err := s.CoachRepo.Create(tenantID, userID, name)
+	coachID, err := s.CoachRepo.CreateInTx(tx, tenantID, userID, name)
 	if err != nil {
+		return 0, 0, err
+	}
+
+	if len(subjectIDs) > 0 {
+		if err := s.CoachRepo.CreateCoachSubjectsInTx(tx, coachID, subjectIDs); err != nil {
+			return 0, 0, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
 		return 0, 0, err
 	}
 

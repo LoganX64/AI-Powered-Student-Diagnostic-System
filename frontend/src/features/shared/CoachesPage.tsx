@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { createCoach, deleteCoach, reactivateCoach, getCoaches, type Coach } from "@/services/dashboard.service";
 import { createCoachSchema, zodErrors } from "@/lib/validations";
+import { SubjectPicker } from "@/components/admin/forms/SubjectPicker";
 
 const PAGE_SIZE = 50;
 
@@ -44,6 +45,7 @@ export function CoachesPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [includeDeactivated, setIncludeDeactivated] = useState(false);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<number[]>([]);
 
   const fetchCoaches = useCallback(async (off: number, deactivated: boolean) => {
     try {
@@ -66,6 +68,7 @@ export function CoachesPage() {
       name: fd.get("name") as string,
       email: fd.get("email") as string,
       password: fd.get("password") as string,
+      subject_ids: selectedSubjectIds,
     };
 
     const result = createCoachSchema.safeParse(raw);
@@ -80,6 +83,7 @@ export function CoachesPage() {
       const res = await createCoach(result.data);
       toast.success(`Coach "${result.data.name}" created — ID: ${res.coach_id}`);
       (e.target as HTMLFormElement).reset();
+      setSelectedSubjectIds([]);
       fetchCoaches(offset, includeDeactivated);
     } catch (err) {
       toast.error((err as Error).message);
@@ -164,6 +168,14 @@ export function CoachesPage() {
                 {createErrors.password && <p className="text-sm text-destructive">{createErrors.password}</p>}
               </div>
             </div>
+            <div className="flex flex-col gap-2">
+              <Label>Subjects *</Label>
+              <SubjectPicker
+                selected={selectedSubjectIds}
+                onChange={setSelectedSubjectIds}
+                error={createErrors.subject_ids}
+              />
+            </div>
             <Button type="submit" disabled={creating} className="w-fit">
               {creating ? "Creating…" : "Create Coach"}
             </Button>
@@ -208,6 +220,7 @@ export function CoachesPage() {
                   <TableHead className="w-16">ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Subjects</TableHead>
                   <TableHead className="w-20 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -223,6 +236,19 @@ export function CoachesPage() {
                     </TableCell>
                     <TableCell className="font-medium">{coach.name}</TableCell>
                     <TableCell className="text-muted-foreground">{coach.email}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {(coach.subjects ?? []).length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          (coach.subjects ?? []).map((s) => (
+                            <Badge key={s.subject_id} variant="secondary" className="text-xs">
+                              {s.name}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       {coach.deleted_at ? (
                          <span onClick={(e) => e.stopPropagation()}>

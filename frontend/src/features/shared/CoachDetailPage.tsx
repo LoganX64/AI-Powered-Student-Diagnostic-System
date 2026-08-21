@@ -141,6 +141,16 @@ export function CoachDetailPage() {
               </div>
             )}
           </div>
+          {coach.subjects && coach.subjects.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1">
+              <span className="text-sm text-muted-foreground mr-1">Subjects:</span>
+              {coach.subjects.map((s) => (
+                <Badge key={s.subject_id} variant="secondary">
+                  {s.name}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

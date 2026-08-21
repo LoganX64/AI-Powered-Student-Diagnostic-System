@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createCoach } from "@/services/dashboard.service";
+import { SubjectPicker } from "./SubjectPicker";
 
 export function CreateCoachForm() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<number[]>([]);
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
@@ -18,6 +20,7 @@ export function CreateCoachForm() {
       email: fd.get("email") as string,
       password: fd.get("password") as string,
       name: fd.get("name") as string,
+      subject_ids: selectedSubjectIds,
     };
 
     const result = createCoachSchema.safeParse(raw);
@@ -32,6 +35,7 @@ export function CreateCoachForm() {
       const res = await createCoach(result.data);
       toast.success(`Coach created — ID: ${res.coach_id}`);
       (e.target as HTMLFormElement).reset();
+      setSelectedSubjectIds([]);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -79,6 +83,14 @@ export function CreateCoachForm() {
               minLength={8}
             />
             {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label>Subjects *</Label>
+            <SubjectPicker
+              selected={selectedSubjectIds}
+              onChange={setSelectedSubjectIds}
+              error={errors.subject_ids}
+            />
           </div>
           <Button type="submit" disabled={loading} className="w-fit">
             {loading ? "Creating…" : "Create Coach"}

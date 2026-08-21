@@ -109,9 +109,10 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 }
 
 type RegisterCoachRequest struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	Name     string `json:"name" binding:"required"`
+	Email      string `json:"email" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	Name       string `json:"name" binding:"required"`
+	SubjectIDs []int  `json:"subject_ids" binding:"required,min=1"`
 }
 
 func (h *AuthHandler) RegisterCoach(c *gin.Context) {
@@ -134,7 +135,7 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 		return
 	}
 
-	newUserID, coachID, err := h.AuthService.RegisterCoach(userID, req.Email, hashed, req.Name)
+	newUserID, coachID, err := h.AuthService.RegisterCoach(userID, req.Email, hashed, req.Name, req.SubjectIDs)
 	if err != nil {
 		utils.InternalError(c, err, "coach registration failed")
 		return

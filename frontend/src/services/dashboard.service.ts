@@ -89,12 +89,16 @@ function buildListQuery(params?: PaginationParams & { include_deactivated?: bool
   return qs ? `?${qs}` : "";
 }
 
-function buildAssignmentQuery(params?: PaginationParams & { test_id?: number; status?: string }): string {
+function buildAssignmentQuery(params?: PaginationParams & { test_id?: number; status?: string; search?: string; year?: string; subject_id?: number; coach_id?: number }): string {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   if (params?.test_id) query.set("test_id", params.test_id.toString());
   if (params?.status) query.set("status", params.status);
+  if (params?.search) query.set("search", params.search);
+  if (params?.year) query.set("year", params.year);
+  if (params?.subject_id) query.set("subject_id", params.subject_id.toString());
+  if (params?.coach_id) query.set("coach_id", params.coach_id.toString());
   const qs = query.toString();
   return qs ? `?${qs}` : "";
 }

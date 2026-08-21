@@ -15,25 +15,32 @@ func NewCoachRepo(db *sql.DB) *CoachRepo {
 	return &CoachRepo{DB: db}
 }
 
+type CoachSubject struct {
+	SubjectID   int    `json:"subject_id"`
+	SubjectName string `json:"subject_name"`
+}
+
 type CoachRow struct {
-	CoachID   int     `json:"coach_id"`
-	UserID    int     `json:"user_id"`
-	Name      string  `json:"name"`
-	Email     string  `json:"email"`
-	CreatedAt string  `json:"created_at"`
-	DeletedAt *string `json:"deleted_at"`
+	CoachID   int             `json:"coach_id"`
+	UserID    int             `json:"user_id"`
+	Name      string          `json:"name"`
+	Email     string          `json:"email"`
+	CreatedAt string          `json:"created_at"`
+	DeletedAt *string         `json:"deleted_at"`
+	Subjects  []CoachSubject  `json:"subjects"`
 }
 
 type CoachDetailRow struct {
-	CoachID       int     `json:"coach_id"`
-	UserID        int     `json:"user_id"`
-	Name          string  `json:"name"`
-	Email         string  `json:"email"`
-	CreatedAt     string  `json:"created_at"`
-	DeletedAt     *string `json:"deleted_at"`
-	DeletedByName *string `json:"deleted_by_name"`
-	DeletedByEmail *string `json:"deleted_by_email"`
-	DeletedByRole *string `json:"deleted_by_role"`
+	CoachID        int             `json:"coach_id"`
+	UserID         int             `json:"user_id"`
+	Name           string          `json:"name"`
+	Email          string          `json:"email"`
+	CreatedAt      string          `json:"created_at"`
+	DeletedAt      *string         `json:"deleted_at"`
+	DeletedByName  *string         `json:"deleted_by_name"`
+	DeletedByEmail *string         `json:"deleted_by_email"`
+	DeletedByRole  *string         `json:"deleted_by_role"`
+	Subjects       []CoachSubject  `json:"subjects"`
 }
 
 func (r *CoachRepo) GetIDFromUser(userID int) (int, error) {
@@ -94,6 +101,24 @@ func (r *CoachRepo) List(tenantID int, search string, includeDeactivated bool, l
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
+
+	if len(coaches) > 0 {
+		ids := make([]int, len(coaches))
+		for i, c := range coaches {
+			ids[i] = c.CoachID
+		}
+		subjectMap, err := r.GetCoachSubjectsBatch(ids)
+		if err != nil {
+			return nil, 0, err
+		}
+		for i := range coaches {
+			coaches[i].Subjects = subjectMap[coaches[i].CoachID]
+			if coaches[i].Subjects == nil {
+				coaches[i].Subjects = []CoachSubject{}
+			}
+		}
+	}
+
 	return coaches, total, nil
 }
 
@@ -162,6 +187,16 @@ func (r *CoachRepo) GetDetail(coachID, tenantID int) (*CoachDetailRow, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	subjects, err := r.GetCoachSubjects(coachID)
+	if err != nil {
+		return nil, err
+	}
+	coach.Subjects = subjects
+	if coach.Subjects == nil {
+		coach.Subjects = []CoachSubject{}
+	}
+
 	return &coach, nil
 }
 
@@ -180,6 +215,73 @@ func (r *CoachRepo) SoftDelete(coachID, tenantID, deletedBy int) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
+func (r *CoachRepo) CreateCoachSubjects(coachID int, subjectIDs []int) error {
+	if len(subjectIDs) == 0 {
+		return nil
+	}
+	stmt, err := r.DB.Prepare("INSERT INTO coach_subjects (coach_id, subject_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, sid := range subjectIDs {
+		if _, err := stmt.Exec(coachID, sid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *CoachRepo) GetCoachSubjects(coachID int) ([]CoachSubject, error) {
+	rows, err := r.DB.Query(`
+		SELECT cs.subject_id, s.name
+		FROM coach_subjects cs
+		JOIN subjects s ON cs.subject_id = s.id
+		WHERE cs.coach_id = $1 AND s.deleted_at IS NULL
+		ORDER BY s.name
+	`, coachID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var subjects []CoachSubject
+	for rows.Next() {
+		var cs CoachSubject
+		if err := rows.Scan(&cs.SubjectID, &cs.SubjectName); err != nil {
+			return nil, err
+		}
+		subjects = append(subjects, cs)
+	}
+	return subjects, rows.Err()
+}
+
+func (r *CoachRepo) GetCoachSubjectsBatch(coachIDs []int) (map[int][]CoachSubject, error) {
+	if len(coachIDs) == 0 {
+		return map[int][]CoachSubject{}, nil
+	}
+	rows, err := r.DB.Query(`
+		SELECT cs.coach_id, cs.subject_id, s.name
+		FROM coach_subjects cs
+		JOIN subjects s ON cs.subject_id = s.id
+		WHERE cs.coach_id = ANY($1) AND s.deleted_at IS NULL
+		ORDER BY s.name
+	`, pq.Array(coachIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[int][]CoachSubject)
+	for rows.Next() {
+		var coachID int
+		var cs CoachSubject
+		if err := rows.Scan(&coachID, &cs.SubjectID, &cs.SubjectName); err != nil {
+			return nil, err
+		}
+		result[coachID] = append(result[coachID], cs)
+	}
+	return result, rows.Err()
+}
+
 func (r *CoachRepo) Create(tenantID, userID int, name string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(
@@ -187,6 +289,32 @@ func (r *CoachRepo) Create(tenantID, userID int, name string) (int, error) {
 		tenantID, userID, name,
 	).Scan(&id)
 	return id, err
+}
+
+func (r *CoachRepo) CreateInTx(tx *sql.Tx, tenantID, userID int, name string) (int, error) {
+	var id int
+	err := tx.QueryRow(
+		"INSERT INTO coaches (tenant_id, user_id, name) VALUES ($1, $2, $3) RETURNING id",
+		tenantID, userID, name,
+	).Scan(&id)
+	return id, err
+}
+
+func (r *CoachRepo) CreateCoachSubjectsInTx(tx *sql.Tx, coachID int, subjectIDs []int) error {
+	if len(subjectIDs) == 0 {
+		return nil
+	}
+	stmt, err := tx.Prepare("INSERT INTO coach_subjects (coach_id, subject_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, sid := range subjectIDs {
+		if _, err := stmt.Exec(coachID, sid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *CoachRepo) Reactivate(coachID, tenantID int) (bool, error) {

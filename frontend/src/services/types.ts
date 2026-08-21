@@ -50,6 +50,7 @@ export type Coach = {
   email: string;
   created_at?: string;
   deleted_at?: string | null;
+  subjects: Subject[];
 };
 
 export type CoachStatMetric = {
@@ -87,8 +88,10 @@ export type Assignment = {
   test_id: number;
   test_title: string;
   coach_id: number;
+  coach_name: string;
   status: string;
   assigned_at: string;
+  subject_name: string;
 };
 
 export type StudentDetail = {
@@ -124,6 +127,7 @@ export type CoachDetail = {
   deleted_by_name?: string | null;
   deleted_by_email?: string | null;
   deleted_by_role?: string | null;
+  subjects: Subject[];
 };
 
 export type CoachTest = {

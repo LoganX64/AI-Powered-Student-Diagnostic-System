@@ -6,7 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDateDDMMYYYY(isoOrDate: string): string {
+  if (!isoOrDate) return "—";
   const d = new Date(isoOrDate);
+  if (isNaN(d.getTime())) return "—";
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();

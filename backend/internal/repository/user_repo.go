@@ -68,6 +68,15 @@ func (r *UserRepo) Create(tenantID int, email, hashedPassword, role string) (int
 	return id, err
 }
 
+func (r *UserRepo) CreateInTx(tx *sql.Tx, tenantID int, email, hashedPassword, role string) (int, error) {
+	var id int
+	err := tx.QueryRow(
+		"INSERT INTO users (tenant_id, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id",
+		tenantID, email, hashedPassword, role,
+	).Scan(&id)
+	return id, err
+}
+
 func (r *UserRepo) GetPasswordHash(userID int) (string, error) {
 	var hash string
 	err := r.DB.QueryRow("SELECT password FROM users WHERE id = $1", userID).Scan(&hash)

@@ -32,8 +32,10 @@ type AssignmentDetailRow struct {
 	TestID      int    `json:"test_id"`
 	TestTitle   string `json:"test_title"`
 	CoachID     int    `json:"coach_id"`
+	CoachName   string `json:"coach_name"`
 	Status      string `json:"status"`
 	AssignedAt  string `json:"assigned_at"`
+	SubjectName string `json:"subject_name"`
 }
 
 func (r *AssignmentRepo) Create(studentID, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
@@ -146,7 +148,16 @@ func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, status strin
 	return assignments, total, nil
 }
 
-func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, status string, limit, offset int) ([]AssignmentDetailRow, int, error) {
+type AssignmentFilters struct {
+	Status     string
+	TestID     string
+	Search     string
+	Year       string
+	SubjectID  string
+	CoachIDStr string
+}
+
+func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, filters AssignmentFilters, limit, offset int) ([]AssignmentDetailRow, int, error) {
 	where := "s.tenant_id=$1 AND s.deleted_at IS NULL"
 	args := []interface{}{tenantID}
 
@@ -154,17 +165,41 @@ func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, s
 		where += " AND a.coach_id=$" + strconv.Itoa(len(args)+1)
 		args = append(args, *coachID)
 	}
-	if testIDStr != "" {
-		testID, err := strconv.Atoi(testIDStr)
+	if filters.CoachIDStr != "" && coachID == nil {
+		cid, err := strconv.Atoi(filters.CoachIDStr)
+		if err != nil {
+			return nil, 0, err
+		}
+		where += " AND a.coach_id=$" + strconv.Itoa(len(args)+1)
+		args = append(args, cid)
+	}
+	if filters.TestID != "" {
+		testID, err := strconv.Atoi(filters.TestID)
 		if err != nil {
 			return nil, 0, err
 		}
 		where += " AND a.test_id=$" + strconv.Itoa(len(args)+1)
 		args = append(args, testID)
 	}
-	where, args = applyStatusFilter(where, args, status)
+	if filters.SubjectID != "" {
+		sid, err := strconv.Atoi(filters.SubjectID)
+		if err != nil {
+			return nil, 0, err
+		}
+		where += " AND t.subject_id=$" + strconv.Itoa(len(args)+1)
+		args = append(args, sid)
+	}
+	if filters.Year != "" {
+		where += " AND EXTRACT(YEAR FROM a.assigned_at)::text=$" + strconv.Itoa(len(args)+1)
+		args = append(args, filters.Year)
+	}
+	if filters.Search != "" {
+		where += " AND (s.name ILIKE $" + strconv.Itoa(len(args)+1) + " OR t.title ILIKE $" + strconv.Itoa(len(args)+1) + " OR t.subject_name ILIKE $" + strconv.Itoa(len(args)+1) + ")"
+		args = append(args, "%"+filters.Search+"%")
+	}
+	where, args = applyStatusFilter(where, args, filters.Status)
 
-	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id WHERE " + where
+	baseQuery := "FROM assignments a JOIN students s ON a.student_id = s.id JOIN tests t ON a.test_id = t.id JOIN coaches c ON a.coach_id = c.id WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow("SELECT COUNT(*) "+baseQuery, args...).Scan(&total)
@@ -172,7 +207,7 @@ func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, s
 		return nil, 0, err
 	}
 
-	dataQuery := "SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, a.status, a.assigned_at " + baseQuery
+	dataQuery := "SELECT a.id, a.student_id, s.name, s.student_code, a.test_id, t.title, a.coach_id, c.name, a.status, a.assigned_at, t.subject_name " + baseQuery
 	dataQuery += " ORDER BY a.id DESC LIMIT $" + strconv.Itoa(len(args)+1) + " OFFSET $" + strconv.Itoa(len(args)+2)
 	args = append(args, limit, offset)
 
@@ -185,7 +220,7 @@ func (r *AssignmentRepo) ListAll(tenantID int, coachID *int, testIDStr string, s
 	var assignments []AssignmentDetailRow
 	for rows.Next() {
 		var a AssignmentDetailRow
-		if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.StudentCode, &a.TestID, &a.TestTitle, &a.CoachID, &a.Status, &a.AssignedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.StudentID, &a.StudentName, &a.StudentCode, &a.TestID, &a.TestTitle, &a.CoachID, &a.CoachName, &a.Status, &a.AssignedAt, &a.SubjectName); err != nil {
 			return nil, 0, err
 		}
 		assignments = append(assignments, a)

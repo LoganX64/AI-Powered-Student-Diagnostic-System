@@ -31,6 +31,7 @@ import { BatchesPage } from "../src/features/shared/BatchesPage.tsx";
 import { BillingPage } from "../src/features/shared/BillingPage.tsx";
 import { NotificationsPage } from "../src/features/shared/NotificationsPage.tsx";
 import { AssignmentDetailPage } from "../src/features/shared/AssignmentDetailPage.tsx";
+import { AssignTestPage } from "../src/features/shared/AssignTestPage.tsx";
 
 const router = createBrowserRouter([
   // Public pages
@@ -60,6 +61,7 @@ const router = createBrowserRouter([
       { path: "admin/subjects", Component: SubjectsPage },
       { path: "admin/tests", Component: TestsPage },
       { path: "admin/all-tests", Component: AllTestsPage },
+      { path: "admin/assign-test", Component: AssignTestPage },
       { path: "admin/test-details", Component: TestDetailsPage },
       { path: "admin/tests/:id", Component: TestDetailPage },
       { path: "admin/tests/:id/questions", Component: QuestionsPage },
@@ -79,6 +81,7 @@ const router = createBrowserRouter([
       { path: "coach/subjects", Component: SubjectsPage },
       { path: "coach/tests", Component: TestsPage },
       { path: "coach/all-tests", Component: AllTestsPage },
+      { path: "coach/assign-test", Component: AssignTestPage },
       { path: "coach/test-details", Component: TestDetailsPage },
       { path: "coach/tests/:id", Component: TestDetailPage },
       { path: "coach/tests/:id/questions", Component: QuestionsPage },

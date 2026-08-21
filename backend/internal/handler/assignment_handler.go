@@ -181,8 +181,21 @@ func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	testID := c.Query("test_id")
 	status := c.Query("status")
+	search := c.Query("search")
+	year := c.Query("year")
+	subjectID := c.Query("subject_id")
+	coachIDStr := c.Query("coach_id")
 
-	assignments, total, err := h.AssignmentRepo.ListAll(tenantID, coachID, testID, status, limit, offset)
+	filters := repository.AssignmentFilters{
+		Status:     status,
+		TestID:     testID,
+		Search:     search,
+		Year:       year,
+		SubjectID:  subjectID,
+		CoachIDStr: coachIDStr,
+	}
+
+	assignments, total, err := h.AssignmentRepo.ListAll(tenantID, coachID, filters, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch assignments")
 		return
