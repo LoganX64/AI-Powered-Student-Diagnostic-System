@@ -64,6 +64,7 @@ export type Student = {
   name: string;
   student_code: string;
   coach_id: number;
+  coach_name: string;
   batch_id?: number | null;
   deleted_at?: string | null;
 };

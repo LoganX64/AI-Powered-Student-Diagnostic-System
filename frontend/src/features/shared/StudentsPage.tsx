@@ -201,7 +201,7 @@ export function StudentsPage() {
                   <TableHead className="w-16">ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Code</TableHead>
-                  {isAdmin && <TableHead className="w-24">Coach ID</TableHead>}
+                  {isAdmin && <TableHead className="w-32">Coach</TableHead>}
                   <TableHead className="w-28 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -227,7 +227,7 @@ export function StudentsPage() {
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="text-muted-foreground">
-                        {student.coach_id}
+                        {student.coach_name || "—"}
                       </TableCell>
                     )}
                     <TableCell className="text-right">

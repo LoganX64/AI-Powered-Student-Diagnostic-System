@@ -18,6 +18,7 @@ type StudentRow struct {
 	Name        string  `json:"name"`
 	StudentCode string  `json:"student_code"`
 	CoachID     int     `json:"coach_id"`
+	CoachName   string  `json:"coach_name"`
 	BatchID     *int    `json:"batch_id"`
 	CreatedAt   string  `json:"created_at"`
 	DeletedAt   *string `json:"deleted_at"`
@@ -101,29 +102,29 @@ func (r *StudentRepo) GetCoachID(studentID, tenantID int) (int, error) {
 }
 
 func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, search string, batchID *int, limit, offset int) ([]StudentRow, int, error) {
-	where := "tenant_id=$1"
+	where := "s.tenant_id=$1"
 	args := []interface{}{tenantID}
 
 	if coachID != nil {
-		where += " AND coach_id=$" + strconv.Itoa(len(args)+1)
+		where += " AND s.coach_id=$" + strconv.Itoa(len(args)+1)
 		args = append(args, *coachID)
 	}
 	if includeDeactivated {
-		where += " AND deleted_at IS NOT NULL"
+		where += " AND s.deleted_at IS NOT NULL"
 	} else {
-		where += " AND deleted_at IS NULL"
+		where += " AND s.deleted_at IS NULL"
 	}
 	if batchID != nil {
-		where += " AND batch_id=$" + strconv.Itoa(len(args)+1)
+		where += " AND s.batch_id=$" + strconv.Itoa(len(args)+1)
 		args = append(args, *batchID)
 	}
 	if search != "" {
-		where += " AND (name ILIKE $" + strconv.Itoa(len(args)+1) + " OR student_code ILIKE $" + strconv.Itoa(len(args)+1) + ")"
+		where += " AND (s.name ILIKE $" + strconv.Itoa(len(args)+1) + " OR s.student_code ILIKE $" + strconv.Itoa(len(args)+1) + ")"
 		args = append(args, "%"+search+"%")
 	}
 
-	countQuery := "SELECT COUNT(*) FROM students WHERE " + where
-	dataQuery := "SELECT id, name, student_code, coach_id, batch_id, created_at, deleted_at FROM students WHERE " + where
+	countQuery := "SELECT COUNT(*) FROM students s WHERE " + where
+	dataQuery := "SELECT s.id, s.name, s.student_code, s.coach_id, COALESCE(c.name, '') AS coach_name, s.batch_id, s.created_at, s.deleted_at FROM students s LEFT JOIN coaches c ON s.coach_id = c.id WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
@@ -143,7 +144,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	var students []StudentRow
 	for rows.Next() {
 		var s StudentRow
-		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.BatchID, &s.CreatedAt, &s.DeletedAt); err != nil {
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName, &s.BatchID, &s.CreatedAt, &s.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		students = append(students, s)
