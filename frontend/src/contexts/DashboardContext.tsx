@@ -90,7 +90,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
               avgStudentSqi: m?.avg_sqi ?? 0,
               status: c.deleted_at ? ("Inactive" as const) : ("Active" as const),
               joinedDate: c.created_at ?? "—",
-              subjects: (c.subjects ?? []).map((s) => s.name).join(", "),
+              subjects: (c.subjects ?? []).map((s) => s.subject_name).join(", "),
             };
           });
           if (!cancelled) setCoachRows(rows);

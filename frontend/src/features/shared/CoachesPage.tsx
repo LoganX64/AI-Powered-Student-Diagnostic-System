@@ -245,7 +245,7 @@ export function CoachesPage() {
                         ) : (
                           (coach.subjects ?? []).map((s) => (
                             <Badge key={s.subject_id} variant="secondary" className="text-xs">
-                              {s.name}
+                              {s.subject_name}
                             </Badge>
                           ))
                         )}

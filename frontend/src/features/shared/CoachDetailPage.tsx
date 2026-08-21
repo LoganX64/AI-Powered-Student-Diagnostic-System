@@ -146,7 +146,7 @@ export function CoachDetailPage() {
               <span className="text-sm text-muted-foreground mr-1">Subjects:</span>
               {coach.subjects.map((s) => (
                 <Badge key={s.subject_id} variant="secondary">
-                  {s.name}
+                  {s.subject_name}
                 </Badge>
               ))}
             </div>
