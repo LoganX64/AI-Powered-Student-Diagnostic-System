@@ -88,6 +88,20 @@ func (r *UserRepo) UpdatePassword(userID int, newHash string) error {
 	return err
 }
 
+func (r *UserRepo) UpdateEmail(tx *sql.Tx, userID int, email string) error {
+	_, err := tx.Exec("UPDATE users SET email = $1 WHERE id = $2", email, userID)
+	return err
+}
+
+func (r *UserRepo) EmailExistsForOther(email string, excludeUserID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND id != $2)",
+		email, excludeUserID,
+	).Scan(&exists)
+	return exists, err
+}
+
 func (r *UserRepo) ExistsByID(userID int) (bool, error) {
 	var exists bool
 	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)

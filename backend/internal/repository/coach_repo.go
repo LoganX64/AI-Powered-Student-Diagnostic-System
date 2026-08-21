@@ -317,6 +317,19 @@ func (r *CoachRepo) CreateCoachSubjectsInTx(tx *sql.Tx, coachID int, subjectIDs 
 	return nil
 }
 
+func (r *CoachRepo) UpdateName(tx *sql.Tx, coachID, tenantID int, name string) error {
+	_, err := tx.Exec(
+		"UPDATE coaches SET name = $1 WHERE id = $2 AND tenant_id = $3",
+		name, coachID, tenantID,
+	)
+	return err
+}
+
+func (r *CoachRepo) DeleteCoachSubjects(tx *sql.Tx, coachID int) error {
+	_, err := tx.Exec("DELETE FROM coach_subjects WHERE coach_id = $1", coachID)
+	return err
+}
+
 func (r *CoachRepo) Reactivate(coachID, tenantID int) (bool, error) {
 	result, err := r.DB.Exec(
 		`UPDATE coaches SET deleted_at = NULL, deleted_by = NULL

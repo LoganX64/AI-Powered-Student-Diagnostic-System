@@ -175,6 +175,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/coaches", adminHandler.ListCoaches)
 		admin.GET("/coaches/:id", adminHandler.GetCoach)
 		admin.DELETE("/coaches/:id", adminHandler.DeleteCoach)
+		admin.PUT("/coaches/:id", adminHandler.UpdateCoach)
 		admin.PUT("/coaches/:id/reactivate", adminHandler.ReactivateCoach)
 		admin.GET("/coaches/:id/tests", adminHandler.ListCoachTests)
 		admin.GET("/coaches/:id/students", adminHandler.ListCoachStudents)

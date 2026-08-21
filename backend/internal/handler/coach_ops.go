@@ -105,6 +105,84 @@ func (h *AdminHandler) ReactivateCoach(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "coach account reactivated"})
 }
 
+type UpdateCoachRequest struct {
+	Name       string `json:"name" binding:"required"`
+	Email      string `json:"email" binding:"required"`
+	SubjectIDs []int  `json:"subject_ids" binding:"required"`
+}
+
+func (h *AdminHandler) UpdateCoach(c *gin.Context) {
+	coachID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid coach id")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c, h.UserRepo)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	var req UpdateCoachRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	coach, err := h.CoachRepo.GetDetail(coachID, tenantID)
+	if err != nil {
+		utils.NotFound(c, "coach not found")
+		return
+	}
+
+	emailTaken, err := h.UserRepo.EmailExistsForOther(req.Email, coach.UserID)
+	if err != nil {
+		utils.InternalError(c, err, "failed to verify email")
+		return
+	}
+	if emailTaken {
+		utils.BadRequest(c, "email is already in use by another account")
+		return
+	}
+
+	tx, err := h.CoachRepo.DB.Begin()
+	if err != nil {
+		utils.InternalError(c, err, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback()
+
+	if err := h.CoachRepo.UpdateName(tx, coachID, tenantID, req.Name); err != nil {
+		utils.InternalError(c, err, "failed to update coach name")
+		return
+	}
+
+	if err := h.UserRepo.UpdateEmail(tx, coach.UserID, req.Email); err != nil {
+		utils.InternalError(c, err, "failed to update coach email")
+		return
+	}
+
+	if err := h.CoachRepo.DeleteCoachSubjects(tx, coachID); err != nil {
+		utils.InternalError(c, err, "failed to update coach subjects")
+		return
+	}
+
+	if len(req.SubjectIDs) > 0 {
+		if err := h.CoachRepo.CreateCoachSubjectsInTx(tx, coachID, req.SubjectIDs); err != nil {
+			utils.InternalError(c, err, "failed to update coach subjects")
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		utils.InternalError(c, err, "failed to save changes")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "coach updated"})
+}
+
 func (h *AdminHandler) ListCoachTests(c *gin.Context) {
 	coachID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
