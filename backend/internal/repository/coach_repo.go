@@ -215,23 +215,6 @@ func (r *CoachRepo) SoftDelete(coachID, tenantID, deletedBy int) (bool, error) {
 	return rowsAffected > 0, nil
 }
 
-func (r *CoachRepo) CreateCoachSubjects(coachID int, subjectIDs []int) error {
-	if len(subjectIDs) == 0 {
-		return nil
-	}
-	stmt, err := r.DB.Prepare("INSERT INTO coach_subjects (coach_id, subject_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for _, sid := range subjectIDs {
-		if _, err := stmt.Exec(coachID, sid); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (r *CoachRepo) GetCoachSubjects(coachID int) ([]CoachSubject, error) {
 	rows, err := r.DB.Query(`
 		SELECT cs.subject_id, s.name
@@ -280,15 +263,6 @@ func (r *CoachRepo) GetCoachSubjectsBatch(coachIDs []int) (map[int][]CoachSubjec
 		result[coachID] = append(result[coachID], cs)
 	}
 	return result, rows.Err()
-}
-
-func (r *CoachRepo) Create(tenantID, userID int, name string) (int, error) {
-	var id int
-	err := r.DB.QueryRow(
-		"INSERT INTO coaches (tenant_id, user_id, name) VALUES ($1, $2, $3) RETURNING id",
-		tenantID, userID, name,
-	).Scan(&id)
-	return id, err
 }
 
 func (r *CoachRepo) CreateInTx(tx *sql.Tx, tenantID, userID int, name string) (int, error) {

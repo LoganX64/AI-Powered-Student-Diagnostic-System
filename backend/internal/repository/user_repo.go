@@ -43,16 +43,6 @@ func (r *UserRepo) GetByEmailWithCoachCheck(email string) (*UserLoginRow, error)
 	return &u, nil
 }
 
-func (r *UserRepo) GetByEmail(email string) (int, string, sql.NullInt32, error) {
-	var userID int
-	var role string
-	var tenantID sql.NullInt32
-	err := r.DB.QueryRow(
-		"SELECT id, role, tenant_id FROM users WHERE email = $1", email,
-	).Scan(&userID, &role, &tenantID)
-	return userID, role, tenantID, err
-}
-
 func (r *UserRepo) CreateTenant(name string) (int, error) {
 	var id int
 	err := r.DB.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", name).Scan(&id)

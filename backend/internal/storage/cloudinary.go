@@ -126,10 +126,6 @@ func (c *CloudinaryStorage) Put(ctx context.Context, key string, r io.Reader) (s
 	return out.URL, nil
 }
 
-func (c *CloudinaryStorage) GetURL(key string) string {
-	return c.BaseURL + "/video/upload" // management endpoint; actual URL returned by Put
-}
-
 // sign builds the Cloudinary message signature: sha1 of sorted "k=v&..." + secret.
 func (c *CloudinaryStorage) sign(params map[string]string) string {
 	keys := make([]string, 0, len(params))

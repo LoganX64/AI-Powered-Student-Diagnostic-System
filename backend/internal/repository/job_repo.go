@@ -46,20 +46,6 @@ func (r *JobRepo) Get(id, tenantID int) (JobRow, error) {
 	return j, err
 }
 
-// GetByID loads a job by id + tenant (used by the worker, which carries the
-// tenant it enqueued the job with).
-func (r *JobRepo) GetByID(id, tenantID int) (JobRow, error) {
-	var j JobRow
-	err := r.DB.QueryRow(`
-		SELECT id, tenant_id, type, payload, total, done, failed, status, created_at, updated_at
-		FROM jobs WHERE id = $1 AND tenant_id = $2
-	`, id, tenantID).Scan(
-		&j.ID, &j.TenantID, &j.Type, &j.Payload, &j.Total,
-		&j.Done, &j.Failed, &j.Status, &j.CreatedAt, &j.UpdatedAt,
-	)
-	return j, err
-}
-
 func (r *JobRepo) Increment(id, tenantID int, doneDelta, failedDelta int) error {
 	_, err := r.DB.Exec(`
 		UPDATE jobs

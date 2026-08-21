@@ -17,7 +17,6 @@ const (
 	DefaultLimit = 10
 	// LoginLimit is a stricter per-IP budget for auth/login routes.
 	LoginLimit = 5
-	ipBurst   = 10
 	ipWindow  = time.Minute
 )
 
@@ -38,12 +37,6 @@ func (l *ipLimiter) get(ip string) *rate.Limiter {
 		return loaded.(*rate.Limiter)
 	}
 	return val.(*rate.Limiter)
-}
-
-// RateLimit throttles each client IP to DefaultLimit requests per minute
-// in-memory (single-instance fallback). Retained for standard (non-Redis) mode.
-func RateLimit() gin.HandlerFunc {
-	return NewRateLimiter(nil, DefaultLimit)
 }
 
 // NewRateLimiter returns a rate-limit middleware. When rdb is non-nil, limits

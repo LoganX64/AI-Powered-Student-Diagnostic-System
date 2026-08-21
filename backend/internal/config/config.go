@@ -22,15 +22,9 @@ type Config struct {
 	AllowedOrigins    []string
 	TrustedProxies    []string
 
-	ScaleBandB            int
 	ScaleBandC            int
 	ComputeChunkSize      int
-	QueueMode             string
 	UploadDir             string
-	PricingTimingFlat     float64
-	PricingAutosaveFlat   float64
-	PricingTabFlat        float64
-	PricingVideoPerMinute float64
 	SubmitGraceSeconds    int
 
 	RedisURL      string
@@ -116,7 +110,6 @@ func LoadConfig() *Config {
 		}
 	}
 
-	scaleBandB := intEnv("SCALE_BAND_B", 10000)
 	scaleBandC := intEnv("SCALE_BAND_C", 50000)
 	computeChunkSize := intEnv("COMPUTE_CHUNK_SIZE", 100)
 	submitGrace := intEnv("SUBMIT_GRACE_SECONDS", 30)
@@ -136,11 +129,6 @@ func LoadConfig() *Config {
 		uploadDir = "./uploads"
 	}
 
-	pricingTiming := floatEnv("PRICING_TIMING_FLAT", 0)
-	pricingAutosave := floatEnv("PRICING_AUTOSAVE_FLAT", 0)
-	pricingTab := floatEnv("PRICING_TAB_FLAT", 0)
-	pricingVideo := floatEnv("PRICING_VIDEO_PER_MINUTE", 0)
-
 	return &Config{
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
@@ -153,16 +141,10 @@ func LoadConfig() *Config {
 		AllowedOrigins:    allowedOrigins,
 		TrustedProxies:    trustedProxies,
 
-		ScaleBandB:            scaleBandB,
-		ScaleBandC:            scaleBandC,
-		ComputeChunkSize:      computeChunkSize,
-		QueueMode:             queueMode,
-		UploadDir:             uploadDir,
-		PricingTimingFlat:     pricingTiming,
-		PricingAutosaveFlat:   pricingAutosave,
-		PricingTabFlat:        pricingTab,
-		PricingVideoPerMinute: pricingVideo,
-		SubmitGraceSeconds:    submitGrace,
+		ScaleBandC:         scaleBandC,
+		ComputeChunkSize:   computeChunkSize,
+		UploadDir:          uploadDir,
+		SubmitGraceSeconds: submitGrace,
 
 		RedisURL:      redisURL,
 		RedisEnabled:  redisEnabled,
@@ -176,17 +158,6 @@ func intEnv(key string, def int) int {
 			return n
 		} else {
 			log.Printf("[CONFIG] invalid int for %s=%q, using default %d: %v", key, v, def, err)
-		}
-	}
-	return def
-}
-
-func floatEnv(key string, def float64) float64 {
-	if v := os.Getenv(key); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil {
-			return f
-		} else {
-			log.Printf("[CONFIG] invalid float for %s=%q, using default %v: %v", key, v, def, err)
 		}
 	}
 	return def

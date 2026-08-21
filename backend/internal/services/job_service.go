@@ -30,7 +30,7 @@ type computeJobPayload struct {
 // unacknowledged and replay it (at-least-once). An unparseable payload or an
 // already-finished job is treated as terminal (nil error) so it is acked.
 func (s *JobService) Process(jobID, tenantID int) error {
-	job, err := s.JobRepo.GetByID(jobID, tenantID)
+	job, err := s.JobRepo.Get(jobID, tenantID)
 	if err != nil {
 		return err
 	}

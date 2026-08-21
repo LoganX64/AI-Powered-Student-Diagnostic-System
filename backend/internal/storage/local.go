@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,8 +33,4 @@ func (l *LocalStorage) Put(ctx context.Context, key string, r io.Reader) (string
 		return "", err
 	}
 	return dst, nil
-}
-
-func (l *LocalStorage) GetURL(key string) string {
-	return fmt.Sprintf("file://%s", filepath.Join(l.Dir, filepath.FromSlash(key)))
 }
