@@ -358,7 +358,7 @@ export function CreateAssignmentForm() {
       {/* Row 1: Test + Target side by side */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Test selection */}
-        <Card>
+        <Card className="overflow-visible">
           <CardContent className="flex flex-col gap-2 pt-5">
             <Label>Test</Label>
             <SearchableSelect
