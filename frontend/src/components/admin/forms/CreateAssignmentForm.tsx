@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -8,11 +8,15 @@ import {
   UsersIcon,
   VideoIcon,
   CreditCardIcon,
+  ChevronDownIcon,
+  CheckIcon,
+  SearchIcon,
 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -23,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Dialog,
   DialogContent,
@@ -91,6 +96,109 @@ function samePolicy(a: IntegrityPolicy, b: IntegrityPolicy): boolean {
     a.autosave === b.autosave &&
     a.video_proctoring === b.video_proctoring &&
     a.tab_switch_detect === b.tab_switch_detect
+  );
+}
+
+function StudentPicker({
+  students,
+  value,
+  onChange,
+  disabled,
+}: {
+  students: Student[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = students.find((s) => String(s.student_id) === value);
+
+  const displayValue = open ? search : selected ? `${selected.name} (${selected.student_code})` : "";
+
+  const filtered = students
+    .filter(
+      (s) =>
+        s.name.toLowerCase().includes(search.toLowerCase()) ||
+        s.student_code.toLowerCase().includes(search.toLowerCase())
+    )
+    .slice(0, 50);
+
+  const totalMatches = students.filter(
+    (s) =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.student_code.toLowerCase().includes(search.toLowerCase())
+  ).length;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+        <input
+          ref={inputRef}
+          type="text"
+          placeholder="Search student by name or code..."
+          value={displayValue}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            setSearch("");
+          }}
+          disabled={disabled}
+          className="flex h-9 w-full rounded-md border bg-transparent pl-9 pr-8 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+      </div>
+
+      {open && (
+        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-sm">
+          {filtered.length === 0 ? (
+            <p className="py-2 text-center text-xs text-muted-foreground">No students found.</p>
+          ) : (
+            filtered.map((s) => (
+              <button
+                key={s.student_id}
+                type="button"
+                onClick={() => {
+                  onChange(String(s.student_id));
+                  setOpen(false);
+                  setSearch("");
+                }}
+                className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground ${
+                  value === String(s.student_id) ? "bg-accent" : ""
+                }`}
+              >
+                <CheckIcon className={`size-3.5 shrink-0 ${value === String(s.student_id) ? "opacity-100" : "opacity-0"}`} />
+                <span>{s.name}</span>
+                <span className="ml-auto text-xs text-muted-foreground font-mono">{s.student_code}</span>
+              </button>
+            ))
+          )}
+          {totalMatches > 50 && (
+            <p className="py-1.5 text-center text-xs text-muted-foreground">
+              Showing 50 of {totalMatches} — type more to narrow
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -246,268 +354,224 @@ export function CreateAssignmentForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Step 1: Test */}
-      <Card>
-        <CardHeader>
-          <CardTitle>1. Select Test</CardTitle>
-          <CardDescription>Choose the diagnostic test to assign.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <Label>Test</Label>
-          <Select value={selectedTestId} onValueChange={setSelectedTestId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a test" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {tests.map((t) => (
-                  <SelectItem key={t.test_id} value={t.test_id.toString()}>
-                    {t.title} ({t.duration} min)
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          {selectedTest && (
-            <p className="text-xs text-muted-foreground">
-              Duration: {selectedTest.duration} min · Coach: {selectedTest.coach_name}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Step 2: Target */}
-      <Card>
-        <CardHeader>
-          <CardTitle>2. Select Target</CardTitle>
-          <CardDescription>
-            Assign to a single student or an entire batch. The live count drives pricing.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={targetType === "student" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setTargetType("student")}
-            >
-              <UsersIcon className="size-4" /> Single student
-            </Button>
-            <Button
-              type="button"
-              variant={targetType === "batch" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setTargetType("batch")}
-            >
-              <FolderIcon className="size-4" /> Batch
-            </Button>
-          </div>
-
-          {targetType === "student" ? (
-            <div className="flex flex-col gap-2">
-              <Label>Student</Label>
-              <Select
-                value={selectedStudentId}
-                onValueChange={setSelectedStudentId}
-                disabled={!selectedTest}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a student" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {eligibleStudents.map((s) => (
-                      <SelectItem key={s.student_id} value={s.student_id.toString()}>
-                        {s.name} ({s.student_code})
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              {selectedTest && eligibleStudents.length === 0 && (
-                <p className="text-xs text-destructive">
-                  No students belong to this test&apos;s coach.
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Label>Batch</Label>
-              <Select
-                value={selectedBatchId}
-                onValueChange={setSelectedBatchId}
-                disabled={!selectedTest}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a batch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {batches.map((b) => (
-                      <SelectItem key={b.id} value={b.id.toString()}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+    <div className="flex flex-col gap-4">
+      {/* Row 1: Test + Target side by side */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Test selection */}
+        <Card>
+          <CardContent className="flex flex-col gap-2 pt-5">
+            <Label>Test</Label>
+            <SearchableSelect
+              options={tests.map((t) => ({
+                label: `${t.title} (${t.duration} min)`,
+                value: t.test_id.toString(),
+                search: t.title,
+              }))}
+              value={selectedTestId}
+              onChange={setSelectedTestId}
+              placeholder="Search tests..."
+            />
+            {selectedTest && (
               <p className="text-xs text-muted-foreground">
-                Only students in the batch who belong to this test&apos;s coach are counted.
+                Duration: {selectedTest.duration} min · Coach: {selectedTest.coach_name}
               </p>
-            </div>
-          )}
+            )}
+          </CardContent>
+        </Card>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Students to assign:</span>
-            <Badge variant="secondary">{count}</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Step 3: Exam type */}
-      <Card>
-        <CardHeader>
-          <CardTitle>3. Exam Type &amp; Integrity</CardTitle>
-          <CardDescription>
-            Pick a preset, or fine-tune the individual integrity flags below.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {PRESETS.map((p) => {
-              const active = samePolicy(policy, presetPolicy(p.key));
-              const Icon = p.icon;
-              return (
+        {/* Target selection */}
+        <Card className="overflow-visible">
+          <CardContent className="flex flex-col gap-2 pt-5">
+            <div className="flex items-center justify-between">
+              <Label>Assign to</Label>
+              <div className="flex gap-1">
                 <button
                   type="button"
-                  key={p.key}
-                  onClick={() => setPolicy(presetPolicy(p.key))}
-                  className={`flex flex-col gap-2 rounded-lg border p-4 text-left transition-colors ${
-                    active
-                      ? "border-primary bg-primary/5"
-                      : "hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => setTargetType("student")}
+                  className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    targetType === "student"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                   }`}
                 >
-                  <Icon className="size-5" />
-                  <span className="font-medium">{p.title}</span>
-                  <span className="text-xs text-muted-foreground">{p.desc}</span>
+                  <UsersIcon className="size-3" /> Student
                 </button>
-              );
-            })}
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setTargetType("batch")}
+                  className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    targetType === "batch"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  <FolderIcon className="size-3" /> Batch
+                </button>
+              </div>
+            </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Server timing</p>
-                <p className="text-xs text-muted-foreground">Authoritative start/deadline</p>
-              </div>
-              <Switch
-                checked={policy.server_timing}
-                onCheckedChange={(v) => setPolicy((p) => ({ ...p, server_timing: v }))}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Autosave</p>
-                <p className="text-xs text-muted-foreground">Server-side answer backups</p>
-              </div>
-              <Switch
-                checked={policy.autosave}
-                onCheckedChange={(v) => setPolicy((p) => ({ ...p, autosave: v }))}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Tab switch detection</p>
-                <p className="text-xs text-muted-foreground">Log visibility changes</p>
-              </div>
-              <Switch
-                checked={policy.tab_switch_detect}
-                onCheckedChange={(v) => setPolicy((p) => ({ ...p, tab_switch_detect: v }))}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Video proctoring</p>
-                <p className="text-xs text-muted-foreground">Record-only chunks</p>
-              </div>
-              <Switch
-                checked={policy.video_proctoring}
-                onCheckedChange={(v) => setPolicy((p) => ({ ...p, video_proctoring: v }))}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            {targetType === "student" ? (
+              <>
+                <StudentPicker
+                  students={eligibleStudents}
+                  value={selectedStudentId}
+                  onChange={setSelectedStudentId}
+                  disabled={!selectedTest}
+                />
+                {selectedTest && eligibleStudents.length === 0 && (
+                  <p className="text-xs text-destructive">
+                    No students belong to this test&apos;s coach.
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <Select
+                  value={selectedBatchId}
+                  onValueChange={setSelectedBatchId}
+                  disabled={!selectedTest}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {batches.map((b) => (
+                        <SelectItem key={b.id} value={b.id.toString()}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Students in this batch matching the test&apos;s coach.
+                </p>
+              </>
+            )}
 
-      {/* Step 4: Live price + pay */}
-      <Card>
-        <CardHeader>
-          <CardTitle>4. Review &amp; Pay</CardTitle>
-          <CardDescription>Estimated cost updates live with flags and student count.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="rounded-md border text-sm">
-            <div className="flex justify-between px-4 py-2">
-              <span className="text-muted-foreground">Base ({count} × ${PRICING.base_rate_per_student})</span>
-              <span>${base.toFixed(2)}</span>
+            <div className="flex items-center gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">Students to assign:</span>
+              <Badge variant="secondary" className="text-xs">{count}</Badge>
             </div>
-            {timing > 0 && (
-              <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">Server timing (flat)</span>
-                <span>+${timing.toFixed(2)}</span>
-              </div>
-            )}
-            {autosave > 0 && (
-              <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">Autosave (flat)</span>
-                <span>+${autosave.toFixed(2)}</span>
-              </div>
-            )}
-            {tab > 0 && (
-              <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">Tab detection (flat)</span>
-                <span>+${tab.toFixed(2)}</span>
-              </div>
-            )}
-            {video > 0 && (
-              <div className="flex justify-between px-4 py-2">
-                <span className="text-muted-foreground">
-                  Video (${PRICING.video_rate_per_student_min}/std-min × {durationMin} × {count})
-                </span>
-                <span>+${video.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between border-t px-4 py-2 font-semibold">
-              <span>Total estimated cost</span>
-              <span>${cost.toFixed(2)}</span>
-            </div>
-          </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          <Button onClick={() => setPayOpen(true)} disabled={!canProceed} className="w-fit">
-            <CreditCardIcon className="size-4" />
-            Proceed to Payment (${cost.toFixed(2)})
-          </Button>
-          {!canProceed && (
-            <p className="text-xs text-muted-foreground">
-              Select a test and at least one eligible student to continue.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Row 2: Exam type + Pricing side by side */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Exam type */}
+        <Card className="lg:col-span-2">
+          <CardContent className="flex flex-col gap-3 pt-5">
+            <Label>Exam Type &amp; Integrity</Label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {PRESETS.map((p) => {
+                const active = samePolicy(policy, presetPolicy(p.key));
+                const Icon = p.icon;
+                return (
+                  <button
+                    type="button"
+                    key={p.key}
+                    onClick={() => setPolicy(presetPolicy(p.key))}
+                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
+                      active
+                        ? "border-primary bg-primary/5"
+                        : "hover:bg-accent hover:text-accent-foreground"
+                    }`}
+                  >
+                    <Icon className="size-4 mt-0.5 shrink-0" />
+                    <div>
+                      <span className="text-sm font-medium">{p.title}</span>
+                      <span className="block text-xs text-muted-foreground">{p.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { label: "Server timing", desc: "Authoritative start/deadline", key: "server_timing" as const },
+                { label: "Autosave", desc: "Server-side answer backups", key: "autosave" as const },
+                { label: "Tab switch detection", desc: "Log visibility changes", key: "tab_switch_detect" as const },
+                { label: "Video proctoring", desc: "Record-only chunks", key: "video_proctoring" as const },
+              ].map((item) => (
+                <div key={item.key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                  <Switch
+                    checked={policy[item.key]}
+                    onCheckedChange={(v) => setPolicy((p) => ({ ...p, [item.key]: v }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pricing + Submit */}
+        <Card>
+          <CardContent className="flex flex-col gap-3 pt-5">
+            <Label>Estimated Cost</Label>
+            <div className="rounded-md border text-sm">
+              <div className="flex justify-between px-3 py-1.5">
+                <span className="text-muted-foreground">Base ({count} × ${PRICING.base_rate_per_student})</span>
+                <span>${base.toFixed(2)}</span>
+              </div>
+              {timing > 0 && (
+                <div className="flex justify-between px-3 py-1.5">
+                  <span className="text-muted-foreground">Timing</span>
+                  <span>+${timing.toFixed(2)}</span>
+                </div>
+              )}
+              {autosave > 0 && (
+                <div className="flex justify-between px-3 py-1.5">
+                  <span className="text-muted-foreground">Autosave</span>
+                  <span>+${autosave.toFixed(2)}</span>
+                </div>
+              )}
+              {tab > 0 && (
+                <div className="flex justify-between px-3 py-1.5">
+                  <span className="text-muted-foreground">Tab detect</span>
+                  <span>+${tab.toFixed(2)}</span>
+                </div>
+              )}
+              {video > 0 && (
+                <div className="flex justify-between px-3 py-1.5">
+                  <span className="text-muted-foreground">Video</span>
+                  <span>+${video.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t px-3 py-2 font-semibold">
+                <span>Total</span>
+                <span>${cost.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <Button onClick={() => setPayOpen(true)} disabled={!canProceed} className="w-full">
+              <CreditCardIcon className="size-4" />
+              Assign (${cost.toFixed(2)})
+            </Button>
+            {!canProceed && (
+              <p className="text-xs text-muted-foreground text-center">
+                Select a test and at least one student to continue.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       <Dialog open={payOpen} onOpenChange={setPayOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mock Payment</DialogTitle>
+            <DialogTitle>Confirm Assignment</DialogTitle>
             <DialogDescription>
               This is a simulated payment. No real charge will be made.
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md border p-4 text-sm">
+          <div className="rounded-md border p-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Test</span>
               <span>{selectedTest?.title}</span>

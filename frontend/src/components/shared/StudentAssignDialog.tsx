@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   getTests,
   createAssignment,
@@ -87,20 +88,16 @@ function AssignForm({
     >
       <div className="flex flex-col gap-2">
         <Label>Test</Label>
-        <Select value={testId} onValueChange={setTestId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a test" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {tests.map((t) => (
-                <SelectItem key={t.test_id} value={t.test_id.toString()}>
-                  {t.title}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          options={tests.map((t) => ({
+            label: t.title,
+            value: t.test_id.toString(),
+            search: t.title,
+          }))}
+          value={testId}
+          onChange={setTestId}
+          placeholder="Search tests..."
+        />
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 

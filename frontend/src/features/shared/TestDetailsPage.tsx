@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getAssignments, getSubjects, getCoaches, type Assignment, type Subject, type Coach } from "@/services/dashboard.service";
 import { formatDateDDMMYYYY } from "@/lib/utils";
 
@@ -146,32 +147,28 @@ export function TestDetailsPage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-xs">Subject</Label>
-              <Select value={subjectId} onValueChange={(v) => { setSubjectId(v === "all" ? "" : v); setOffset(0); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All subjects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All subjects</SelectItem>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.subject_id} value={String(s.subject_id)}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={[
+                  { label: "All subjects", value: "" },
+                  ...subjects.map((s) => ({ label: s.name, value: String(s.subject_id) })),
+                ]}
+                value={subjectId}
+                onChange={(v) => { setSubjectId(v); setOffset(0); }}
+                placeholder="Search subjects..."
+              />
             </div>
             {role === "admin" && (
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs">Coach</Label>
-                <Select value={coachId} onValueChange={(v) => { setCoachId(v === "all" ? "" : v); setOffset(0); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All coaches" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All coaches</SelectItem>
-                    {coaches.map((c) => (
-                      <SelectItem key={c.coach_id} value={String(c.coach_id)}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  options={[
+                    { label: "All coaches", value: "" },
+                    ...coaches.map((c) => ({ label: c.name, value: String(c.coach_id) })),
+                  ]}
+                  value={coachId}
+                  onChange={(v) => { setCoachId(v); setOffset(0); }}
+                  placeholder="Search coaches..."
+                />
               </div>
             )}
           </div>
