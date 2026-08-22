@@ -14,6 +14,11 @@ import (
 
 var ErrNoSession = errors.New("no active session for student")
 
+const (
+	pingPeriod = 30 * time.Second
+	writeWait  = 10 * time.Second
+)
+
 type Hub struct {
 	rdb      *redis.Client
 	sessions map[int]*Session
@@ -26,6 +31,7 @@ type Session struct {
 	ViewerMu    sync.RWMutex
 	Cancel      context.CancelFunc
 	LatestFrame []byte
+	FrameMu     sync.RWMutex
 	StartedAt   time.Time
 }
 
@@ -38,7 +44,6 @@ func NewHub(rdb *redis.Client) *Hub {
 
 func (h *Hub) RegisterStudent(studentID int, conn *websocket.Conn) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 
 	if existing, ok := h.sessions[studentID]; ok {
 		existing.Cancel()
@@ -53,30 +58,37 @@ func (h *Hub) RegisterStudent(studentID int, conn *websocket.Conn) {
 		StartedAt:   time.Now(),
 	}
 	h.sessions[studentID] = sess
+	h.mu.Unlock()
 
 	go h.subscribeRedis(ctx, studentID)
+	go h.pingStudent(conn)
+
 	log.Printf("[LIVEVIEW] Student %d registered, session started", studentID)
 }
 
 func (h *Hub) UnregisterStudent(studentID int) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	sess, ok := h.sessions[studentID]
 	if !ok {
+		h.mu.Unlock()
 		return
 	}
+	delete(h.sessions, studentID)
+	h.mu.Unlock()
 
 	sess.Cancel()
-	sess.StudentConn.Close()
 
 	sess.ViewerMu.RLock()
+	viewers := make([]*websocket.Conn, 0, len(sess.Viewers))
 	for viewer := range sess.Viewers {
-		viewer.Close()
+		viewers = append(viewers, viewer)
 	}
 	sess.ViewerMu.RUnlock()
 
-	delete(h.sessions, studentID)
+	for _, viewer := range viewers {
+		viewer.Close()
+	}
+
 	log.Printf("[LIVEVIEW] Student %d unregistered, session cleaned up", studentID)
 }
 
@@ -93,9 +105,20 @@ func (h *Hub) AddViewer(studentID int, viewerConn *websocket.Conn) error {
 	sess.Viewers[viewerConn] = struct{}{}
 	sess.ViewerMu.Unlock()
 
-	if len(sess.LatestFrame) > 0 {
-		viewerConn.WriteMessage(websocket.BinaryMessage, sess.LatestFrame)
+	sess.FrameMu.RLock()
+	latest := sess.LatestFrame
+	sess.FrameMu.RUnlock()
+
+	if len(latest) > 0 {
+		if err := viewerConn.WriteMessage(websocket.BinaryMessage, latest); err != nil {
+			log.Printf("[LIVEVIEW] Failed to send initial frame to viewer: %v", err)
+			h.RemoveViewer(studentID, viewerConn)
+			viewerConn.Close()
+			return err
+		}
 	}
+
+	go h.pingViewer(viewerConn)
 
 	log.Printf("[LIVEVIEW] Viewer added for student %d (%d viewers)", studentID, len(sess.Viewers))
 	return nil
@@ -112,9 +135,10 @@ func (h *Hub) RemoveViewer(studentID int, viewerConn *websocket.Conn) {
 
 	sess.ViewerMu.Lock()
 	delete(sess.Viewers, viewerConn)
+	count := len(sess.Viewers)
 	sess.ViewerMu.Unlock()
 
-	log.Printf("[LIVEVIEW] Viewer removed for student %d (%d viewers)", studentID, len(sess.Viewers))
+	log.Printf("[LIVEVIEW] Viewer removed for student %d (%d viewers)", studentID, count)
 }
 
 func (h *Hub) IsLive(studentID int) bool {
@@ -133,16 +157,28 @@ func (h *Hub) RelayFrame(studentID int, frame []byte) {
 		return
 	}
 
+	sess.FrameMu.Lock()
 	sess.LatestFrame = frame
+	sess.FrameMu.Unlock()
 
 	sess.ViewerMu.RLock()
+	badViewers := make([]*websocket.Conn, 0)
 	for viewer := range sess.Viewers {
 		if err := viewer.WriteMessage(websocket.BinaryMessage, frame); err != nil {
 			log.Printf("[LIVEVIEW] Failed to send frame to viewer: %v", err)
-			viewer.Close()
+			badViewers = append(badViewers, viewer)
 		}
 	}
 	sess.ViewerMu.RUnlock()
+
+	if len(badViewers) > 0 {
+		sess.ViewerMu.Lock()
+		for _, v := range badViewers {
+			delete(sess.Viewers, v)
+			v.Close()
+		}
+		sess.ViewerMu.Unlock()
+	}
 
 	h.rdb.Publish(context.Background(), "liveview:student:"+strconv.Itoa(studentID), frame)
 }
@@ -160,7 +196,55 @@ func (h *Hub) subscribeRedis(ctx context.Context, studentID int) {
 			if !ok {
 				return
 			}
-			_ = msg
+
+			h.mu.RLock()
+			sess, ok := h.sessions[studentID]
+			h.mu.RUnlock()
+			if !ok {
+				return
+			}
+
+			frame := []byte(msg.Payload)
+
+			sess.FrameMu.Lock()
+			sess.LatestFrame = frame
+			sess.FrameMu.Unlock()
+
+			sess.ViewerMu.RLock()
+			for viewer := range sess.Viewers {
+				if err := viewer.WriteMessage(websocket.BinaryMessage, frame); err != nil {
+					viewer.Close()
+				}
+			}
+			sess.ViewerMu.RUnlock()
+		}
+	}
+}
+
+func (h *Hub) pingStudent(conn *websocket.Conn) {
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (h *Hub) pingViewer(conn *websocket.Conn) {
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
