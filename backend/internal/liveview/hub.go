@@ -180,10 +180,15 @@ func (h *Hub) RelayFrame(studentID int, frame []byte) {
 		sess.ViewerMu.Unlock()
 	}
 
-	h.rdb.Publish(context.Background(), "liveview:student:"+strconv.Itoa(studentID), frame)
+	if h.rdb != nil {
+		h.rdb.Publish(context.Background(), "liveview:student:"+strconv.Itoa(studentID), frame)
+	}
 }
 
 func (h *Hub) subscribeRedis(ctx context.Context, studentID int) {
+	if h.rdb == nil {
+		return
+	}
 	pubsub := h.rdb.Subscribe(ctx, "liveview:student:"+strconv.Itoa(studentID))
 	ch := pubsub.Channel()
 

@@ -5,6 +5,7 @@ import (
 	"ai-student-diagnostic/backend/internal/cache"
 	"ai-student-diagnostic/backend/internal/config"
 	handlers "ai-student-diagnostic/backend/internal/handler"
+	"ai-student-diagnostic/backend/internal/liveview"
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
@@ -111,6 +112,11 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, jobQueue, autosaveBuffer, storageBackend, cfg)
 
+	liveviewHub := liveview.NewHub(redisClient)
+	studentWSHandler := liveview.NewStudentWSHandler(liveviewHub, studentRepo, assignmentRepo)
+	viewerWSHandler := liveview.NewViewerWSHandler(liveviewHub, studentRepo, assignmentRepo, coachRepo)
+	videoHandler := handlers.NewVideoHandler(attemptRepo, assignmentRepo, studentRepo, coachRepo, storageBackend)
+
 	authRoute := r.Group("/auth")
 	authRoute.Use(middleware.NewRateLimiter(redisClient, middleware.LoginLimit))
 	{
@@ -136,6 +142,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			protected.GET("/assignments/:id/state", studentHandler.GetState)
 			protected.POST("/assignments/:id/submit", limiter, studentHandler.SubmitExam)
 			protected.POST("/assignments/:id/video-chunk", limiter, studentHandler.VideoChunk)
+			protected.GET("/assignments/:id/live", studentWSHandler.StudentLiveStream)
 			protected.POST("/api/time", studentHandler.ServerTime)
 		}
 	}
@@ -195,6 +202,16 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.POST("/sqi/compute", adminHandler.ComputeSQI)
 		admin.POST("/sqi/compute-batch", adminHandler.ComputeSQIBatch)
 		admin.GET("/jobs/:id", adminHandler.GetJob)
+
+		admin.GET("/assignments/:id/video-chunks", videoHandler.ListVideoChunks)
+		admin.GET("/assignments/:id/video-chunk/:index", videoHandler.StreamVideoChunk)
+	}
+
+	view := r.Group("/view")
+	view.Use(middleware.AuthMiddleware(studentRepo, userRepo))
+	{
+		view.GET("/students/:id/live", viewerWSHandler.ViewerLiveStream)
+		view.GET("/students/:id/live/status", viewerWSHandler.LiveStatus)
 	}
 
 	coach := r.Group("/coach")
