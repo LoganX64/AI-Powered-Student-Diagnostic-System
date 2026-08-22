@@ -213,8 +213,8 @@ export function StudentDetailPage() {
         </Button>
       </div>
 
-      {/* Live Video Preview (shown when student has active exam) */}
-      {assignments.some((a) => !a.submitted) && (
+      {/* Live Video Preview (shown when student has active exam in progress) */}
+      {assignments.some((a) => a.attempt_in_progress) && (
         <LiveVideoPanel studentId={studentId} studentName={student.name} />
       )}
 

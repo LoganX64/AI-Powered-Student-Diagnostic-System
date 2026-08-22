@@ -100,6 +100,7 @@ export function StudentQuizPage() {
   const [policy, setPolicy] = useState<IntegrityPolicy | null>(null);
   const [serverDeadlineMs, setServerDeadlineMs] = useState<number | null>(null);
   const [serverSkewMs, setServerSkewMs] = useState(0);
+  const [cameraOk, setCameraOk] = useState(false);
 
   // Self-view video ref
   const selfViewRef = useRef<HTMLVideoElement | null>(null);
@@ -387,7 +388,7 @@ export function StudentQuizPage() {
 
     const makeRecorder = () => {
       if (!stream) return;
-      const rec = new MediaRecorder(stream);
+      const rec = new MediaRecorder(stream, { videoBitsPerSecond: 500000 });
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           uploadVideoChunk(assignmentId, idx, e.data).catch(() => {});
@@ -400,11 +401,16 @@ export function StudentQuizPage() {
 
     (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 480, height: 360, frameRate: { ideal: 10, max: 15 } },
+          audio: false,
+        });
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+
+        setCameraOk(true);
 
         // Self-view: attach stream to the video element
         if (selfViewRef.current) {
@@ -424,11 +430,13 @@ export function StudentQuizPage() {
         }, 30000);
       } catch {
         // Camera unavailable/denied — degrade gracefully.
+        setCameraOk(false);
       }
     })();
 
     return () => {
       cancelled = true;
+      setCameraOk(false);
       if (interval) clearInterval(interval);
       try {
         recorder?.stop();
@@ -441,7 +449,7 @@ export function StudentQuizPage() {
 
   // Live WebSocket sender: sends JPEG frames at 1fps for live preview.
   useEffect(() => {
-    if (!policy?.video_proctoring || !examStarted || submitting) return;
+    if (!policy?.video_proctoring || !examStarted || submitting || !cameraOk) return;
     let ws: WebSocket | null = null;
     let cancelled = false;
     let frameInterval: ReturnType<typeof setInterval> | null = null;
@@ -517,7 +525,7 @@ export function StudentQuizPage() {
         ws.close();
       }
     };
-  }, [policy, examStarted, submitting, assignmentId]);
+  }, [policy, examStarted, submitting, assignmentId, cameraOk]);
 
   // ---------------------------------------------------------------------------
   // Navigation handlers

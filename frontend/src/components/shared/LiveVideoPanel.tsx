@@ -11,7 +11,7 @@ export function LiveVideoPanel({
   studentId: number;
   studentName: string;
 }) {
-  const { canvasRef, connected, error, reconnect } =
+  const { canvasRef, connected, live, error, reconnect } =
     useLiveVideo(studentId);
 
   return (
@@ -20,7 +20,7 @@ export function LiveVideoPanel({
         <CardTitle className="flex items-center gap-2 text-sm">
           Live Preview — {studentName}
           <Badge variant={connected ? "default" : "secondary"}>
-            {connected ? "LIVE" : "OFFLINE"}
+            {connected ? "LIVE" : live ? "CONNECTING" : "OFFLINE"}
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -30,9 +30,14 @@ export function LiveVideoPanel({
             ref={canvasRef}
             className="w-full max-w-[640px] rounded-lg border bg-black"
           />
-          {!connected && !error && (
+          {!connected && !error && live && (
             <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
               Connecting...
+            </div>
+          )}
+          {!live && !error && (
+            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+              Student is not currently live
             </div>
           )}
           {error && (

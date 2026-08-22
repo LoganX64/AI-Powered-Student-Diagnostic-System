@@ -375,14 +375,6 @@ export const deleteVideo = (assignmentId: number) =>
     },
   );
 
-export const mergeVideo = (assignmentId: number) =>
-  apiFetch<{ message: string }>(
-    `/admin/assignments/${assignmentId}/video/merge`,
-    {
-      method: "POST",
-    },
-  );
-
 // ─── Assignment Detail endpoint (role-aware) ───────────────────────────────
 
 export const getAssignmentDetail = (studentId: number, assignmentId: number) =>

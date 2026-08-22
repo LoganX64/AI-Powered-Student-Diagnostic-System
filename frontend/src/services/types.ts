@@ -123,6 +123,7 @@ export type StudentAssignment = {
   status: string;
   assigned_at: string;
   submitted: boolean;
+  attempt_in_progress: boolean;
 };
 
 export type CoachDetail = {
