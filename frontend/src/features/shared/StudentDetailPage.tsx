@@ -45,6 +45,7 @@ import {
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 import { StudentFormDialog } from "@/components/shared/StudentFormDialog";
 import { StudentAssignDialog } from "@/components/shared/StudentAssignDialog";
+import { LiveVideoPanel } from "@/components/shared/LiveVideoPanel";
 
 export function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -211,6 +212,11 @@ export function StudentDetailPage() {
           <BarChart3Icon className="size-4 mr-2" /> View SQI Score
         </Button>
       </div>
+
+      {/* Live Video Preview (shown when student has active exam) */}
+      {assignments.some((a) => !a.submitted) && (
+        <LiveVideoPanel studentId={studentId} studentName={student.name} />
+      )}
 
       {/* Assigned tests table */}
       <div className="flex flex-col gap-3">

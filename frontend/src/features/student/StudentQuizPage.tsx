@@ -32,6 +32,7 @@ import type {
 } from "../../services/student.service";
 import { AlertTriangle, ArrowLeft, Flag, RefreshCw, ShieldCheck, Video, Timer } from "lucide-react";
 import { toast } from "sonner";
+import { TOKEN_KEYS } from "../../lib/token";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,6 +100,9 @@ export function StudentQuizPage() {
   const [policy, setPolicy] = useState<IntegrityPolicy | null>(null);
   const [serverDeadlineMs, setServerDeadlineMs] = useState<number | null>(null);
   const [serverSkewMs, setServerSkewMs] = useState(0);
+
+  // Self-view video ref
+  const selfViewRef = useRef<HTMLVideoElement | null>(null);
 
   // Fetch questions from API
   useEffect(() => {
@@ -401,6 +405,12 @@ export function StudentQuizPage() {
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
+
+        // Self-view: attach stream to the video element
+        if (selfViewRef.current) {
+          selfViewRef.current.srcObject = stream;
+        }
+
         makeRecorder();
         interval = setInterval(() => {
           if (recorder && recorder.state === "recording") {
@@ -426,6 +436,86 @@ export function StudentQuizPage() {
         // ignore
       }
       stream?.getTracks().forEach((t) => t.stop());
+    };
+  }, [policy, examStarted, submitting, assignmentId]);
+
+  // Live WebSocket sender: sends JPEG frames at 1fps for live preview.
+  useEffect(() => {
+    if (!policy?.video_proctoring || !examStarted || submitting) return;
+    let ws: WebSocket | null = null;
+    let cancelled = false;
+    let frameInterval: ReturnType<typeof setInterval> | null = null;
+    let canvas: HTMLCanvasElement | null = null;
+    let ctx: CanvasRenderingContext2D | null = null;
+
+    const studentToken = localStorage.getItem(TOKEN_KEYS.student);
+    if (!studentToken) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsBase = import.meta.env.VITE_BACKEND_URL?.replace(/^http/, "ws") || `${protocol}//${window.location.host}`;
+    const wsUrl = `${wsBase}/student/assignments/${assignmentId}/live?token=${encodeURIComponent(studentToken)}`;
+
+    (async () => {
+      try {
+        ws = new WebSocket(wsUrl);
+        ws.binaryType = "arraybuffer";
+
+        ws.onopen = () => {
+          if (cancelled) {
+            ws?.close();
+            return;
+          }
+          canvas = document.createElement("canvas");
+          canvas.width = 640;
+          canvas.height = 480;
+          ctx = canvas.getContext("2d");
+
+          frameInterval = setInterval(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN || !canvas || !ctx) return;
+            const videoEl = selfViewRef.current;
+            if (!videoEl || videoEl.readyState < 2) return;
+
+            try {
+              ctx.drawImage(videoEl, 0, 0, 640, 480);
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob || cancelled) return;
+                  blob.arrayBuffer().then((buf) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                      ws.send(buf);
+                    }
+                  });
+                },
+                "image/jpeg",
+                0.8,
+              );
+            } catch {
+              // Frame capture failure — skip
+            }
+          }, 1000);
+        };
+
+        ws.onerror = () => {
+          // Live relay failed — degrade silently, recording still works
+        };
+
+        ws.onclose = () => {
+          if (frameInterval) clearInterval(frameInterval);
+        };
+      } catch {
+        // WS connection failed — degrade silently
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (frameInterval) clearInterval(frameInterval);
+      canvas = null;
+      ctx = null;
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
     };
   }, [policy, examStarted, submitting, assignmentId]);
 
@@ -762,6 +852,17 @@ export function StudentQuizPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Self-view camera preview (bottom-right corner) */}
+      {policy?.video_proctoring && (
+        <video
+          ref={selfViewRef}
+          autoPlay
+          muted
+          playsInline
+          className="fixed bottom-4 right-4 w-[150px] h-[112px] rounded-lg border border-border shadow-md object-cover z-50"
+        />
+      )}
     </div>
   );
 }

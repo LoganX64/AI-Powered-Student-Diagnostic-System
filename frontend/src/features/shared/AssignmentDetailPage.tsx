@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { getAssignmentDetail, computeSQI, type AssignmentDetail } from "@/services/dashboard.service";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
+import { RecordedVideoPlayer } from "@/components/shared/RecordedVideoPlayer";
 
 export function AssignmentDetailPage() {
   const { id, assignmentId } = useParams<{ id: string; assignmentId: string }>();
@@ -202,6 +203,14 @@ export function AssignmentDetailPage() {
             setComputeJobId(null);
             reload();
           }}
+        />
+      )}
+
+      {/* Recorded Video Playback */}
+      {assignment.status === "submitted" && (
+        <RecordedVideoPlayer
+          assignmentId={parsedAssignmentId}
+          title={`Recorded Video — ${student.name}`}
         />
       )}
 

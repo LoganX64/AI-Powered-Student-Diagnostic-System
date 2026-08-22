@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button";
 import { submitAnswers } from "../../services/student.service";
 import type { AnswerPayload } from "../../services/student.service";
 import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
+import { RecordedVideoPlayer } from "../../components/shared/RecordedVideoPlayer";
 
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
@@ -166,6 +167,18 @@ export function StudentSubmittedPage() {
             </p>
           </div>
         )}
+
+        {!hasPendingSubmission && (() => {
+          const assignmentId = Number(localStorage.getItem("assignment_id") || "0");
+          return assignmentId > 0 ? (
+            <div className="mt-6">
+              <RecordedVideoPlayer
+                assignmentId={assignmentId}
+                title="Your Recorded Exam"
+              />
+            </div>
+          ) : null;
+        })()}
 
         {!hasPendingSubmission && (
           <>
