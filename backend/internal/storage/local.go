@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,15 +23,61 @@ func NewLocal(dir string) *LocalStorage {
 func (l *LocalStorage) Put(ctx context.Context, key string, r io.Reader) (string, error) {
 	dst := filepath.Join(l.Dir, filepath.FromSlash(key))
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return "", err
+		return "", fmt.Errorf("create directory: %w", err)
 	}
 	f, err := os.Create(dst)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create file: %w", err)
 	}
 	defer f.Close()
 	if _, err := io.Copy(f, r); err != nil {
-		return "", err
+		return "", fmt.Errorf("write file: %w", err)
 	}
 	return dst, nil
+}
+
+func (l *LocalStorage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	path := filepath.Join(l.Dir, filepath.FromSlash(key))
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("file not found: %s", key)
+		}
+		return nil, fmt.Errorf("open file: %w", err)
+	}
+	return f, nil
+}
+
+func (l *LocalStorage) List(ctx context.Context, prefix string) ([]string, error) {
+	base := filepath.Join(l.Dir, filepath.FromSlash(prefix))
+	info, err := os.Stat(base)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("stat directory: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("prefix is not a directory: %s", prefix)
+	}
+
+	var keys []string
+	err = filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("walk error at %s: %w", path, err)
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(l.Dir, path)
+		if err != nil {
+			return fmt.Errorf("relative path: %w", err)
+		}
+		keys = append(keys, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk directory: %w", err)
+	}
+	return keys, nil
 }

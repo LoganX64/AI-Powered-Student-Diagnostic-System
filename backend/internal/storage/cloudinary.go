@@ -71,42 +71,42 @@ func (c *CloudinaryStorage) Put(ctx context.Context, key string, r io.Reader) (s
 	w := multipart.NewWriter(&body)
 	writeField := func(name, val string) error { return w.WriteField(name, val) }
 	if err := writeField("api_key", c.APIKey); err != nil {
-		return "", err
+		return "", fmt.Errorf("write api_key field: %w", err)
 	}
 	if err := writeField("timestamp", timestamp); err != nil {
-		return "", err
+		return "", fmt.Errorf("write timestamp field: %w", err)
 	}
 	if err := writeField("signature", signature); err != nil {
-		return "", err
+		return "", fmt.Errorf("write signature field: %w", err)
 	}
 	if c.Folder != "" {
 		if err := writeField("folder", c.Folder); err != nil {
-			return "", err
+			return "", fmt.Errorf("write folder field: %w", err)
 		}
 	}
 	if err := writeField("public_id", params["public_id"]); err != nil {
-		return "", err
+		return "", fmt.Errorf("write public_id field: %w", err)
 	}
 	fw, err := w.CreateFormFile("file", filepath.Base(key))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create form file: %w", err)
 	}
 	if _, err := io.Copy(fw, r); err != nil {
-		return "", err
+		return "", fmt.Errorf("copy file data: %w", err)
 	}
 	if err := w.Close(); err != nil {
-		return "", err
+		return "", fmt.Errorf("close multipart writer: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/video/upload", &body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("create upload request: %w", err)
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("upload request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -118,12 +118,41 @@ func (c *CloudinaryStorage) Put(ctx context.Context, key string, r io.Reader) (s
 		URL       string `json:"url"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", err
+		return "", fmt.Errorf("decode upload response: %w", err)
 	}
 	if out.SecureURL != "" {
 		return out.SecureURL, nil
 	}
 	return out.URL, nil
+}
+
+func (c *CloudinaryStorage) Get(ctx context.Context, key string) (io.ReadCloser, error) {
+	fileURL := c.buildFileURL(key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fileURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create get request: %w", err)
+	}
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("get request failed: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("cloudinary get failed (%d) for key: %s", resp.StatusCode, key)
+	}
+	return resp.Body, nil
+}
+
+func (c *CloudinaryStorage) List(ctx context.Context, prefix string) ([]string, error) {
+	return nil, fmt.Errorf("cloudinary list not supported: use local storage for recorded video playback")
+}
+
+func (c *CloudinaryStorage) buildFileURL(key string) string {
+	publicID := strings.TrimSuffix(key, filepath.Ext(key))
+	if c.Folder != "" {
+		publicID = c.Folder + "/" + publicID
+	}
+	return fmt.Sprintf("https://res.cloudinary.com/%s/video/upload/%s", c.CloudName, publicID)
 }
 
 // sign builds the Cloudinary message signature: sha1 of sorted "k=v&..." + secret.
