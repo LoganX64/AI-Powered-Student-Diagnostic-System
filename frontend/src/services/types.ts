@@ -27,7 +27,9 @@ export type IntegrityPolicy = {
   tab_switch_detect: boolean;
 };
 
-export type CreateBatchAssignmentPayload = z.infer<typeof createBatchAssignmentSchema>;
+export type CreateBatchAssignmentPayload = z.infer<
+  typeof createBatchAssignmentSchema
+>;
 
 // ─── Row Types ────────────────────────────────────────────────────────────────
 
@@ -284,7 +286,7 @@ export type SQIResponse = {
   total_tests: number;
 };
 
-type StudentSQIMetric = {
+export type StudentSQIMetric = {
   student_id: number;
   average_sqi: number;
   total_tests: number;
