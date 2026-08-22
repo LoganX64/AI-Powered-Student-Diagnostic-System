@@ -16,12 +16,13 @@ func NewAssignmentRepo(db *sql.DB) *AssignmentRepo {
 }
 
 type AssignmentRow struct {
-	ID         int    `json:"id"`
-	TestID     int    `json:"test_id"`
-	TestTitle  string `json:"test_title"`
-	Status     string `json:"status"`
-	AssignedAt string `json:"assigned_at"`
-	Submitted  bool   `json:"submitted"`
+	ID                int    `json:"id"`
+	TestID            int    `json:"test_id"`
+	TestTitle         string `json:"test_title"`
+	Status            string `json:"status"`
+	AssignedAt        string `json:"assigned_at"`
+	Submitted         bool   `json:"submitted"`
+	AttemptInProgress bool   `json:"attempt_in_progress"`
 }
 
 type AssignmentDetailRow struct {
@@ -122,7 +123,8 @@ func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, status strin
 	}
 
 	dataQuery := `SELECT a.id, a.test_id, t.title, a.status, a.assigned_at,
-		       (a.status = 'submitted') AS submitted
+		       (a.status = 'submitted') AS submitted,
+		       EXISTS(SELECT 1 FROM attempts att WHERE att.assignment_id = a.id AND att.status = 'in_progress') AS attempt_in_progress
 		FROM assignments a JOIN tests t ON a.test_id = t.id
 		WHERE ` + where + `
 		ORDER BY a.id DESC LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
@@ -137,7 +139,7 @@ func (r *AssignmentRepo) ListByStudent(studentID int, coachID *int, status strin
 	var assignments []AssignmentRow
 	for rows.Next() {
 		var a AssignmentRow
-		if err := rows.Scan(&a.ID, &a.TestID, &a.TestTitle, &a.Status, &a.AssignedAt, &a.Submitted); err != nil {
+		if err := rows.Scan(&a.ID, &a.TestID, &a.TestTitle, &a.Status, &a.AssignedAt, &a.Submitted, &a.AttemptInProgress); err != nil {
 			return nil, 0, err
 		}
 		assignments = append(assignments, a)

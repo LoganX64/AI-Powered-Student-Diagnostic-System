@@ -300,9 +300,6 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 				"total_time_spent": helper.Round2V2(totalTimeSpent),
 				"test_duration":    float64(duration),
 			})
-			if policy.VideoProctoring && h.VideoHandler != nil {
-				go h.VideoHandler.MergeForAttempt(assignmentID)
-			}
 			return
 		}
 
@@ -321,9 +318,6 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			"total_time_spent": res.TotalTimeSpent,
 			"test_duration":    res.TestDuration,
 		})
-		if policy.VideoProctoring && h.VideoHandler != nil {
-			go h.VideoHandler.MergeForAttempt(assignmentID)
-		}
 		return
 	}
 
@@ -343,9 +337,6 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		"total_time_spent": res.TotalTimeSpent,
 		"test_duration":    res.TestDuration,
 	})
-	if policy.VideoProctoring && h.VideoHandler != nil {
-		go h.VideoHandler.MergeForAttempt(assignmentID)
-	}
 }
 
 // VideoChunk accepts an indexed video blob (video_proctoring tier, record-only).

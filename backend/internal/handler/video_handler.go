@@ -5,6 +5,7 @@ import (
 	"ai-student-diagnostic/backend/internal/storage"
 	"ai-student-diagnostic/backend/utils"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -95,6 +96,21 @@ func (h *VideoHandler) ListVideoChunks(c *gin.Context) {
 		return
 	}
 
+	hasVP, vpErr := h.hasVideoProctoring(assignmentID)
+	if vpErr != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, vpErr, "failed to check policy")
+		return
+	}
+	if !hasVP {
+		c.JSON(http.StatusOK, gin.H{
+			"assignment_id": assignmentID,
+			"attempt_id":    0,
+			"chunks":        []string{},
+			"has_merged":    false,
+		})
+		return
+	}
+
 	attemptID, _, err := h.AttemptRepo.GetByAssignment(assignmentID)
 	if err != nil {
 		utils.NotFound(c, "no attempt found for this assignment")
@@ -178,7 +194,7 @@ func (h *VideoHandler) StreamVideoChunk(c *gin.Context) {
 	}
 }
 
-// StreamMergedVideo serves the merged single-file video for an assignment.
+// StreamMergedVideo serves the merged video. Merges on first request if not already done.
 func (h *VideoHandler) StreamMergedVideo(c *gin.Context) {
 	role, ok := getRoleFromContext(c)
 	if !ok {
@@ -207,10 +223,30 @@ func (h *VideoHandler) StreamMergedVideo(c *gin.Context) {
 		return
 	}
 
-	key := fmt.Sprintf("video/%d/merged.webm", attemptID)
-	rc, err := h.Storage.Get(c.Request.Context(), key)
+	mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
+
+	// Try to serve existing merged file.
+	rc, err := h.Storage.Get(c.Request.Context(), mergedKey)
+	if err == nil {
+		defer rc.Close()
+		c.Header("Content-Type", "video/webm")
+		c.Header("Cache-Control", "public, max-age=3600")
+		if _, err := io.Copy(c.Writer, rc); err != nil {
+			log.Printf("[VIDEO] stream merged error: %v", err)
+		}
+		return
+	}
+
+	// Merged file doesn't exist — merge now.
+	if err := h.MergeForAttempt(assignmentID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to process video")
+		return
+	}
+
+	// Serve the newly merged file.
+	rc, err = h.Storage.Get(c.Request.Context(), mergedKey)
 	if err != nil {
-		utils.NotFound(c, "merged video not found")
+		utils.NotFound(c, "merged video not found after processing")
 		return
 	}
 	defer rc.Close()
@@ -218,38 +254,35 @@ func (h *VideoHandler) StreamMergedVideo(c *gin.Context) {
 	c.Header("Content-Type", "video/webm")
 	c.Header("Cache-Control", "public, max-age=3600")
 	if _, err := io.Copy(c.Writer, rc); err != nil {
-		log.Printf("[VIDEO] Stream merged error for %s: %v", key, err)
+		log.Printf("[VIDEO] stream merged error: %v", err)
 	}
 }
 
-// MergeVideoChunks concatenates all WebM chunks into a single merged.webm using FFmpeg.
-func (h *VideoHandler) MergeVideoChunks(c *gin.Context) {
-	role, ok := getRoleFromContext(c)
-	if !ok {
-		utils.Unauthorized(c, "unauthorized")
-		return
-	}
-	if role != "admin" {
-		utils.Unauthorized(c, "admin role required")
-		return
-	}
-
-	assignmentID, err := strconv.Atoi(c.Param("id"))
+// hasVideoProctoring checks whether an assignment has video_proctoring enabled.
+func (h *VideoHandler) hasVideoProctoring(assignmentID int) (bool, error) {
+	raw, err := h.AssignmentRepo.GetPolicy(assignmentID)
 	if err != nil {
-		utils.BadRequest(c, "invalid assignment_id")
-		return
+		return false, err
 	}
-
-	if err := h.MergeForAttempt(assignmentID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to merge video")
-		return
+	var p IntegrityPolicy
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return false, nil
+		}
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "video merged successfully"})
+	return p.VideoProctoring, nil
 }
 
-// MergeForAttempt merges video chunks for a given assignment. Safe to call from a goroutine.
+// MergeForAttempt merges video chunks into a single merged.webm. Safe to call from a goroutine.
 func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
+	hasVP, err := h.hasVideoProctoring(assignmentID)
+	if err != nil {
+		return fmt.Errorf("check policy: %w", err)
+	}
+	if !hasVP {
+		return nil
+	}
+
 	attemptID, _, err := h.AttemptRepo.GetByAssignment(assignmentID)
 	if err != nil {
 		return fmt.Errorf("no attempt found for assignment %d", assignmentID)
@@ -261,7 +294,6 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 		return fmt.Errorf("failed to list chunks: %w", err)
 	}
 
-	// Filter to only numeric chunk files (exclude merged.webm).
 	var chunkKeys []string
 	for _, key := range keys {
 		idx := strings.TrimPrefix(key, prefix)
@@ -272,10 +304,13 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 	}
 
 	if len(chunkKeys) == 0 {
-		return fmt.Errorf("no chunks found for assignment %d", assignmentID)
+		mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
+		if _, err := h.Storage.Get(context.Background(), mergedKey); err == nil {
+			return nil
+		}
+		return fmt.Errorf("no video chunks found")
 	}
 
-	// Sort numerically.
 	sort.Slice(chunkKeys, func(i, j int) bool {
 		a := strings.TrimSuffix(strings.TrimPrefix(chunkKeys[i], prefix), ".webm")
 		b := strings.TrimSuffix(strings.TrimPrefix(chunkKeys[j], prefix), ".webm")
@@ -284,7 +319,6 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 		return ai < bi
 	})
 
-	// Download chunks to a temp directory.
 	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("video-merge-%d-*", assignmentID))
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
@@ -311,7 +345,6 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 		rc.Close()
 	}
 
-	// Write concat list file.
 	var listBuilder strings.Builder
 	for i := range chunkKeys {
 		listBuilder.WriteString(fmt.Sprintf("file '%04d.webm'\n", i))
@@ -321,15 +354,20 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 		return fmt.Errorf("write concat list: %w", err)
 	}
 
-	// Run FFmpeg.
 	mergedPath := filepath.Join(tmpDir, "merged.webm")
-	cmd := exec.Command("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", mergedPath)
-	cmd.Stderr = os.Stderr
+	cmd := exec.Command("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "filelist.txt", "-c", "copy", "merged.webm")
+	cmd.Dir = tmpDir
+	var stderrBuf strings.Builder
+	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("ffmpeg merge failed: %w", err)
+		return fmt.Errorf("ffmpeg merge failed: %s: %w", stderrBuf.String(), err)
 	}
 
-	// Upload merged file.
+	// Delete chunks FIRST, then upload merged.
+	if err := h.Storage.DeletePrefix(context.Background(), prefix); err != nil {
+		log.Printf("[VIDEO] warning: failed to delete chunks for assignment %d: %v", assignmentID, err)
+	}
+
 	mergedFile, err := os.Open(mergedPath)
 	if err != nil {
 		return fmt.Errorf("open merged file: %w", err)
@@ -339,11 +377,6 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 	mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
 	if _, err := h.Storage.Put(context.Background(), mergedKey, mergedFile); err != nil {
 		return fmt.Errorf("upload merged video: %w", err)
-	}
-
-	// Delete individual chunks.
-	if err := h.Storage.DeletePrefix(context.Background(), prefix); err != nil {
-		log.Printf("[VIDEO] warning: failed to delete chunks for assignment %d: %v", assignmentID, err)
 	}
 
 	log.Printf("[VIDEO] merged %d chunks for assignment %d into merged.webm", len(chunkKeys), assignmentID)
@@ -370,6 +403,16 @@ func (h *VideoHandler) DeleteVideo(c *gin.Context) {
 
 	if _, err := h.resolveOwnership(c, assignmentID, role); err != nil {
 		utils.Forbidden(c, err.Error())
+		return
+	}
+
+	hasVP, vpErr := h.hasVideoProctoring(assignmentID)
+	if vpErr != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, vpErr, "failed to check policy")
+		return
+	}
+	if !hasVP {
+		c.JSON(http.StatusOK, gin.H{"message": "no video to delete"})
 		return
 	}
 

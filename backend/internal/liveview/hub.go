@@ -33,6 +33,7 @@ type Session struct {
 	LatestFrame []byte
 	FrameMu     sync.RWMutex
 	StartedAt   time.Time
+	LastFrameAt time.Time
 }
 
 func NewHub(rdb *redis.Client) *Hub {
@@ -144,8 +145,13 @@ func (h *Hub) RemoveViewer(studentID int, viewerConn *websocket.Conn) {
 func (h *Hub) IsLive(studentID int) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	_, ok := h.sessions[studentID]
-	return ok
+	sess, ok := h.sessions[studentID]
+	if !ok {
+		return false
+	}
+	sess.FrameMu.RLock()
+	defer sess.FrameMu.RUnlock()
+	return !sess.LastFrameAt.IsZero() && time.Since(sess.LastFrameAt) < 5*time.Second
 }
 
 func (h *Hub) RelayFrame(studentID int, frame []byte) {
@@ -159,6 +165,7 @@ func (h *Hub) RelayFrame(studentID int, frame []byte) {
 
 	sess.FrameMu.Lock()
 	sess.LatestFrame = frame
+	sess.LastFrameAt = time.Now()
 	sess.FrameMu.Unlock()
 
 	sess.ViewerMu.RLock()
