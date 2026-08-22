@@ -16,4 +16,10 @@ type Storage interface {
 
 	// List returns all object keys under the given prefix.
 	List(ctx context.Context, prefix string) ([]string, error)
+
+	// Delete removes the object at key.
+	Delete(ctx context.Context, key string) error
+
+	// DeletePrefix removes all objects under the given prefix.
+	DeletePrefix(ctx context.Context, prefix string) error
 }

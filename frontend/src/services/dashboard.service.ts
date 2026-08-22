@@ -296,6 +296,16 @@ export const deleteAssignment = (assignmentId: number) =>
     method: "DELETE",
   });
 
+export const deleteVideo = (assignmentId: number) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/assignments/${assignmentId}/video`, {
+    method: "DELETE",
+  });
+
+export const mergeVideo = (assignmentId: number) =>
+  apiFetch<{ message: string }>(`/admin/assignments/${assignmentId}/video/merge`, {
+    method: "POST",
+  });
+
 // ─── Assignment Detail endpoint (role-aware) ───────────────────────────────
 
 export const getAssignmentDetail = (studentId: number, assignmentId: number) =>

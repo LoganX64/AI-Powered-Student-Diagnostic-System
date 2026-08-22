@@ -147,6 +147,49 @@ func (c *CloudinaryStorage) List(ctx context.Context, prefix string) ([]string, 
 	return nil, fmt.Errorf("cloudinary list not supported: use local storage for recorded video playback")
 }
 
+func (c *CloudinaryStorage) Delete(ctx context.Context, key string) error {
+	publicID := strings.TrimSuffix(key, filepath.Ext(key))
+	if c.Folder != "" {
+		publicID = c.Folder + "/" + publicID
+	}
+
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	params := map[string]string{
+		"public_id":  publicID,
+		"timestamp":  timestamp,
+		"api_key":    c.APIKey,
+	}
+	signature := c.sign(params)
+
+	form := url.Values{}
+	form.Set("public_id", publicID)
+	form.Set("timestamp", timestamp)
+	form.Set("api_key", c.APIKey)
+	form.Set("signature", signature)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/video/destroy", strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("create delete request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("cloudinary delete failed (%d): %s", resp.StatusCode, string(msg))
+	}
+	return nil
+}
+
+func (c *CloudinaryStorage) DeletePrefix(ctx context.Context, prefix string) error {
+	return fmt.Errorf("cloudinary prefix delete not supported")
+}
+
 func (c *CloudinaryStorage) buildFileURL(key string) string {
 	publicID := strings.TrimSuffix(key, filepath.Ext(key))
 	if c.Folder != "" {

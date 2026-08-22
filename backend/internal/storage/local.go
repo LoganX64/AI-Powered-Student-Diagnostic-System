@@ -81,3 +81,19 @@ func (l *LocalStorage) List(ctx context.Context, prefix string) ([]string, error
 	}
 	return keys, nil
 }
+
+func (l *LocalStorage) Delete(ctx context.Context, key string) error {
+	path := filepath.Join(l.Dir, filepath.FromSlash(key))
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete file: %w", err)
+	}
+	return nil
+}
+
+func (l *LocalStorage) DeletePrefix(ctx context.Context, prefix string) error {
+	dir := filepath.Join(l.Dir, filepath.FromSlash(prefix))
+	if err := os.RemoveAll(dir); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete prefix: %w", err)
+	}
+	return nil
+}

@@ -26,6 +26,7 @@ type StudentHandler struct {
 	AutosaveBuffer   *services.AutosaveBuffer
 	Storage          storage.Storage
 	Cfg              *config.Config
+	VideoHandler     *VideoHandler
 }
 
 func NewStudentHandler(

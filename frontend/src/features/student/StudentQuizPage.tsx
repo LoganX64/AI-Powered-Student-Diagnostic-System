@@ -421,7 +421,7 @@ export function StudentQuizPage() {
             }
             makeRecorder();
           }
-        }, 5000);
+        }, 30000);
       } catch {
         // Camera unavailable/denied — degrade gracefully.
       }

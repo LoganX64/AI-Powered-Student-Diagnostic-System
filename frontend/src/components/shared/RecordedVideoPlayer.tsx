@@ -1,29 +1,44 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { AlertCircle, Play, Loader2, Film } from "lucide-react";
+import { AlertCircle, Loader2, Film, Trash2, RefreshCw } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { deleteVideo, mergeVideo } from "@/services/dashboard.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface VideoChunksResponse {
   assignment_id: number;
   attempt_id: number;
   chunks: string[];
+  has_merged: boolean;
 }
 
 export function RecordedVideoPlayer({
   assignmentId,
   title,
+  onDelete,
 }: {
   assignmentId: number;
   title?: string;
+  onDelete?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [chunks, setChunks] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const blobsRef = useRef<Map<string, string>>(new Map());
+  const [hasMerged, setHasMerged] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchChunks = useCallback(async () => {
     setLoading(true);
@@ -32,112 +47,84 @@ export function RecordedVideoPlayer({
       const data = await apiFetch<VideoChunksResponse>(
         `/admin/assignments/${assignmentId}/video-chunks`
       );
-      setChunks(data.chunks || []);
-      setCurrentIdx(0);
+      setHasMerged(data.has_merged);
+      if (!data.has_merged && data.chunks.length > 0) {
+        startPolling();
+      }
     } catch (e) {
-      setError((e as Error).message || "Failed to load video chunks");
+      setError((e as Error).message || "Failed to load video");
     } finally {
       setLoading(false);
     }
   }, [assignmentId]);
 
+  const startPolling = useCallback(() => {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      try {
+        const data = await apiFetch<VideoChunksResponse>(
+          `/admin/assignments/${assignmentId}/video-chunks`
+        );
+        if (data.has_merged) {
+          setHasMerged(true);
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 5000);
+  }, [assignmentId]);
+
   useEffect(() => {
     fetchChunks();
     return () => {
-      for (const url of blobsRef.current.values()) {
-        URL.revokeObjectURL(url);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
       }
-      blobsRef.current.clear();
     };
   }, [fetchChunks]);
 
-  const getChunkBlobUrl = useCallback(
-    async (index: string): Promise<string | null> => {
-      if (blobsRef.current.has(index)) {
-        return blobsRef.current.get(index)!;
+  const handleMerge = async () => {
+    setMerging(true);
+    try {
+      await mergeVideo(assignmentId);
+      setHasMerged(true);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
       }
-      try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/admin/assignments/${assignmentId}/video-chunk/${index}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("admin_token") || localStorage.getItem("coach_token") || ""}`,
-            },
-          }
-        );
-        if (!res.ok) {
-          return null;
-        }
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        blobsRef.current.set(index, url);
-        return url;
-      } catch {
-        return null;
-      }
-    },
-    [assignmentId]
-  );
-
-  const playChunk = useCallback(
-    async (idx: number) => {
-      if (idx >= chunks.length || !videoRef.current) {
-        setPlaying(false);
-        return;
-      }
-
-      const chunkIndex = chunks[idx];
-      const blobUrl = await getChunkBlobUrl(chunkIndex);
-      if (!blobUrl) {
-        setError(`Failed to load chunk ${chunkIndex}`);
-        setPlaying(false);
-        return;
-      }
-
-      const video = videoRef.current;
-      video.src = blobUrl;
-      video.onended = () => {
-        setCurrentIdx(idx + 1);
-        playChunk(idx + 1);
-      };
-      video.onerror = () => {
-        setError(`Playback error on chunk ${chunkIndex}`);
-        setPlaying(false);
-      };
-
-      try {
-        await video.play();
-        setPlaying(true);
-        setError(null);
-      } catch {
-        setError("Playback failed");
-        setPlaying(false);
-      }
-    },
-    [chunks, getChunkBlobUrl]
-  );
-
-  const handlePlay = () => {
-    if (chunks.length === 0) return;
-    setError(null);
-    playChunk(currentIdx);
-  };
-
-  const handlePause = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
+    } catch (e) {
+      setError((e as Error).message || "Failed to merge video");
+    } finally {
+      setMerging(false);
     }
-    setPlaying(false);
   };
 
-  const handleReset = () => {
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteVideo(assignmentId);
+      setHasMerged(false);
+      if (videoRef.current) {
+        videoRef.current.src = "";
+      }
+      if (onDelete) {
+        onDelete();
+      }
+    } catch (e) {
+      setError((e as Error).message || "Failed to delete video");
+    } finally {
+      setDeleting(false);
     }
-    setCurrentIdx(0);
-    setPlaying(false);
   };
+
+  const videoUrl = hasMerged
+    ? `${import.meta.env.VITE_BACKEND_URL}/admin/assignments/${assignmentId}/video-merged`
+    : "";
 
   if (loading) {
     return (
@@ -152,7 +139,7 @@ export function RecordedVideoPlayer({
     );
   }
 
-  if (error && chunks.length === 0) {
+  if (error && !hasMerged) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center gap-2 py-8">
@@ -169,59 +156,79 @@ export function RecordedVideoPlayer({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Film className="h-4 w-4" />
-          {title || "Recorded Video"}
+        <CardTitle className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-2">
+            <Film className="h-4 w-4" />
+            {title || "Recorded Video"}
+          </div>
+          {hasMerged && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1 text-destructive hover:text-destructive">
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Video Permanently?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete the recorded video for this exam.
+                    This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleting ? "Deleting..." : "Delete Permanently"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="relative">
-          <video
-            ref={videoRef}
-            className="w-full max-w-[640px] rounded-lg border bg-black"
-            controls={false}
-          />
-          {chunks.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
-              No recorded footage available
+          {hasMerged ? (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              controls
+              className="w-full max-w-[640px] rounded-lg border bg-black"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 py-8 text-muted-foreground">
+              {merging ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Merging video chunks...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm">Video is being processed into a single file.</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMerge}
+                    className="gap-1"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Merge Now
+                  </Button>
+                </>
+              )}
             </div>
           )}
         </div>
-        {error && (
+        {error && hasMerged && (
           <div className="mt-2 flex items-center gap-1 text-sm text-destructive">
             <AlertCircle className="h-3 w-3" />
             {error}
-          </div>
-        )}
-        {chunks.length > 0 && (
-          <div className="mt-2 flex items-center gap-2">
-            {!playing ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePlay}
-                className="gap-1"
-              >
-                <Play className="h-3 w-3" />
-                {currentIdx === 0 ? "Play" : "Resume"}
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePause}
-              >
-                Pause
-              </Button>
-            )}
-            {currentIdx > 0 && (
-              <Button variant="ghost" size="sm" onClick={handleReset}>
-                Reset
-              </Button>
-            )}
-            <span className="text-xs text-muted-foreground">
-              {currentIdx + 1} / {chunks.length} chunks
-            </span>
           </div>
         )}
       </CardContent>

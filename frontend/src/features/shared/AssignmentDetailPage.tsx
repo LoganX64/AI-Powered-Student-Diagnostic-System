@@ -32,6 +32,7 @@ export function AssignmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [computeJobId, setComputeJobId] = useState<number | null>(null);
+  const [videoDeleted, setVideoDeleted] = useState(false);
 
   const reload = useCallback(() => {
     if (studentId === null || parsedAssignmentId === null) return;
@@ -207,10 +208,11 @@ export function AssignmentDetailPage() {
       )}
 
       {/* Recorded Video Playback */}
-      {assignment.status === "submitted" && (
+      {assignment.status === "submitted" && !videoDeleted && (
         <RecordedVideoPlayer
           assignmentId={parsedAssignmentId}
           title={`Recorded Video — ${student.name}`}
+          onDelete={() => setVideoDeleted(true)}
         />
       )}
 

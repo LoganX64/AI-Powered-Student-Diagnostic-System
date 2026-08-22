@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Clock, CalendarClock, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Clock, CalendarClock, AlertTriangle, ArrowLeft, Video, VideoOff } from "lucide-react";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
 import { useExamTimer } from "../../hooks/useExamTimer";
@@ -35,6 +35,8 @@ function formatCurrentDate(date: Date): string {
   });
 }
 
+type CameraStatus = "idle" | "checking" | "connected" | "failed";
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -47,7 +49,13 @@ export function StudentInstructionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("idle");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
+
   const assignmentId = localStorage.getItem("assignment_id");
+  const videoProctoring = data?.integrity_policy?.video_proctoring ?? false;
 
   // Fetch assignment data
   useEffect(() => {
@@ -81,6 +89,41 @@ export function StudentInstructionsPage() {
     return () => { cancelled = true; };
   }, [assignmentId]);
 
+  // Camera check: when data loads and video_proctoring is enabled, test the camera.
+  const checkCamera = useCallback(async () => {
+    if (!videoProctoring) return;
+    setCameraStatus("checking");
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      cameraStreamRef.current = stream;
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+      }
+      setCameraStatus("connected");
+    } catch (err) {
+      setCameraStatus("failed");
+      const msg = err instanceof Error ? err.message : "Camera access denied";
+      setCameraError(msg);
+    }
+  }, [videoProctoring]);
+
+  useEffect(() => {
+    if (data && videoProctoring && cameraStatus === "idle") {
+      checkCamera();
+    }
+  }, [data, videoProctoring, cameraStatus, checkCamera]);
+
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+        cameraStreamRef.current = null;
+      }
+    };
+  }, []);
+
   // Update clock every second
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -109,14 +152,24 @@ export function StudentInstructionsPage() {
   );
 
   const handleAccept = () => {
+    // Stop camera before navigating to quiz (quiz page will re-request it)
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
     localStorage.removeItem("exam_timer");
     navigate("/quiz");
   };
 
   const handleBackToDashboard = () => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+    }
     navigate("/dashboard", { replace: true });
   };
 
+  const canBegin = videoProctoring ? cameraStatus === "connected" : true;
   const examDurationHours = durationSeconds / 3600;
 
   // ---------------------------------------------------------------------------
@@ -253,6 +306,60 @@ export function StudentInstructionsPage() {
               </li>
             ))}
           </ol>
+
+          {/* Camera check section — only shown for video proctoring exams */}
+          {videoProctoring && (
+            <div className="mt-6 rounded-xl border border-border bg-muted/40 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Video className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-foreground">Camera Check</span>
+              </div>
+
+              {cameraStatus === "checking" && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  Requesting camera access...
+                </div>
+              )}
+
+              {cameraStatus === "connected" && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <Video className="h-4 w-4" />
+                    Camera connected — you may begin
+                  </div>
+                  <video
+                    ref={videoPreviewRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full max-w-[240px] rounded-lg border bg-black"
+                  />
+                </div>
+              )}
+
+              {cameraStatus === "failed" && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-sm text-red-600">
+                    <VideoOff className="h-4 w-4" />
+                    Camera not available. Please allow camera access and refresh.
+                  </div>
+                  {cameraError && (
+                    <p className="text-xs text-muted-foreground">{cameraError}</p>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={checkCamera}
+                    className="mt-1 w-fit gap-1"
+                  >
+                    <Video className="h-3 w-3" />
+                    Retry Camera Check
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer with Accept button */}
@@ -261,7 +368,12 @@ export function StudentInstructionsPage() {
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
-          <Button size="lg" onClick={handleAccept} className="min-w-40">
+          <Button
+            size="lg"
+            onClick={handleAccept}
+            disabled={!canBegin}
+            className="min-w-40"
+          >
             Accept &amp; Begin
           </Button>
         </div>

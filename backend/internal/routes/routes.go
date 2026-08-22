@@ -116,6 +116,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	studentWSHandler := liveview.NewStudentWSHandler(liveviewHub, studentRepo, assignmentRepo)
 	viewerWSHandler := liveview.NewViewerWSHandler(liveviewHub, studentRepo, assignmentRepo, coachRepo)
 	videoHandler := handlers.NewVideoHandler(attemptRepo, assignmentRepo, studentRepo, coachRepo, storageBackend)
+	studentHandler.VideoHandler = videoHandler
 
 	authRoute := r.Group("/auth")
 	authRoute.Use(middleware.NewRateLimiter(redisClient, middleware.LoginLimit))
@@ -205,6 +206,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 		admin.GET("/assignments/:id/video-chunks", videoHandler.ListVideoChunks)
 		admin.GET("/assignments/:id/video-chunk/:index", videoHandler.StreamVideoChunk)
+		admin.GET("/assignments/:id/video-merged", videoHandler.StreamMergedVideo)
+		admin.POST("/assignments/:id/video/merge", videoHandler.MergeVideoChunks)
+		admin.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
 	}
 
 	view := r.Group("/view")
@@ -252,6 +256,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.DELETE("/subjects/:id", adminHandler.DeleteSubject)
 		coach.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		coach.GET("/assignments", adminHandler.ListAssignments)
+		coach.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
 
 		coach.POST("/batches", coachHandler.CreateBatch)
 		coach.GET("/batches", coachHandler.ListBatches)
