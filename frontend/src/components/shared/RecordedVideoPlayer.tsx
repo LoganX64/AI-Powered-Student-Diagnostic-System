@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { AlertCircle, Loader2, Film, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { deleteVideo } from "@/services/dashboard.service";
+import { deleteVideo, getVideoToken } from "@/services/dashboard.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +31,7 @@ export function RecordedVideoPlayer({
   onDelete?: () => void;
 }) {
   const [hasVideo, setHasVideo] = useState<boolean | null>(null);
+  const [videoToken, setVideoToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -42,7 +43,13 @@ export function RecordedVideoPlayer({
       const data = await apiFetch<VideoStatusResponse>(
         `/admin/assignments/${assignmentId}/video-chunks`
       );
-      setHasVideo(data.has_merged || (data.chunks && data.chunks.length > 0));
+      const exists = data.has_merged || (data.chunks && data.chunks.length > 0);
+      setHasVideo(exists);
+
+      if (exists) {
+        const tokenData = await getVideoToken(assignmentId);
+        setVideoToken(tokenData.token);
+      }
     } catch (e) {
       setHasVideo(false);
     } finally {
@@ -69,7 +76,9 @@ export function RecordedVideoPlayer({
     }
   };
 
-  const videoUrl = `${import.meta.env.VITE_BACKEND_URL}/admin/assignments/${assignmentId}/video-merged`;
+  const videoUrl = videoToken
+    ? `${import.meta.env.VITE_BACKEND_URL}/admin/assignments/${assignmentId}/video-merged?token=${videoToken}`
+    : "";
 
   if (loading) {
     return (

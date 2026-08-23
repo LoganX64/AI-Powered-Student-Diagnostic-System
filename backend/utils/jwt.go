@@ -116,3 +116,63 @@ func GenerateToken(userID int, role string, studentID int, tenantID int) (string
 func ValidateToken(tokenStr string) (*Claims, error) {
 	return jwtManager().ValidateToken(tokenStr)
 }
+
+// VideoClaims is a short-lived JWT scoped to a single assignment's video.
+type VideoClaims struct {
+	AssignmentID int    `json:"assignment_id"`
+	Action       string `json:"action"` // "video_stream"
+	TenantID     int    `json:"tenant_id"`
+	Role         string `json:"role"` // admin | coach
+
+	jwt.RegisteredClaims
+}
+
+func (m *JWTManager) GenerateVideoToken(assignmentID int, tenantID int, role string) (string, error) {
+	claims := VideoClaims{
+		AssignmentID: assignmentID,
+		Action:       "video_stream",
+		TenantID:     tenantID,
+		Role:         role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Audience:  jwt.ClaimStrings{m.issuer},
+			Issuer:    m.issuer,
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(5 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(m.secret)
+}
+
+func (m *JWTManager) ValidateVideoToken(tokenStr string) (*VideoClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &VideoClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
+		}
+		return m.secret, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*VideoClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid video token")
+	}
+
+	if claims.Action != "video_stream" {
+		return nil, fmt.Errorf("invalid video token action")
+	}
+
+	return claims, nil
+}
+
+func GenerateVideoToken(assignmentID int, tenantID int, role string) (string, error) {
+	return jwtManager().GenerateVideoToken(assignmentID, tenantID, role)
+}
+
+func ValidateVideoToken(tokenStr string) (*VideoClaims, error) {
+	return jwtManager().ValidateVideoToken(tokenStr)
+}

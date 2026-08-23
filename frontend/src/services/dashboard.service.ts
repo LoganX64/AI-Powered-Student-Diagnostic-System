@@ -375,6 +375,12 @@ export const deleteVideo = (assignmentId: number) =>
     },
   );
 
+export const getVideoToken = (assignmentId: number) =>
+  apiFetch<{ token: string; expires_in: number; assignment_id: number }>(
+    `${getPrefix()}/assignments/${assignmentId}/video-token`,
+    { method: "POST" },
+  );
+
 // ─── Assignment Detail endpoint (role-aware) ───────────────────────────────
 
 export const getAssignmentDetail = (studentId: number, assignmentId: number) =>

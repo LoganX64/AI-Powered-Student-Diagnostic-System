@@ -194,6 +194,43 @@ func (h *VideoHandler) StreamVideoChunk(c *gin.Context) {
 	}
 }
 
+// GenerateVideoToken issues a short-lived JWT for video playback.
+func (h *VideoHandler) GenerateVideoToken(c *gin.Context) {
+	role, ok := getRoleFromContext(c)
+	if !ok {
+		utils.Unauthorized(c, "unauthorized")
+		return
+	}
+	if role != "admin" && role != "coach" {
+		utils.Unauthorized(c, "admin or coach role required")
+		return
+	}
+
+	assignmentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid assignment_id")
+		return
+	}
+
+	if _, err := h.resolveOwnership(c, assignmentID, role); err != nil {
+		utils.Forbidden(c, err.Error())
+		return
+	}
+
+	tenantID := c.GetInt("tenant_id")
+	token, err := utils.GenerateVideoToken(assignmentID, tenantID, role)
+	if err != nil {
+		utils.InternalError(c, err, "failed to generate video token")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"token":        token,
+		"expires_in":   300,
+		"assignment_id": assignmentID,
+	})
+}
+
 // StreamMergedVideo serves the merged video. Merges on first request if not already done.
 func (h *VideoHandler) StreamMergedVideo(c *gin.Context) {
 	role, ok := getRoleFromContext(c)

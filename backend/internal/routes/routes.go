@@ -206,8 +206,14 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 		admin.GET("/assignments/:id/video-chunks", videoHandler.ListVideoChunks)
 		admin.GET("/assignments/:id/video-chunk/:index", videoHandler.StreamVideoChunk)
-		admin.GET("/assignments/:id/video-merged", videoHandler.StreamMergedVideo)
+		admin.POST("/assignments/:id/video-token", videoHandler.GenerateVideoToken)
 		admin.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
+	}
+
+	videoStream := r.Group("/admin")
+	videoStream.Use(middleware.VideoTokenMiddleware())
+	{
+		videoStream.GET("/assignments/:id/video-merged", videoHandler.StreamMergedVideo)
 	}
 
 	view := r.Group("/view")
