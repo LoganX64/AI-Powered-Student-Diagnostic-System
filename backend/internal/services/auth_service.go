@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 )
@@ -48,6 +50,22 @@ func (s *AuthService) RegisterAdmin(email, hashedPassword, orgName string) (int,
 	}
 
 	return tenantID, userID, nil
+}
+
+func (s *AuthService) CreateAdminForTenant(tenantID int, email, hashedPassword, name string) (int, error) {
+	exists, err := s.UserRepo.EmailExistsForOther(email, 0)
+	if err != nil {
+		return 0, fmt.Errorf("check email: %w", err)
+	}
+	if exists {
+		return 0, fmt.Errorf("email %s already exists", email)
+	}
+
+	userID, err := s.UserRepo.Create(tenantID, email, hashedPassword, "admin")
+	if err != nil {
+		return 0, fmt.Errorf("create admin: %w", err)
+	}
+	return userID, nil
 }
 
 func (s *AuthService) RegisterCoach(adminUserID int, email, hashedPassword, name string, subjectIDs []int) (int, int, error) {

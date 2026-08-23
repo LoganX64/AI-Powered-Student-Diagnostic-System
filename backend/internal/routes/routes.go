@@ -77,6 +77,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	loginAttemptRepo := repository.NewLoginAttemptRepo(db)
 	batchRepo := repository.NewBatchRepo(db)
 	jobRepo := repository.NewJobRepo(db)
+	tenantRepo := repository.NewTenantRepo(db)
+	profileRepo := repository.NewProfileRepo(db)
 
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
 	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo, cfg.RedisEnabled)
@@ -118,6 +120,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	videoHandler := handlers.NewVideoHandler(attemptRepo, assignmentRepo, studentRepo, coachRepo, storageBackend)
 	studentHandler.VideoHandler = videoHandler
 
+	superAdminHandler := handlers.NewSuperAdminHandler(tenantRepo, profileRepo, authService)
+	profileHandler := handlers.NewProfileHandler(profileRepo, userRepo)
+	tenantSettingsHandler := handlers.NewTenantSettingsHandler(tenantRepo)
+
 	authRoute := r.Group("/auth")
 	authRoute.Use(middleware.NewRateLimiter(redisClient, middleware.LoginLimit))
 	{
@@ -146,6 +152,31 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			protected.GET("/assignments/:id/live", studentWSHandler.StudentLiveStream)
 			protected.POST("/api/time", studentHandler.ServerTime)
 		}
+	}
+
+	superAdmin := r.Group("/super-admin")
+	superAdmin.Use(
+		middleware.AuthMiddleware(studentRepo, userRepo),
+		middleware.RoleMiddleware("super_admin"),
+	)
+	{
+		superAdmin.GET("/stats", superAdminHandler.GetGlobalStats)
+		superAdmin.GET("/tenants", superAdminHandler.ListTenants)
+		superAdmin.POST("/tenants", superAdminHandler.CreateTenant)
+		superAdmin.GET("/tenants/:id", superAdminHandler.GetTenant)
+		superAdmin.PUT("/tenants/:id", superAdminHandler.UpdateTenant)
+		superAdmin.PUT("/tenants/:id/suspend", superAdminHandler.SuspendTenant)
+		superAdmin.PUT("/tenants/:id/reactivate", superAdminHandler.ReactivateTenant)
+		superAdmin.GET("/tenants/:id/admins", superAdminHandler.ListTenantAdmins)
+		superAdmin.POST("/tenants/:id/admins", superAdminHandler.CreateTenantAdmin)
+	}
+
+	profile := r.Group("")
+	profile.Use(middleware.AuthMiddleware(studentRepo, userRepo))
+	{
+		profile.GET("/auth/profile", profileHandler.GetProfile)
+		profile.PUT("/auth/profile", profileHandler.UpdateProfile)
+		profile.PUT("/auth/password", profileHandler.UpdatePassword)
 	}
 
 	admin := r.Group("/admin")
@@ -208,6 +239,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/assignments/:id/video-chunk/:index", videoHandler.StreamVideoChunk)
 		admin.POST("/assignments/:id/video-token", videoHandler.GenerateVideoToken)
 		admin.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
+
+		admin.GET("/tenant/settings", tenantSettingsHandler.GetSettings)
+		admin.PUT("/tenant/settings", tenantSettingsHandler.UpdateSettings)
+		admin.PUT("/tenant", tenantSettingsHandler.UpdateTenantName)
 	}
 
 	videoStream := r.Group("/admin")

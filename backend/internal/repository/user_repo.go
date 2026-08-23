@@ -23,6 +23,13 @@ type UserLoginRow struct {
 	TenantID sql.NullInt32
 }
 
+type UserRow struct {
+	ID        int    `json:"id"`
+	Email     string `json:"email"`
+	Role      string `json:"role"`
+	CreatedAt string `json:"created_at"`
+}
+
 func (r *UserRepo) GetByEmailWithCoachCheck(email string) (*UserLoginRow, error) {
 	var u UserLoginRow
 	err := r.DB.QueryRow(`
