@@ -1,4 +1,4 @@
-export type Role = "admin" | "coach" | "student";
+export type Role = "admin" | "coach" | "student" | "super_admin";
 
 interface TokenPayload {
   user_id: number;
@@ -12,6 +12,7 @@ export const TOKEN_KEYS: Record<Role, string> = {
   admin: "admin_token",
   coach: "coach_token",
   student: "student_token",
+  super_admin: "super_admin_token",
 };
 
 export function getTokenPayload(token: string): TokenPayload | null {

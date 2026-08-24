@@ -9,6 +9,7 @@ if (!BASE_URL) {
 function getTokenKey(): string {
   const role = getActiveRole();
   if (role === "coach") return TOKEN_KEYS.coach;
+  if (role === "super_admin") return TOKEN_KEYS.super_admin;
   return TOKEN_KEYS.admin;
 }
 

@@ -10,6 +10,11 @@ import { StudentSubmittedPage } from "../src/features/student/StudentSubmittedPa
 import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
 import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
+import { SuperAdminSigninPage } from "../src/features/super-admin/SuperAdminLoginPage.tsx";
+import { SuperAdminDashboardPage } from "../src/features/super-admin/SuperAdminDashboardPage.tsx";
+import { SuperAdminTenantsPage } from "../src/features/super-admin/SuperAdminTenantsPage.tsx";
+import { SuperAdminTenantDetailPage } from "../src/features/super-admin/SuperAdminTenantDetailPage.tsx";
+import { SuperAdminPlansPage } from "../src/features/super-admin/SuperAdminPlansPage.tsx";
 
   // Unified pages
   import { DashboardPage } from "../src/features/shared/DashboardPage.tsx";
@@ -44,6 +49,7 @@ const router = createBrowserRouter([
   { path: "admin-signin", Component: AdminSigninPage },
   { path: "admin-signup", Component: AdminSignupPage },
   { path: "coach-signin", Component: CoachSigninPage },
+  { path: "super-admin-signin", Component: SuperAdminSigninPage },
 
   // Protected routes — require authentication
   {
@@ -89,6 +95,12 @@ const router = createBrowserRouter([
       { path: "coach/help", Component: GetHelpPage },
       { path: "coach/accounts", Component: AccountsPage },
       { path: "coach/notifications", Component: NotificationsPage },
+
+      // Super admin dashboard routes
+      { path: "super-admin/dashboard", Component: SuperAdminDashboardPage },
+      { path: "super-admin/tenants", Component: SuperAdminTenantsPage },
+      { path: "super-admin/tenants/:id", Component: SuperAdminTenantDetailPage },
+      { path: "super-admin/plans", Component: SuperAdminPlansPage },
 
       // Student flow
       { path: "dashboard", Component: StudentDashboardPage },

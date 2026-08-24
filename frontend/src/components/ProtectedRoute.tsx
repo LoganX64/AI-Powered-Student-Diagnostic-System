@@ -1,9 +1,11 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { getTokenPayload, isTokenExpired } from "@/lib/token";
 import { ROLE_CHANGE_EVENT } from "@/hooks/useRole";
-import { STUDENT_ROUTES, ROLE_REDIRECT_MAP, type Role } from "@/config/routes";
+import { STUDENT_ROUTES, ROLE_REDIRECT_MAP } from "@/config/routes";
+import { type Role } from "@/lib/token";
 
 function detectRoleFromPath(pathname: string): Role | null {
+  if (pathname.startsWith("/super-admin")) return "super_admin";
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/coach")) return "coach";
   if (STUDENT_ROUTES.includes(pathname as (typeof STUDENT_ROUTES)[number])) return "student";
@@ -15,7 +17,7 @@ function getRoleFromToken(tokenKey: string): Role | null {
   if (!token) return null;
   const payload = getTokenPayload(token);
   if (!payload) return null;
-  if (payload.role === "admin" || payload.role === "coach" || payload.role === "student") {
+  if (payload.role === "admin" || payload.role === "coach" || payload.role === "student" || payload.role === "super_admin") {
     return payload.role;
   }
   return null;
@@ -27,6 +29,8 @@ function clearExpiredToken(tokenKey: string) {
     localStorage.removeItem("student_code");
   } else if (tokenKey === "coach_token") {
     localStorage.removeItem("coach_token");
+  } else if (tokenKey === "super_admin_token") {
+    localStorage.removeItem("super_admin_token");
   } else {
     localStorage.removeItem("admin_token");
   }
@@ -53,6 +57,18 @@ function isAuthenticated(role: Role): boolean {
       if (!token) return false;
       const tokenRole = getRoleFromToken(tokenKey);
       if (tokenRole !== "coach") return false;
+      if (isTokenExpired(token)) {
+        clearExpiredToken(tokenKey);
+        return false;
+      }
+      return true;
+    }
+    case "super_admin": {
+      const tokenKey = "super_admin_token";
+      const token = localStorage.getItem(tokenKey);
+      if (!token) return false;
+      const tokenRole = getRoleFromToken(tokenKey);
+      if (tokenRole !== "super_admin") return false;
       if (isTokenExpired(token)) {
         clearExpiredToken(tokenKey);
         return false;

@@ -66,6 +66,8 @@ export function LoginPage({
       const res = await login({ email, password });
       if (res.role === "coach") {
         localStorage.setItem("coach_token", res.token);
+      } else if (res.role === "super_admin") {
+        localStorage.setItem("super_admin_token", res.token);
       } else {
         localStorage.setItem("admin_token", res.token);
       }

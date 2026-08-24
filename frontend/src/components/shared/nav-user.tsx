@@ -34,16 +34,28 @@ export function NavUser({
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const prefix = pathname.startsWith("/admin") ? "/admin" : "/coach"
+  const prefix = pathname.startsWith("/super-admin")
+    ? "/super-admin"
+    : pathname.startsWith("/admin")
+      ? "/admin"
+      : "/coach"
 
   const handleLogout = () => {
     if (prefix === "/coach") {
       localStorage.removeItem("coach_token")
+    } else if (prefix === "/super-admin") {
+      localStorage.removeItem("super_admin_token")
     } else {
       localStorage.removeItem("admin_token")
     }
     window.dispatchEvent(new Event(ROLE_CHANGE_EVENT))
-    navigate(prefix === "/admin" ? "/admin-signin" : "/coach-signin")
+    navigate(
+      prefix === "/admin"
+        ? "/admin-signin"
+        : prefix === "/coach"
+          ? "/coach-signin"
+          : "/super-admin-signin"
+    )
   }
 
   return (
