@@ -76,7 +76,7 @@ export type Subject = {
   name: string;
 };
 
-type CoachSubject = {
+export type CoachSubject = {
   subject_id: number;
   subject_name: string;
 };
@@ -136,7 +136,7 @@ export type CoachDetail = {
   deleted_by_name?: string | null;
   deleted_by_email?: string | null;
   deleted_by_role?: string | null;
-  subjects: Subject[];
+  subjects: CoachSubject[];
 };
 
 export type CoachTest = {

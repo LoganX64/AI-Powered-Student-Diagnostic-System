@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { XIcon, PlusIcon, ChevronDownIcon, CheckIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createSubject, getSubjects } from "@/services/dashboard.service";
 import type { Subject } from "@/services/types";

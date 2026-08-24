@@ -57,7 +57,7 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
       setSubjectSearch(test.subject_name || "");
       setSelectedSubject({ subject_id: test.subject_id, name: test.subject_name || "" });
       setCoachSearch(test.coach_name || "");
-      setSelectedCoach({ coach_id: test.coach_id, user_id: 0, name: test.coach_name || "", email: "" });
+      setSelectedCoach({ coach_id: test.coach_id, user_id: 0, name: test.coach_name || "", email: "", subjects: [] });
     }
   }, [test, open]);
 

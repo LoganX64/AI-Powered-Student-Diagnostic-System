@@ -18,7 +18,9 @@ import {
 
 interface VideoStatusResponse {
   assignment_id: number;
-  has_video: boolean;
+  attempt_id: number;
+  has_merged?: boolean;
+  chunks?: string[];
 }
 
 export function RecordedVideoPlayer({
@@ -43,7 +45,7 @@ export function RecordedVideoPlayer({
       const data = await apiFetch<VideoStatusResponse>(
         `/admin/assignments/${assignmentId}/video-chunks`
       );
-      const exists = data.has_merged || (data.chunks && data.chunks.length > 0);
+      const exists = Boolean(data.has_merged) || (data.chunks?.length ?? 0) > 0;
       setHasVideo(exists);
 
       if (exists) {

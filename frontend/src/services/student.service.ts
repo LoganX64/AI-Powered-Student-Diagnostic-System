@@ -31,7 +31,7 @@ type QuestionFromAPI = {
   concept_tag: string;
 };
 
-type IntegrityPolicy = {
+export type IntegrityPolicy = {
   server_timing: boolean;
   autosave: boolean;
   video_proctoring: boolean;

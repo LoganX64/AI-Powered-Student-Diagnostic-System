@@ -47,7 +47,7 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
   const [testId, setTestId] = useState(testIdProp?.toString() ?? "");
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [, setErrors] = useState<Record<string, string>>({});
 
   const update = (index: number, field: keyof QuestionDraft, value: string | number) => {
     setQuestions((prev) =>

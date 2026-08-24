@@ -356,7 +356,13 @@ export const createBatchAssignment = (data: CreateBatchAssignmentPayload) =>
   });
 
 export const getAssignments = (
-  params?: PaginationParams & { test_id?: number; status?: string },
+  params?: PaginationParams & {
+    test_id?: number;
+    status?: string;
+    year?: string;
+    subject_id?: number;
+    coach_id?: number;
+  },
 ) =>
   apiFetch<PaginatedResponse<Assignment>>(
     `${getPrefix()}/assignments${buildAssignmentQuery(params)}`,
