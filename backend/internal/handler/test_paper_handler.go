@@ -282,7 +282,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 
 	for i, question := range questions {
 		if validationErr := repository.ValidateQuestionRequest(question); validationErr != "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr, "position": i})
+			utils.BadRequest(c, validationErr, gin.H{"position": i})
 			return
 		}
 	}

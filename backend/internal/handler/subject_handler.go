@@ -34,11 +34,9 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 	id, deactivatedID, err := h.TestPaperRepo.CreateSubject(tenantID, req.Name)
 	if err != nil {
 		if errors.Is(err, repository.ErrSubjectDeactivated) {
-			c.JSON(http.StatusConflict, gin.H{
-				"error":            "Subject '" + req.Name + "' already exists but is deactivated. Would you like to reactivate it?",
-				"deactivated_id":   deactivatedID,
-				"deactivated_name": req.Name,
-			})
+			utils.Conflict(c,
+				"Subject '"+req.Name+"' already exists but is deactivated. Would you like to reactivate it?",
+				gin.H{"deactivated_id": deactivatedID, "deactivated_name": req.Name})
 			return
 		}
 		utils.BadRequest(c, "subject already exists in your organization")
