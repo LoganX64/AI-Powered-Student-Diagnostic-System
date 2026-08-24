@@ -9,10 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"ai-student-diagnostic/backend/internal/helper"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
-	"ai-student-diagnostic/backend/internal/helper"
 	"ai-student-diagnostic/backend/utils"
 
 	"github.com/gin-gonic/gin"
@@ -20,18 +20,16 @@ import (
 
 // IntegrityPolicy mirrors the assignments.integrity_policy JSONB flags.
 type IntegrityPolicy struct {
-	ServerTiming     bool `json:"server_timing"`
-	Autosave         bool `json:"autosave"`
-	VideoProctoring  bool `json:"video_proctoring"`
-	TabSwitchDetect  bool `json:"tab_switch_detect"`
+	ServerTiming    bool `json:"server_timing"`
+	Autosave        bool `json:"autosave"`
+	VideoProctoring bool `json:"video_proctoring"`
+	TabSwitchDetect bool `json:"tab_switch_detect"`
 }
 
 func parsePolicy(raw []byte) IntegrityPolicy {
 	var p IntegrityPolicy
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &p); err != nil {
-			// A corrupt policy must not silently disable proctoring. Fail
-			// closed to the strictest policy and log so it can be repaired.
 			log.Printf("[POLICY] invalid integrity_policy JSON, defaulting to strict: %v", err)
 			return IntegrityPolicy{ServerTiming: true, Autosave: true, VideoProctoring: true, TabSwitchDetect: true}
 		}
@@ -147,7 +145,6 @@ func (h *StudentHandler) Autosave(c *gin.Context) {
 		attemptID = id
 	}
 
-	// Scale mode: buffer writes in Redis and flush in batches (surge safety).
 	if h.AutosaveBuffer != nil {
 		if err := h.AutosaveBuffer.Push(attemptID, req.Answers); err != nil {
 			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to buffer answers")
@@ -187,7 +184,6 @@ func (h *StudentHandler) Autosave(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"saved": saved})
 }
 
-// GetState returns remaining time + saved answers for resume (autosave/server_timing).
 func (h *StudentHandler) GetState(c *gin.Context) {
 	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -238,8 +234,6 @@ func (h *StudentHandler) GetState(c *gin.Context) {
 	})
 }
 
-// SubmitExam finalizes the attempt. For server_timing it validates the deadline;
-// otherwise it falls back to the existing client-time submit path. No scoring here.
 func (h *StudentHandler) SubmitExam(c *gin.Context) {
 	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -257,6 +251,21 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		return
 	}
 
+	notifyExamSubmitted := func() {
+		if h.NotificationService == nil {
+			return
+		}
+		tenantID := c.GetInt("tenant_id")
+		name, nerr := h.StudentRepo.GetName(studentID, tenantID)
+		if nerr != nil {
+			log.Printf("[NOTIFICATION] failed to resolve student name for %d: %v", studentID, nerr)
+			name = "Unknown"
+		}
+		if err := h.NotificationService.NotifyExamSubmitted(tenantID, studentID, assignmentID, name); err != nil {
+			log.Printf("[NOTIFICATION] exam submitted notify failed: %v", err)
+		}
+	}
+
 	var req struct {
 		Answers []services.AnswerInput `json:"answers"`
 	}
@@ -267,8 +276,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 
 	if policy.ServerTiming {
 		if h.Cfg.RedisEnabled {
-			// Scale mode: validate synchronously, then enqueue finalization so
-			// the DB write is decoupled from the request (accept-fast pattern).
+
 			attemptID, err := h.AttemptService.ValidateTimedSubmit(assignmentID, studentID, h.graceSeconds())
 			if err != nil {
 				var svcErr *services.SubmitAnswersError
@@ -279,8 +287,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 				return
 			}
-			// Compute the same summary fields the synchronous path returns so
-			// the response contract is identical in scale mode.
+
 			var totalTimeSpent float64
 			for _, a := range req.Answers {
 				totalTimeSpent += a.TimeSpent
@@ -294,6 +301,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to enqueue finalization")
 				return
 			}
+			notifyExamSubmitted()
 			c.JSON(http.StatusAccepted, gin.H{
 				"attempt_id":       attemptID,
 				"status":           "queued",
@@ -313,6 +321,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 			return
 		}
+		notifyExamSubmitted()
 		c.JSON(http.StatusOK, gin.H{
 			"attempt_id":       res.AttemptID,
 			"total_time_spent": res.TotalTimeSpent,
@@ -321,7 +330,6 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		return
 	}
 
-	// Simple tier: delegate to the existing finalize path.
 	res, err := h.AttemptService.SubmitAnswers(assignmentID, studentID, req.Answers)
 	if err != nil {
 		var svcErr *services.SubmitAnswersError
@@ -332,6 +340,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 		return
 	}
+	notifyExamSubmitted()
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       res.AttemptID,
 		"total_time_spent": res.TotalTimeSpent,
@@ -339,7 +348,6 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 	})
 }
 
-// VideoChunk accepts an indexed video blob (video_proctoring tier, record-only).
 func (h *StudentHandler) VideoChunk(c *gin.Context) {
 	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -388,8 +396,6 @@ func (h *StudentHandler) VideoChunk(c *gin.Context) {
 		return
 	}
 
-	// Meter actual storage usage. Failure to meter must NOT block the upload —
-	// exam video is stored regardless of quota; overage is billed later.
 	if h.SubscriptionRepo != nil {
 		tenantID := c.GetInt("tenant_id")
 		if metErr := h.SubscriptionRepo.IncrementStorageUsage(tenantID, chunk.Size, assignmentID, index); metErr != nil {
@@ -403,13 +409,10 @@ func (h *StudentHandler) VideoChunk(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"received_index": index, "url": storedURL})
 }
 
-// ServerTime returns the authoritative server clock for client skew calibration.
 func (h *StudentHandler) ServerTime(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"server_time": time.Now().Format(time.RFC3339)})
 }
 
-// toQueueAnswers converts handler answer inputs into the queue-local shape so
-// the services package is not imported by the queue package (avoids a cycle).
 func toQueueAnswers(in []services.AnswerInput) []queue.AnswerInput {
 	out := make([]queue.AnswerInput, len(in))
 	for i, a := range in {

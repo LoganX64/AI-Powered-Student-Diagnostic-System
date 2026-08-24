@@ -34,8 +34,7 @@ type BillingHandler struct {
 	StudentRepo      *repository.StudentRepo
 	CoachRepo        *repository.CoachRepo
 	Storage          storage.Storage
-	// QuotaMW is optional (nil in tests). Guarded before every use.
-	QuotaMW *middleware.QuotaMiddleware
+	QuotaMW          *middleware.QuotaMiddleware
 }
 
 func NewBillingHandler(
@@ -150,8 +149,6 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 		utils.NotFound(c, "no subscription found")
 		return
 	}
-	// Surface the overage charge alongside the subscription (overage_bytes is
-	// already part of the row). additional_cost_paise is computed from it.
 	c.JSON(http.StatusOK, struct {
 		repository.SubscriptionRow
 		AdditionalCostPaise int64 `json:"additional_cost_paise"`
@@ -175,7 +172,7 @@ func (h *BillingHandler) CreateCheckout(c *gin.Context) {
 		utils.NotFound(c, "plan not found")
 		return
 	}
-	// Mock Razorpay response: immediately assign the plan locally.
+
 	tenantID := c.GetInt("tenant_id")
 	if err := h.SubscriptionRepo.Upsert(tenantID, plan.ID); err != nil {
 		utils.InternalError(c, err, "failed to start checkout")
@@ -185,15 +182,14 @@ func (h *BillingHandler) CreateCheckout(c *gin.Context) {
 		h.QuotaMW.Invalidate(tenantID)
 	}
 
-	// Surface any pre-existing overage so the checkout UI can show the bill.
 	var overage int64
 	if cur, cerr := h.SubscriptionRepo.GetByTenantID(tenantID); cerr == nil {
 		overage = cur.OverageBytes
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"checkout_url":         "https://mock-razorpay.com/checkout/" + req.PlanSlug,
-		"subscription_id":      "mock_sub_" + strconv.Itoa(tenantID),
-		"overage_bytes":        overage,
+		"checkout_url":          "https://mock-razorpay.com/checkout/" + req.PlanSlug,
+		"subscription_id":       "mock_sub_" + strconv.Itoa(tenantID),
+		"overage_bytes":         overage,
 		"additional_cost_paise": overageCostPaise(overage),
 	})
 }
@@ -204,24 +200,10 @@ func (h *BillingHandler) HandleWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// When the payment service is registered, replace the mock above with:
-//   1. Webhook is the SOURCE OF TRUTH; the client checkout callback is only UX.
-//   2. Verify `X-Razorpay-Signature` = HMAC-SHA256(rawBody, webhookSecret).
-//      CRITICAL: hash the RAW request body bytes — do NOT parse+re-stringify JSON
-//      (whitespace/key-order changes break the signature; #1 integration failure).
-//   3. Idempotency: dedupe by `event_id` inside the SAME DB transaction as the
-//      status update, so retries never double-apply.
-//   4. Acknowledge 2xx FAST, then process the event async (queue/worker).
-//   5. Use the official `razorpay-go` SDK. Amounts are in PAISE (see ISSUE-6):
-//      store/compare as integers, never floats.
-//   6. Reconcile periodically against the Razorpay API as a safety net.
-
 // POST /admin/subscription/cancel
 func (h *BillingHandler) CancelSubscription(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
 
-	// Revert to the Free plan so quota checks immediately downgrade limits.
-	// Cancelling must restrict access, not leave paid limits in place.
 	if h.PlanRepo != nil {
 		if free, ferr := h.PlanRepo.GetBySlug("free"); ferr == nil && free != nil {
 			if uerr := h.SubscriptionRepo.Upsert(tenantID, free.ID); uerr != nil {

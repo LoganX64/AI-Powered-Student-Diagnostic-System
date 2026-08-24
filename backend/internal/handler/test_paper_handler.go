@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/utils"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -66,6 +67,12 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 	if h.QuotaMW != nil {
 		h.QuotaMW.Invalidate(tenantID)
+	}
+
+	if h.NotificationService != nil {
+		if err := h.NotificationService.NotifyCoachActivity(tenantID, coachID, "created test", req.Title); err != nil {
+			log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"test_id": id})

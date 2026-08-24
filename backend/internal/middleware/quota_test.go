@@ -107,17 +107,13 @@ func TestQuotaWithinTestLimitAllows(t *testing.T) {
 	}
 }
 
-// TestQuotaMissingSubscriptionDefaultsToFree verifies a tenant with no
-// subscription row is restricted like Free (premium blocked, basic allowed),
-// NOT granted unlimited access.
 func TestQuotaMissingSubscriptionDefaultsToFree(t *testing.T) {
 	db := qtestDB(t)
 	defer db.Close()
 	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
 
-	// A tenant id that does not exist -> GetByTenantID returns no rows.
 	missingTenant := 99999999
-	// sanity: ensure it really has no subscription row
+
 	if err := db.QueryRow(`SELECT 1 FROM tenant_subscriptions WHERE tenant_id = $1`, missingTenant).Scan(new(int)); err == nil {
 		t.Skip("tenant id unexpectedly exists; pick another")
 	}

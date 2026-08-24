@@ -73,8 +73,6 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 	}
 }
 
-// VideoTokenMiddleware validates a short-lived video token from the ?token= query param.
-// It sets "assignment_id" and "tenant_id" on the context.
 func VideoTokenMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		tokenStr := c.Query("token")

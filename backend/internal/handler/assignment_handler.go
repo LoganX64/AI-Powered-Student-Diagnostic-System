@@ -56,10 +56,15 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 		return
 	}
 
+	if h.NotificationService != nil {
+		if err := h.NotificationService.NotifyCoachActivity(c.GetInt("tenant_id"), req.CoachID, "assigned exam", "exam assigned"); err != nil {
+			log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"assignment_id": id})
 }
 
-// CreateBatchAssignmentRequest assigns one test to many students and/or batches.
 type CreateBatchAssignmentRequest struct {
 	TestID          int             `json:"test_id" binding:"required"`
 	StudentIDs      []int           `json:"student_ids"`
@@ -233,7 +238,6 @@ func (h *AdminHandler) DeleteAssignment(c *gin.Context) {
 		return
 	}
 
-	// Release any metered proctoring storage for this assignment.
 	releaseAssignmentStorage(h.SubscriptionRepo, h.QuotaMW, tenantID, assignmentID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "assignment cancelled"})
@@ -262,14 +266,11 @@ func (h *CoachHandler) DeleteAssignment(c *gin.Context) {
 		return
 	}
 
-	// Release any metered proctoring storage for this assignment.
 	releaseAssignmentStorage(h.SubscriptionRepo, h.QuotaMW, tenantID, assignmentID)
 
 	c.JSON(http.StatusOK, gin.H{"message": "assignment cancelled"})
 }
 
-// releaseAssignmentStorage frees metered storage and invalidates the quota cache.
-// Both operations are best-effort; a failure here must not fail the delete.
 func releaseAssignmentStorage(subRepo *repository.SubscriptionRepo, quotaMW *middleware.QuotaMiddleware, tenantID, assignmentID int) {
 	if subRepo == nil {
 		return

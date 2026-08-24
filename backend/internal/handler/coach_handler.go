@@ -8,6 +8,7 @@ import (
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -15,21 +16,21 @@ import (
 )
 
 type CoachHandler struct {
-	StudentRepo       *repository.StudentRepo
-	CoachRepo         *repository.CoachRepo
-	TestPaperRepo     *repository.TestPaperRepo
-	AssignmentRepo    *repository.AssignmentRepo
-	AttemptRepo       *repository.AttemptRepo
-	BatchRepo         *repository.BatchRepo
-	JobRepo           *repository.JobRepo
-	AttemptService    *services.AttemptService
-	AssignmentService *services.AssignmentService
-	JobService        *services.JobService
-	SubscriptionRepo  *repository.SubscriptionRepo
-	Queue             queue.Queue
-	Cfg               *config.Config
-	// QuotaMW is optional (nil in tests). Guarded before every use.
-	QuotaMW *middleware.QuotaMiddleware
+	StudentRepo         *repository.StudentRepo
+	CoachRepo           *repository.CoachRepo
+	TestPaperRepo       *repository.TestPaperRepo
+	AssignmentRepo      *repository.AssignmentRepo
+	AttemptRepo         *repository.AttemptRepo
+	BatchRepo           *repository.BatchRepo
+	JobRepo             *repository.JobRepo
+	AttemptService      *services.AttemptService
+	AssignmentService   *services.AssignmentService
+	JobService          *services.JobService
+	SubscriptionRepo    *repository.SubscriptionRepo
+	Queue               queue.Queue
+	Cfg                 *config.Config
+	QuotaMW             *middleware.QuotaMiddleware
+	NotificationService *services.NotificationService
 }
 
 func NewCoachHandler(
@@ -47,22 +48,24 @@ func NewCoachHandler(
 	q queue.Queue,
 	cfg *config.Config,
 	quotaMW *middleware.QuotaMiddleware,
+	notifService *services.NotificationService,
 ) *CoachHandler {
 	return &CoachHandler{
-		StudentRepo:       studentRepo,
-		CoachRepo:         coachRepo,
-		TestPaperRepo:     testPaperRepo,
-		AssignmentRepo:    assignmentRepo,
-		AttemptRepo:       attemptRepo,
-		BatchRepo:         batchRepo,
-		JobRepo:           jobRepo,
-		AttemptService:    attemptService,
-		AssignmentService: assignmentService,
-		JobService:        jobService,
-		SubscriptionRepo:  subscriptionRepo,
-		Queue:             q,
-		Cfg:               cfg,
-		QuotaMW:           quotaMW,
+		StudentRepo:         studentRepo,
+		CoachRepo:           coachRepo,
+		TestPaperRepo:       testPaperRepo,
+		AssignmentRepo:      assignmentRepo,
+		AttemptRepo:         attemptRepo,
+		BatchRepo:           batchRepo,
+		JobRepo:             jobRepo,
+		AttemptService:      attemptService,
+		AssignmentService:   assignmentService,
+		JobService:          jobService,
+		SubscriptionRepo:    subscriptionRepo,
+		Queue:               q,
+		Cfg:                 cfg,
+		QuotaMW:             quotaMW,
+		NotificationService: notifService,
 	}
 }
 
@@ -228,6 +231,12 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 		h.QuotaMW.Invalidate(tenantID)
 	}
 
+	if h.NotificationService != nil {
+		if err := h.NotificationService.NotifyCoachActivity(tenantID, coachID, "created test", req.Title); err != nil {
+			log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"test_id": id})
 }
 
@@ -256,13 +265,17 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 		return
 	}
 
+	if h.NotificationService != nil {
+		if coachID, tID, rerr := resolveCoachAndTenant(c, h.CoachRepo); rerr == nil {
+			if err := h.NotificationService.NotifyCoachActivity(tID, coachID, "assigned exam", "exam assigned"); err != nil {
+				log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
+			}
+		}
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"assignment_id": id})
 }
 
-// ListCoaches resolves the coach-dashboard counts request (GET /coach/coaches)
-// without leaking other coaches' data. A coach only sees their own scope, so we
-// return an empty paginated envelope — the dashboard only consumes `total` (0),
-// which matches the previous (404-swallowed) behavior but without the error.
 func (h *CoachHandler) ListCoaches(c *gin.Context) {
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	c.JSON(http.StatusOK, gin.H{

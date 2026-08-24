@@ -12,8 +12,8 @@ import (
 
 	"ai-student-diagnostic/backend/internal/repository"
 
-	_ "github.com/lib/pq"
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 func btestDB(t *testing.T) *sql.DB {
@@ -81,7 +81,6 @@ func TestBillingAssignPlan(t *testing.T) {
 	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
-	// capture original plan to restore later
 	var origPlan int
 	db.QueryRow(`SELECT plan_id FROM tenant_subscriptions WHERE tenant_id = $1`, tid).Scan(&origPlan)
 	defer db.Exec(`UPDATE tenant_subscriptions SET plan_id = $1, updated_at = NOW() WHERE tenant_id = $2`, origPlan, tid)
@@ -96,7 +95,7 @@ func TestBillingAssignPlan(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("AssignPlan expected 200, got %d", w.Code)
 	}
-	// confirm it applied
+
 	var newPlan int
 	db.QueryRow(`SELECT plan_id FROM tenant_subscriptions WHERE tenant_id = $1`, tid).Scan(&newPlan)
 	if newPlan != 2 {
@@ -104,8 +103,6 @@ func TestBillingAssignPlan(t *testing.T) {
 	}
 }
 
-// TestCancelRevertsToFree verifies Gap 1: cancelling a subscription reverts the
-// tenant to the Free plan so quota checks downgrade immediately.
 func TestCancelRevertsToFree(t *testing.T) {
 	db := btestDB(t)
 	defer db.Close()

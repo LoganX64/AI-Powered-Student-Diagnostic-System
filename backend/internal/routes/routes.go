@@ -69,6 +69,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	})
 
 	userRepo := repository.NewUserRepo(db)
+	notifRepo := repository.NewNotificationRepo(db)
+	notifService := services.NewNotificationService(notifRepo, userRepo)
 	studentRepo := repository.NewStudentRepo(db)
 	coachRepo := repository.NewCoachRepo(db)
 	testPaperRepo := repository.NewTestPaperRepo(db)
@@ -87,7 +89,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
 	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo, subscriptionRepo, cfg.RedisEnabled)
-	jobService := services.NewJobService(jobRepo, attemptService, cfg.ComputeChunkSize)
+	jobService := services.NewJobService(jobRepo, attemptService, cfg.ComputeChunkSize, notifService)
 	authService := services.NewAuthService(userRepo, coachRepo)
 
 	redisClient := cache.NewRedis(cfg)
@@ -115,9 +117,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	jobQueue := queue.New(cfg)
 
 	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo, planRepo, subscriptionRepo, quotaMW)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW)
-	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, subscriptionRepo, jobQueue, autosaveBuffer, storageBackend, cfg, quotaMW)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW, notifService)
+	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW, notifService)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, subscriptionRepo, jobQueue, autosaveBuffer, storageBackend, cfg, quotaMW, notifService)
 
 	billingHandler := handlers.NewBillingHandler(planRepo, subscriptionRepo, studentRepo, coachRepo, storageBackend, quotaMW)
 
@@ -130,6 +132,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	superAdminHandler := handlers.NewSuperAdminHandler(tenantRepo, profileRepo, authService)
 	profileHandler := handlers.NewProfileHandler(profileRepo, userRepo)
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler(tenantRepo)
+	notifHandler := handlers.NewNotificationHandler(notifService, notifRepo)
 
 	authRoute := r.Group("/auth")
 	authRoute.Use(middleware.NewRateLimiter(redisClient, middleware.LoginLimit))
@@ -264,6 +267,14 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.POST("/subscription/checkout", billingHandler.CreateCheckout)
 		admin.POST("/subscription/webhook", billingHandler.HandleWebhook)
 		admin.POST("/subscription/cancel", billingHandler.CancelSubscription)
+
+		admin.GET("/notifications", notifHandler.ListNotifications)
+		admin.GET("/notifications/unread-count", notifHandler.UnreadCount)
+		admin.PUT("/notifications/:id/read", notifHandler.MarkRead)
+		admin.PUT("/notifications/read-all", notifHandler.MarkAllRead)
+		admin.DELETE("/notifications/:id", notifHandler.DeleteNotification)
+		admin.GET("/notifications/preferences", notifHandler.GetPreferences)
+		admin.PUT("/notifications/preferences", notifHandler.UpdatePreferences)
 	}
 
 	videoStream := r.Group("/admin")
@@ -329,6 +340,14 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.GET("/jobs/:id", coachHandler.GetJob)
 
 		coach.PUT("/password", authHandler.UpdatePassword)
+
+		coach.GET("/notifications", notifHandler.ListNotifications)
+		coach.GET("/notifications/unread-count", notifHandler.UnreadCount)
+		coach.PUT("/notifications/:id/read", notifHandler.MarkRead)
+		coach.PUT("/notifications/read-all", notifHandler.MarkAllRead)
+		coach.DELETE("/notifications/:id", notifHandler.DeleteNotification)
+		coach.GET("/notifications/preferences", notifHandler.GetPreferences)
+		coach.PUT("/notifications/preferences", notifHandler.UpdatePreferences)
 	}
 
 	jobQueue.Start(
@@ -360,7 +379,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	// Queue.EnqueueFinalize, which works for the in-process and Redis queues),
 	// so abandoned attempts are reclaimed even without Redis.
 	var sweeperCancel context.CancelFunc
-	sweeper := services.NewSweeper(attemptRepo, jobQueue, autosaveBuffer, cfg.SubmitGraceSeconds)
+	sweeper := services.NewSweeper(attemptRepo, jobQueue, autosaveBuffer, cfg.SubmitGraceSeconds, notifService)
 	sweeperCtx, cancel := context.WithCancel(context.Background())
 	sweeperCancel = cancel
 	go func() {

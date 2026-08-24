@@ -11,14 +11,15 @@ import (
 // finalize_submit job so they are finalized (using already-autosaved answers).
 // Idempotent via the unique_assignment_attempt constraint + status guard.
 type Sweeper struct {
-	AttemptRepo    *repository.AttemptRepo
-	Queue          queue.Queue
-	AutosaveBuffer *AutosaveBuffer
-	GraceSeconds   int
+	AttemptRepo         *repository.AttemptRepo
+	Queue               queue.Queue
+	AutosaveBuffer      *AutosaveBuffer
+	GraceSeconds        int
+	NotificationService *NotificationService
 }
 
-func NewSweeper(attemptRepo *repository.AttemptRepo, q queue.Queue, autosaveBuffer *AutosaveBuffer, graceSeconds int) *Sweeper {
-	return &Sweeper{AttemptRepo: attemptRepo, Queue: q, AutosaveBuffer: autosaveBuffer, GraceSeconds: graceSeconds}
+func NewSweeper(attemptRepo *repository.AttemptRepo, q queue.Queue, autosaveBuffer *AutosaveBuffer, graceSeconds int, notifService *NotificationService) *Sweeper {
+	return &Sweeper{AttemptRepo: attemptRepo, Queue: q, AutosaveBuffer: autosaveBuffer, GraceSeconds: graceSeconds, NotificationService: notifService}
 }
 
 // RunOnce scans for expired attempts and enqueues finalization for each.
@@ -43,5 +44,10 @@ func (s *Sweeper) RunOnce(ctx context.Context) {
 			StudentID:    e.StudentID,
 			Answers:      nil,
 		})
+		if s.NotificationService != nil {
+			if err := s.NotificationService.NotifyStudentExamLogout(e.TenantID, e.StudentID, e.AssignmentID, e.StudentName); err != nil {
+				log.Printf("[SWEEPER] notify student exam logout failed for attempt %d: %v", e.AttemptID, err)
+			}
+		}
 	}
 }

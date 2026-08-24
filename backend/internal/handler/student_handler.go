@@ -31,6 +31,8 @@ type StudentHandler struct {
 	VideoHandler     *VideoHandler
 	// QuotaMW is optional (nil in tests). Guarded before every use.
 	QuotaMW *middleware.QuotaMiddleware
+	// NotificationService is optional (nil in tests). Guarded before every use.
+	NotificationService *services.NotificationService
 }
 
 func NewStudentHandler(
@@ -46,20 +48,22 @@ func NewStudentHandler(
 	storageBackend storage.Storage,
 	cfg *config.Config,
 	quotaMW *middleware.QuotaMiddleware,
+	notifService *services.NotificationService,
 ) *StudentHandler {
 	return &StudentHandler{
-		StudentRepo:      studentRepo,
-		AssignmentRepo:   assignmentRepo,
-		AttemptRepo:      attemptRepo,
-		TestPaperRepo:    testPaperRepo,
-		AttemptService:   attemptService,
-		LoginAttemptRepo: loginAttemptRepo,
-		SubscriptionRepo: subscriptionRepo,
-		Queue:            q,
-		AutosaveBuffer:   autosaveBuffer,
-		Storage:          storageBackend,
-		Cfg:              cfg,
-		QuotaMW:          quotaMW,
+		StudentRepo:         studentRepo,
+		AssignmentRepo:      assignmentRepo,
+		AttemptRepo:         attemptRepo,
+		TestPaperRepo:       testPaperRepo,
+		AttemptService:      attemptService,
+		LoginAttemptRepo:     loginAttemptRepo,
+		SubscriptionRepo:     subscriptionRepo,
+		Queue:               q,
+		AutosaveBuffer:      autosaveBuffer,
+		Storage:             storageBackend,
+		Cfg:                 cfg,
+		QuotaMW:             quotaMW,
+		NotificationService: notifService,
 	}
 }
 

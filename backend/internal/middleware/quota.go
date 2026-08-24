@@ -77,7 +77,6 @@ func (q *QuotaMiddleware) subFor(c *gin.Context) (*repository.SubscriptionRow, e
 		return e.sub, nil
 	}
 	q.cacheMu.RUnlock()
-	// DB (use GetByTenantID — it joins limits + usage in ONE query)
 	sub, err := q.SubscriptionRepo.GetByTenantID(tenantID)
 	if err != nil {
 		// No subscription row: default to Free-plan restrictions instead of

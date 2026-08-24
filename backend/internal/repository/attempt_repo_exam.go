@@ -169,13 +169,16 @@ type ExpiredAttempt struct {
 	AssignmentID int
 	AttemptID    int
 	StudentID    int
+	TenantID     int
+	StudentName  string
 }
 
 func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAttempt, error) {
 	rows, err := r.DB.Query(`
-		SELECT a.id, a.assignment_id, ass.student_id FROM attempts a
+		SELECT a.id, a.assignment_id, ass.student_id, s.tenant_id, s.name FROM attempts a
 		JOIN assignments ass ON a.assignment_id = ass.id
 		JOIN tests t ON ass.test_id = t.id
+		JOIN students s ON ass.student_id = s.id
 		WHERE a.status = 'in_progress'
 		  AND a.started_at + (COALESCE(t.duration, 0) || ' minutes')::interval
 		      + ($1 || ' seconds')::interval < NOW()
@@ -190,7 +193,7 @@ func (r *AttemptRepo) ExpiredInProgressAttempts(graceSeconds int) ([]ExpiredAtte
 	var out []ExpiredAttempt
 	for rows.Next() {
 		var e ExpiredAttempt
-		if err := rows.Scan(&e.AttemptID, &e.AssignmentID, &e.StudentID); err != nil {
+		if err := rows.Scan(&e.AttemptID, &e.AssignmentID, &e.StudentID, &e.TenantID, &e.StudentName); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
