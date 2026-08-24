@@ -96,6 +96,9 @@ func (r *PlanRepo) GetBySlug(slug string) (*PlanRow, error) {
 }
 
 func (r *PlanRepo) Create(p PlanRow) (int, error) {
+	if p.Features == nil {
+		p.Features = []byte("[]")
+	}
 	var id int
 	err := r.DB.QueryRow(`
 		INSERT INTO subscription_plans (
@@ -113,6 +116,9 @@ func (r *PlanRepo) Create(p PlanRow) (int, error) {
 }
 
 func (r *PlanRepo) Update(p PlanRow) error {
+	if p.Features == nil {
+		p.Features = []byte("[]")
+	}
 	_, err := r.DB.Exec(`
 		UPDATE subscription_plans SET
 			name = $1, slug = $2, student_limit = $3, coach_limit = $4,
