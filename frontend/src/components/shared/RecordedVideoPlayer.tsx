@@ -52,7 +52,7 @@ export function RecordedVideoPlayer({
         const tokenData = await getVideoToken(assignmentId);
         setVideoToken(tokenData.token);
       }
-    } catch (e) {
+    } catch {
       setHasVideo(false);
     } finally {
       setLoading(false);

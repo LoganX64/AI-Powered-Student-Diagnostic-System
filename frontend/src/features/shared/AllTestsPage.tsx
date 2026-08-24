@@ -61,7 +61,9 @@ export function AllTestsPage() {
       const res = await getTests({ limit: PAGE_SIZE, offset: off, search: searchTerm || undefined });
       setTests(res.data ?? []);
       setTotal(res.total);
-    } catch {}
+    } catch (err) {
+      void err;
+    }
   }, []);
 
   useEffect(() => {

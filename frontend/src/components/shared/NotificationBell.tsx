@@ -14,12 +14,14 @@ import { getActiveRole, getPrefix } from "@/lib/token";
 
 export function NotificationBell() {
   const role = getActiveRole();
-  // No notifications endpoint exists for super_admin — suppress the bell.
-  if (role !== "admin" && role !== "coach") return null;
-
-  const { unreadCount, notifications } = useNotifications(30000);
+  // No notifications endpoint exists for super_admin — suppress the bell
+  // (hooks must still run unconditionally to satisfy rules-of-hooks).
+  const enabled = role === "admin" || role === "coach";
+  const { unreadCount, notifications } = useNotifications(30000, enabled);
   const navigate = useNavigate();
   const prefix = getPrefix();
+
+  if (!enabled) return null;
 
   return (
     <DropdownMenu>

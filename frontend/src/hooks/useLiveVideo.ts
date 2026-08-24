@@ -23,6 +23,7 @@ export function useLiveVideo(studentId: number | null): UseLiveVideoResult {
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const connectWsRef = useRef<(id: number) => void>(() => {});
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const mountedRef = useRef(true);
@@ -126,11 +127,15 @@ export function useLiveVideo(studentId: number | null): UseLiveVideoResult {
       if (!event.wasClean && mountedRef.current) {
         setError("Connection lost, reconnecting...");
         reconnectTimer.current = setTimeout(() => {
-          if (mountedRef.current) connectWs(id);
+          if (mountedRef.current) connectWsRef.current(id);
         }, 3000);
       }
     };
   }, [closeWs]);
+
+  useEffect(() => {
+    connectWsRef.current = connectWs;
+  }, [connectWs]);
 
   const pollAndConnect = useCallback(async (id: number) => {
     const isLive = await checkLiveStatus(id);

@@ -15,7 +15,7 @@ export type Notification = {
   created_at: string;
 };
 
-export function useNotifications(pollInterval = 30000) {
+export function useNotifications(pollInterval = 30000, enabled = true) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -40,10 +40,11 @@ export function useNotifications(pollInterval = 30000) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     fetchNotifications();
     timerRef.current = setInterval(fetchNotifications, pollInterval);
     return () => clearInterval(timerRef.current);
-  }, [fetchNotifications, pollInterval]);
+  }, [fetchNotifications, pollInterval, enabled]);
 
   return { notifications, unreadCount, loading, refetch: fetchNotifications };
 }
