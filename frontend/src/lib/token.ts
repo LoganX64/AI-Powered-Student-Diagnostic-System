@@ -40,6 +40,17 @@ export function getActiveRole(): Role | null {
   return null;
 }
 
+/**
+ * Returns the API path prefix for the active role.
+ * coach -> /coach, everything else (admin/super_admin) -> /admin.
+ * Used to build role-correct endpoints (e.g. notifications, tenant settings).
+ */
+export function getPrefix(): string {
+  const role = getActiveRole();
+  if (role === "coach") return "/coach";
+  return "/admin";
+}
+
 export function isTokenExpired(token: string): boolean {
   const payload = getTokenPayload(token);
   if (!payload) return true;
