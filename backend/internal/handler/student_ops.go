@@ -301,6 +301,10 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
+	if h.QuotaMW != nil {
+		h.QuotaMW.Invalidate(tenantID)
+	}
+
 	if req.BatchID != nil {
 		ok, err := h.BatchRepo.Exists(tenantID, *req.BatchID)
 		if err != nil {

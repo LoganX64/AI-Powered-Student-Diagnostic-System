@@ -41,23 +41,23 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		c.JSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
 	})
 
-		r.Use(func(c *gin.Context) {
-			origin := c.GetHeader("Origin")
-			for _, o := range allowedOrigins {
-				if o == origin {
-					c.Header("Access-Control-Allow-Origin", origin)
-					c.Header("Vary", "Origin")
-					break
-				}
+	r.Use(func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		for _, o := range allowedOrigins {
+			if o == origin {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Vary", "Origin")
+				break
 			}
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-			if c.Request.Method == "OPTIONS" {
-				c.AbortWithStatus(204)
-				return
-			}
-			c.Next()
-		})
+		}
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
 
 	r.GET("/health", func(c *gin.Context) {
 		if err := db.Ping(); err != nil {
@@ -79,6 +79,11 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	jobRepo := repository.NewJobRepo(db)
 	tenantRepo := repository.NewTenantRepo(db)
 	profileRepo := repository.NewProfileRepo(db)
+	planRepo := repository.NewPlanRepo(db)
+	subscriptionRepo := repository.NewSubscriptionRepo(db)
+
+	// Quota middleware: caches subscription+usage per tenant.
+	quotaMW := middleware.NewQuotaMiddleware(subscriptionRepo, planRepo)
 
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
 	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo, cfg.RedisEnabled)
@@ -109,10 +114,12 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	jobQueue := queue.New(cfg)
 
-	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
-	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg)
+	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo, planRepo, subscriptionRepo, quotaMW)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg, quotaMW)
+	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg, quotaMW)
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, jobQueue, autosaveBuffer, storageBackend, cfg)
+
+	billingHandler := handlers.NewBillingHandler(planRepo, subscriptionRepo, studentRepo, coachRepo, storageBackend, quotaMW)
 
 	liveviewHub := liveview.NewHub(redisClient)
 	studentWSHandler := liveview.NewStudentWSHandler(liveviewHub, studentRepo, assignmentRepo)
@@ -169,6 +176,13 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		superAdmin.PUT("/tenants/:id/reactivate", superAdminHandler.ReactivateTenant)
 		superAdmin.GET("/tenants/:id/admins", superAdminHandler.ListTenantAdmins)
 		superAdmin.POST("/tenants/:id/admins", superAdminHandler.CreateTenantAdmin)
+
+		// Subscription plans (super admin only)
+		superAdmin.GET("/plans", billingHandler.ListPlans)
+		superAdmin.POST("/plans", billingHandler.CreatePlan)
+		superAdmin.PUT("/plans/:id", billingHandler.UpdatePlan)
+		superAdmin.DELETE("/plans/:id", billingHandler.DeletePlan)
+		superAdmin.PUT("/tenants/:id/subscription", billingHandler.AssignPlan)
 	}
 
 	profile := r.Group("")
@@ -185,11 +199,11 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		middleware.RoleMiddleware("admin"),
 	)
 	{
-		admin.POST("/register-coach", authHandler.RegisterCoach)
+		admin.POST("/register-coach", quotaMW.CheckCoachLimit(), authHandler.RegisterCoach)
 
 		admin.POST("/subjects", adminHandler.CreateSubject)
-		admin.POST("/students", adminHandler.CreateStudent)
-		admin.POST("/tests", adminHandler.CreateTest)
+		admin.POST("/students", quotaMW.CheckStudentLimit(), adminHandler.CreateStudent)
+		admin.POST("/tests", quotaMW.CheckTestLimit(), adminHandler.CreateTest)
 		admin.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		admin.POST("/assignments", adminHandler.CreateAssignment)
 		admin.POST("/assignments/batch", adminHandler.CreateBatchAssignment)
@@ -222,33 +236,39 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.DELETE("/subjects/:id", adminHandler.DeleteSubject)
 		admin.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		admin.GET("/assignments", adminHandler.ListAssignments)
-		admin.GET("/students/:id/sqi", adminHandler.GetStudentSQI)
-		admin.POST("/students/sqi-batch", adminHandler.GetStudentSQIBatch)
-		admin.POST("/coaches/stats-batch", adminHandler.GetCoachStatsBatch)
+		admin.GET("/students/:id/sqi", quotaMW.CheckSQIAccess(), adminHandler.GetStudentSQI)
+		admin.POST("/students/sqi-batch", quotaMW.CheckSQIAccess(), adminHandler.GetStudentSQIBatch)
+		admin.POST("/coaches/stats-batch", quotaMW.CheckSQIAccess(), adminHandler.GetCoachStatsBatch)
 
 		admin.POST("/batches", adminHandler.CreateBatch)
 		admin.GET("/batches", adminHandler.ListBatches)
 		admin.DELETE("/batches/:id", adminHandler.DeleteBatch)
 		admin.PATCH("/students/:id/batch", adminHandler.TransferStudentBatch)
 
-		admin.POST("/sqi/compute", adminHandler.ComputeSQI)
-		admin.POST("/sqi/compute-batch", adminHandler.ComputeSQIBatch)
+		admin.POST("/sqi/compute", quotaMW.CheckSQIAccess(), adminHandler.ComputeSQI)
+		admin.POST("/sqi/compute-batch", quotaMW.CheckSQIAccess(), adminHandler.ComputeSQIBatch)
 		admin.GET("/jobs/:id", adminHandler.GetJob)
 
-		admin.GET("/assignments/:id/video-chunks", videoHandler.ListVideoChunks)
-		admin.GET("/assignments/:id/video-chunk/:index", videoHandler.StreamVideoChunk)
-		admin.POST("/assignments/:id/video-token", videoHandler.GenerateVideoToken)
-		admin.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
+		admin.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), videoHandler.ListVideoChunks)
+		admin.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamVideoChunk)
+		admin.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), videoHandler.GenerateVideoToken)
+		admin.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), videoHandler.DeleteVideo)
 
 		admin.GET("/tenant/settings", tenantSettingsHandler.GetSettings)
 		admin.PUT("/tenant/settings", tenantSettingsHandler.UpdateSettings)
 		admin.PUT("/tenant", tenantSettingsHandler.UpdateTenantName)
+
+		// Subscription (per-tenant)
+		admin.GET("/subscription", billingHandler.GetSubscription)
+		admin.POST("/subscription/checkout", billingHandler.CreateCheckout)
+		admin.POST("/subscription/webhook", billingHandler.HandleWebhook)
+		admin.POST("/subscription/cancel", billingHandler.CancelSubscription)
 	}
 
 	videoStream := r.Group("/admin")
 	videoStream.Use(middleware.VideoTokenMiddleware())
 	{
-		videoStream.GET("/assignments/:id/video-merged", videoHandler.StreamMergedVideo)
+		videoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamMergedVideo)
 	}
 
 	view := r.Group("/view")
@@ -264,11 +284,11 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		middleware.RoleMiddleware("coach"),
 	)
 	{
-		coach.GET("/students/:id/sqi", coachHandler.GetStudentSQI)
-		coach.POST("/students/sqi-batch", adminHandler.GetStudentSQIBatch)
+		coach.GET("/students/:id/sqi", quotaMW.CheckSQIAccess(), coachHandler.GetStudentSQI)
+		coach.POST("/students/sqi-batch", quotaMW.CheckSQIAccess(), adminHandler.GetStudentSQIBatch)
 
-		coach.POST("/students", coachHandler.CreateStudent)
-		coach.POST("/tests", coachHandler.CreateTest)
+		coach.POST("/students", quotaMW.CheckStudentLimit(), coachHandler.CreateStudent)
+		coach.POST("/tests", quotaMW.CheckTestLimit(), coachHandler.CreateTest)
 		coach.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
 		coach.POST("/assignments/batch", coachHandler.CreateBatchAssignment)
@@ -303,8 +323,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.DELETE("/batches/:id", coachHandler.DeleteBatch)
 		coach.PATCH("/students/:id/batch", coachHandler.TransferStudentBatch)
 
-		coach.POST("/sqi/compute", coachHandler.ComputeSQI)
-		coach.POST("/sqi/compute-batch", coachHandler.ComputeSQIBatch)
+		coach.POST("/sqi/compute", quotaMW.CheckSQIAccess(), coachHandler.ComputeSQI)
+		coach.POST("/sqi/compute-batch", quotaMW.CheckSQIAccess(), coachHandler.ComputeSQIBatch)
 		coach.GET("/jobs/:id", coachHandler.GetJob)
 
 		coach.PUT("/password", authHandler.UpdatePassword)

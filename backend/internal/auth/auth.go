@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
@@ -13,10 +14,26 @@ import (
 type AuthHandler struct {
 	AuthService      *services.AuthService
 	LoginAttemptRepo *repository.LoginAttemptRepo
+	PlanRepo         *repository.PlanRepo
+	SubscriptionRepo *repository.SubscriptionRepo
+	// QuotaMW is optional (nil in tests). Guarded before every use.
+	QuotaMW *middleware.QuotaMiddleware
 }
 
-func NewAuthHandler(authService *services.AuthService, loginAttemptRepo *repository.LoginAttemptRepo) *AuthHandler {
-	return &AuthHandler{AuthService: authService, LoginAttemptRepo: loginAttemptRepo}
+func NewAuthHandler(
+	authService *services.AuthService,
+	loginAttemptRepo *repository.LoginAttemptRepo,
+	planRepo *repository.PlanRepo,
+	subscriptionRepo *repository.SubscriptionRepo,
+	quotaMW *middleware.QuotaMiddleware,
+) *AuthHandler {
+	return &AuthHandler{
+		AuthService:      authService,
+		LoginAttemptRepo: loginAttemptRepo,
+		PlanRepo:         planRepo,
+		SubscriptionRepo: subscriptionRepo,
+		QuotaMW:          quotaMW,
+	}
 }
 
 type LoginRequest struct {
@@ -52,6 +69,16 @@ func (h *AuthHandler) RegisterAdmin(c *gin.Context) {
 	if err != nil {
 		utils.BadRequest(c, "email already exists")
 		return
+	}
+
+	// Every tenant must have a subscription row (Free plan) so quota checks apply.
+	// Migration seeds existing tenants; this covers orgs registered afterwards.
+	if h.SubscriptionRepo != nil {
+		if free, ferr := h.PlanRepo.GetBySlug("free"); ferr == nil && free != nil {
+			if uerr := h.SubscriptionRepo.Upsert(tenantID, free.ID); uerr != nil {
+				log.Printf("[AUTH] failed to assign free plan to tenant %d: %v", tenantID, uerr)
+			}
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{

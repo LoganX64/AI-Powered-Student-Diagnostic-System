@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/config"
+	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
@@ -26,6 +27,8 @@ type CoachHandler struct {
 	JobService        *services.JobService
 	Queue             queue.Queue
 	Cfg               *config.Config
+	// QuotaMW is optional (nil in tests). Guarded before every use.
+	QuotaMW *middleware.QuotaMiddleware
 }
 
 func NewCoachHandler(
@@ -41,6 +44,7 @@ func NewCoachHandler(
 	jobService *services.JobService,
 	q queue.Queue,
 	cfg *config.Config,
+	quotaMW *middleware.QuotaMiddleware,
 ) *CoachHandler {
 	return &CoachHandler{
 		StudentRepo:       studentRepo,
@@ -55,6 +59,7 @@ func NewCoachHandler(
 		JobService:        jobService,
 		Queue:             q,
 		Cfg:               cfg,
+		QuotaMW:           quotaMW,
 	}
 }
 
@@ -160,6 +165,10 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
+	if h.QuotaMW != nil {
+		h.QuotaMW.Invalidate(tenantID)
+	}
+
 	if req.BatchID != nil {
 		ok, err := h.BatchRepo.Exists(tenantID, *req.BatchID)
 		if err != nil {
@@ -210,6 +219,10 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create test")
 		return
+	}
+
+	if h.QuotaMW != nil {
+		h.QuotaMW.Invalidate(tenantID)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"test_id": id})

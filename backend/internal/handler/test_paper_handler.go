@@ -64,6 +64,10 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 		return
 	}
 
+	if h.QuotaMW != nil {
+		h.QuotaMW.Invalidate(tenantID)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"test_id": id})
 }
 

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/config"
+	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
@@ -21,6 +22,8 @@ type AdminHandler struct {
 	JobService        *services.JobService
 	Queue             queue.Queue
 	Cfg               *config.Config
+	// QuotaMW is optional (nil in tests). Guarded before every use.
+	QuotaMW *middleware.QuotaMiddleware
 }
 
 func NewAdminHandler(
@@ -37,6 +40,7 @@ func NewAdminHandler(
 	jobService *services.JobService,
 	q queue.Queue,
 	cfg *config.Config,
+	quotaMW *middleware.QuotaMiddleware,
 ) *AdminHandler {
 	return &AdminHandler{
 		UserRepo:          userRepo,
@@ -52,5 +56,6 @@ func NewAdminHandler(
 		JobService:        jobService,
 		Queue:             q,
 		Cfg:               cfg,
+		QuotaMW:           quotaMW,
 	}
 }
