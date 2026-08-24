@@ -44,7 +44,7 @@ func (r *SubscriptionRepo) GetByTenantID(tenantID int) (*SubscriptionRow, error)
 			COALESCE(su.used_bytes, 0) AS storage_used_bytes,
 			(SELECT COUNT(*) FROM students s WHERE s.tenant_id = ts.tenant_id AND s.deleted_at IS NULL) AS student_count,
 			(SELECT COUNT(*) FROM coaches c WHERE c.tenant_id = ts.tenant_id AND c.deleted_at IS NULL) AS coach_count,
-			(SELECT COUNT(*) FROM tests t WHERE t.tenant_id = ts.tenant_id AND date_trunc('month', t.created_at) = date_trunc('month', now())) AS test_count_this_month,
+			(SELECT COUNT(*) FROM tests t WHERE t.tenant_id = ts.tenant_id AND date_trunc('month', t.created_at) = date_trunc('month', now() AT TIME ZONE 'UTC')) AS test_count_this_month,
 			sp.student_limit, sp.coach_limit, sp.storage_limit_bytes, sp.test_limit,
 			sp.sqi_access, sp.video_proctoring_included, sp.video_proctoring_limit
 		FROM tenant_subscriptions ts

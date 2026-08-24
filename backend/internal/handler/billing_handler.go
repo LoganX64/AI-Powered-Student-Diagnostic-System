@@ -186,6 +186,18 @@ func (h *BillingHandler) HandleWebhook(c *gin.Context) {
 // POST /admin/subscription/cancel
 func (h *BillingHandler) CancelSubscription(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
+
+	// Revert to the Free plan so quota checks immediately downgrade limits.
+	// Cancelling must restrict access, not leave paid limits in place.
+	if h.PlanRepo != nil {
+		if free, ferr := h.PlanRepo.GetBySlug("free"); ferr == nil && free != nil {
+			if uerr := h.SubscriptionRepo.Upsert(tenantID, free.ID); uerr != nil {
+				utils.InternalError(c, uerr, "failed to revert plan on cancel")
+				return
+			}
+		}
+	}
+
 	if err := h.SubscriptionRepo.UpdateStatus(tenantID, "cancelled"); err != nil {
 		utils.InternalError(c, err, "failed to cancel subscription")
 		return

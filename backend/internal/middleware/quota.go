@@ -17,6 +17,9 @@ type QuotaMiddleware struct {
 	cacheMu  sync.RWMutex
 	cache    map[int]subCacheEntry
 	cacheTTL time.Duration
+
+	freePlan   *repository.PlanRow
+	freePlanMu sync.Mutex
 }
 
 func NewQuotaMiddleware(subRepo *repository.SubscriptionRepo, planRepo *repository.PlanRepo) *QuotaMiddleware {
@@ -25,6 +28,33 @@ func NewQuotaMiddleware(subRepo *repository.SubscriptionRepo, planRepo *reposito
 		PlanRepo:         planRepo,
 		cache:            make(map[int]subCacheEntry),
 		cacheTTL:         5 * time.Minute,
+	}
+}
+
+// loadFreePlan returns the cached Free plan, loading it on first use. If the
+// Free plan cannot be fetched at all, it returns a hard-coded conservative
+// fallback (no premium access, zero caps) so we never grant unlimited access.
+func (q *QuotaMiddleware) loadFreePlan() *repository.PlanRow {
+	q.freePlanMu.Lock()
+	defer q.freePlanMu.Unlock()
+	if q.freePlan != nil {
+		return q.freePlan
+	}
+	if q.PlanRepo != nil {
+		if p, err := q.PlanRepo.GetBySlug("free"); err == nil && p != nil {
+			q.freePlan = p
+			return q.freePlan
+		}
+	}
+	return &repository.PlanRow{
+		Name:                    "free",
+		StudentLimit:            0,
+		CoachLimit:              0,
+		StorageLimitBytes:       0,
+		TestLimit:               0,
+		SQIAccess:               false,
+		VideoProctoringIncluded: false,
+		VideoProctoringLimit:    0,
 	}
 }
 
@@ -50,7 +80,27 @@ func (q *QuotaMiddleware) subFor(c *gin.Context) (*repository.SubscriptionRow, e
 	// DB (use GetByTenantID — it joins limits + usage in ONE query)
 	sub, err := q.SubscriptionRepo.GetByTenantID(tenantID)
 	if err != nil {
-		return nil, err
+		// No subscription row: default to Free-plan restrictions instead of
+		// failing open (unlimited). Build a synthetic Free row from cached
+		// Free-plan defaults; usage counts default to 0.
+		free := q.loadFreePlan()
+		fallback := &repository.SubscriptionRow{
+			TenantID:                tenantID,
+			PlanName:                free.Name,
+			Status:                  "free_default",
+			StudentLimit:            free.StudentLimit,
+			CoachLimit:              free.CoachLimit,
+			StorageLimitBytes:       free.StorageLimitBytes,
+			TestLimit:               free.TestLimit,
+			SQIAccess:               free.SQIAccess,
+			VideoProctoringIncluded: free.VideoProctoringIncluded,
+			VideoProctoringLimit:    free.VideoProctoringLimit,
+		}
+		q.cacheMu.Lock()
+		q.cache[tenantID] = subCacheEntry{sub: fallback, expires: time.Now().Add(q.cacheTTL)}
+		q.cacheMu.Unlock()
+		c.Set("quota_sub", fallback)
+		return fallback, nil
 	}
 	q.cacheMu.Lock()
 	q.cache[tenantID] = subCacheEntry{sub: sub, expires: time.Now().Add(q.cacheTTL)}

@@ -155,6 +155,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			protected.POST("/assignments/:id/autosave", limiter, studentHandler.Autosave)
 			protected.GET("/assignments/:id/state", studentHandler.GetState)
 			protected.POST("/assignments/:id/submit", limiter, studentHandler.SubmitExam)
+
 			protected.POST("/assignments/:id/video-chunk", limiter, studentHandler.VideoChunk)
 			protected.GET("/assignments/:id/live", studentWSHandler.StudentLiveStream)
 			protected.POST("/api/time", studentHandler.ServerTime)
@@ -249,10 +250,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.POST("/sqi/compute-batch", quotaMW.CheckSQIAccess(), adminHandler.ComputeSQIBatch)
 		admin.GET("/jobs/:id", adminHandler.GetJob)
 
-		admin.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), videoHandler.ListVideoChunks)
-		admin.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamVideoChunk)
-		admin.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), videoHandler.GenerateVideoToken)
-		admin.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), videoHandler.DeleteVideo)
+		admin.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.ListVideoChunks)
+		admin.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.StreamVideoChunk)
+		admin.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.GenerateVideoToken)
+		admin.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.DeleteVideo)
 
 		admin.GET("/tenant/settings", tenantSettingsHandler.GetSettings)
 		admin.PUT("/tenant/settings", tenantSettingsHandler.UpdateSettings)
@@ -268,7 +269,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	videoStream := r.Group("/admin")
 	videoStream.Use(middleware.VideoTokenMiddleware())
 	{
-		videoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamMergedVideo)
+		videoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.StreamMergedVideo)
 	}
 
 	view := r.Group("/view")

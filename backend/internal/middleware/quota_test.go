@@ -9,8 +9,8 @@ import (
 
 	"ai-student-diagnostic/backend/internal/repository"
 
-	_ "github.com/lib/pq"
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 func qtestDB(t *testing.T) *sql.DB {
@@ -104,5 +104,36 @@ func TestQuotaWithinTestLimitAllows(t *testing.T) {
 	code := runQuota(tid, qm.CheckTestLimit())
 	if code != http.StatusOK {
 		t.Fatalf("expected 200 within test limit, got %d", code)
+	}
+}
+
+// TestQuotaMissingSubscriptionDefaultsToFree verifies a tenant with no
+// subscription row is restricted like Free (premium blocked, basic allowed),
+// NOT granted unlimited access.
+func TestQuotaMissingSubscriptionDefaultsToFree(t *testing.T) {
+	db := qtestDB(t)
+	defer db.Close()
+	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
+
+	// A tenant id that does not exist -> GetByTenantID returns no rows.
+	missingTenant := 99999999
+	// sanity: ensure it really has no subscription row
+	if err := db.QueryRow(`SELECT 1 FROM tenant_subscriptions WHERE tenant_id = $1`, missingTenant).Scan(new(int)); err == nil {
+		t.Skip("tenant id unexpectedly exists; pick another")
+	}
+
+	// Premium features must be blocked.
+	if code := runQuota(missingTenant, qm.CheckSQIAccess()); code != http.StatusPaymentRequired {
+		t.Fatalf("missing-sub SQI expected 402, got %d", code)
+	}
+	if code := runQuota(missingTenant, qm.CheckVideoProctoringAccess()); code != http.StatusPaymentRequired {
+		t.Fatalf("missing-sub proctoring expected 402, got %d", code)
+	}
+	// Basic creation must still be allowed (Free caps, zero usage).
+	if code := runQuota(missingTenant, qm.CheckStudentLimit()); code != http.StatusOK {
+		t.Fatalf("missing-sub student limit expected 200, got %d", code)
+	}
+	if code := runQuota(missingTenant, qm.CheckTestLimit()); code != http.StatusOK {
+		t.Fatalf("missing-sub test limit expected 200, got %d", code)
 	}
 }

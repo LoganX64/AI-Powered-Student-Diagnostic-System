@@ -103,3 +103,48 @@ func TestBillingAssignPlan(t *testing.T) {
 		t.Fatalf("AssignPlan did not persist plan_id, got %d", newPlan)
 	}
 }
+
+// TestCancelRevertsToFree verifies Gap 1: cancelling a subscription reverts the
+// tenant to the Free plan so quota checks downgrade immediately.
+func TestCancelRevertsToFree(t *testing.T) {
+	db := btestDB(t)
+	defer db.Close()
+	h := newBillingHandler(db)
+
+	var tid int
+	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+		t.Skip("no tenant:", err)
+	}
+	var origPlan int
+	db.QueryRow(`SELECT plan_id FROM tenant_subscriptions WHERE tenant_id = $1`, tid).Scan(&origPlan)
+	defer db.Exec(`UPDATE tenant_subscriptions SET plan_id = $1, updated_at = NOW() WHERE tenant_id = $2`, origPlan, tid)
+
+	// assign a paid plan (starter = 2)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("tenant_id", tid)
+	c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tid)}}
+	body, _ := json.Marshal(map[string]int{"plan_id": 2})
+	c.Request = httptest.NewRequest(http.MethodPut, "/x", bytes.NewReader(body))
+	h.AssignPlan(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("AssignPlan expected 200, got %d", w.Code)
+	}
+
+	// cancel
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	c2.Set("tenant_id", tid)
+	c2.Request = httptest.NewRequest(http.MethodPost, "/x", nil)
+	h.CancelSubscription(c2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("CancelSubscription expected 200, got %d", w2.Code)
+	}
+
+	// plan must have reverted to Free (id 1)
+	var afterPlan int
+	db.QueryRow(`SELECT plan_id FROM tenant_subscriptions WHERE tenant_id = $1`, tid).Scan(&afterPlan)
+	if afterPlan != 1 {
+		t.Fatalf("CancelSubscription did not revert to Free, got plan_id=%d", afterPlan)
+	}
+}
