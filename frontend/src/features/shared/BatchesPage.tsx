@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { FolderIcon, PlusIcon, Trash2Icon, UsersIcon } from "lucide-react";
+import { FolderIcon, PlusIcon, Trash2Icon, UsersIcon, PencilIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,9 +41,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   getBatches,
   createBatch,
   deleteBatch,
+  updateBatch,
   transferStudentBatch,
   getStudents,
   type Batch,
@@ -65,6 +74,9 @@ export function BatchesPage() {
   const [memberOffset, setMemberOffset] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<Batch | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editTarget, setEditTarget] = useState<Batch | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editing, setEditing] = useState(false);
   const [transferringId, setTransferringId] = useState<number | null>(null);
   const [pendingTransfer, setPendingTransfer] = useState<{
     studentId: number;
@@ -160,6 +172,29 @@ export function BatchesPage() {
     } finally {
       setDeleting(false);
       setDeleteTarget(null);
+    }
+  };
+
+  const openEdit = (batch: Batch) => {
+    setEditTarget(batch);
+    setEditName(batch.name);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    const name = editName.trim();
+    if (!name) return;
+    try {
+      setEditing(true);
+      await updateBatch(editTarget.id, name);
+      toast.success(`Batch renamed to "${name}"`);
+      setEditTarget(null);
+      await refresh();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -259,16 +294,27 @@ export function BatchesPage() {
                         {new Date(b.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-destructive"
-                          disabled={deleting}
-                          aria-label={`Delete batch ${b.name}`}
-                          onClick={() => setDeleteTarget(b)}
-                        >
-                          <Trash2Icon className="size-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-foreground"
+                            aria-label={`Edit batch ${b.name}`}
+                            onClick={() => openEdit(b)}
+                          >
+                            <PencilIcon className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-destructive"
+                            disabled={deleting}
+                            aria-label={`Delete batch ${b.name}`}
+                            onClick={() => setDeleteTarget(b)}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -422,6 +468,37 @@ export function BatchesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Batch</DialogTitle>
+            <DialogDescription>
+              Rename the batch <span className="font-semibold">{editTarget?.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-batch-name">Batch name</Label>
+              <Input
+                id="edit-batch-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="e.g. Batch 2025-A"
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={editing}>
+                {editing ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={pendingTransfer !== null} onOpenChange={(o) => !o && setPendingTransfer(null)}>
         <AlertDialogContent>

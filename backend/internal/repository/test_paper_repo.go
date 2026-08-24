@@ -413,6 +413,24 @@ func (r *TestPaperRepo) DeleteSubject(subjectID, tenantID, deletedBy int) (bool,
 	return rowsAffected > 0, nil
 }
 
+func (r *TestPaperRepo) UpdateSubject(subjectID, tenantID int, name string) (bool, error) {
+	result, err := r.DB.Exec(
+		`UPDATE subjects SET name = $1 WHERE id = $2 AND tenant_id = $3 AND deleted_at IS NULL`,
+		name, subjectID, tenantID,
+	)
+	if err != nil {
+		return false, err
+	}
+	if strings.Contains(err.Error(), "duplicate") {
+		return false, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected > 0, nil
+}
+
 func (r *TestPaperRepo) ReactivateSubject(subjectID, tenantID int) (bool, error) {
 	result, err := r.DB.Exec(
 		`UPDATE subjects SET deleted_at=NULL, deleted_by=NULL WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NOT NULL`,

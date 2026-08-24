@@ -238,6 +238,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/coaches/:id/students", adminHandler.ListCoachStudents)
 		admin.GET("/subjects", adminHandler.ListSubjects)
 		admin.DELETE("/subjects/:id", adminHandler.DeleteSubject)
+		admin.PUT("/subjects/:id", adminHandler.UpdateSubject)
 		admin.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		admin.GET("/assignments", adminHandler.ListAssignments)
 		admin.GET("/students/:id/sqi", quotaMW.CheckSQIAccess(), adminHandler.GetStudentSQI)
@@ -247,6 +248,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.POST("/batches", adminHandler.CreateBatch)
 		admin.GET("/batches", adminHandler.ListBatches)
 		admin.DELETE("/batches/:id", adminHandler.DeleteBatch)
+		admin.PUT("/batches/:id", adminHandler.UpdateBatch)
 		admin.PATCH("/students/:id/batch", adminHandler.TransferStudentBatch)
 
 		admin.POST("/sqi/compute", quotaMW.CheckSQIAccess(), adminHandler.ComputeSQI)
@@ -329,6 +331,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.PUT("/students/:id/reactivate", adminHandler.ReactivateStudent)
 		coach.GET("/subjects", adminHandler.ListSubjects)
 		coach.DELETE("/subjects/:id", adminHandler.DeleteSubject)
+		coach.PUT("/subjects/:id", coachHandler.UpdateSubject)
 		coach.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		coach.GET("/assignments", adminHandler.ListAssignments)
 		coach.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
@@ -336,6 +339,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.POST("/batches", coachHandler.CreateBatch)
 		coach.GET("/batches", coachHandler.ListBatches)
 		coach.DELETE("/batches/:id", coachHandler.DeleteBatch)
+		coach.PUT("/batches/:id", coachHandler.UpdateBatch)
 		coach.PATCH("/students/:id/batch", coachHandler.TransferStudentBatch)
 
 		coach.POST("/sqi/compute", quotaMW.CheckSQIAccess(), coachHandler.ComputeSQI)

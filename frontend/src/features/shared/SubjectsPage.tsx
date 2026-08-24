@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Trash2Icon, BookOpenIcon } from "lucide-react";
+import { Trash2Icon, BookOpenIcon, PencilIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
@@ -28,7 +28,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { createSubject, deleteSubject, getSubjects, reactivateSubject, type Subject } from "@/services/dashboard.service";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createSubject, deleteSubject, getSubjects, reactivateSubject, updateSubject, type Subject } from "@/services/dashboard.service";
 import { createSubjectSchema, zodErrors } from "@/lib/validations";
 
 const PAGE_SIZE = 50;
@@ -41,6 +49,9 @@ export function SubjectsPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [reactivateTarget, setReactivateTarget] = useState<{ id: number; name: string } | null>(null);
+  const [editTarget, setEditTarget] = useState<Subject | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editing, setEditing] = useState(false);
 
   const fetchSubjects = useCallback(async (off: number) => {
     try {
@@ -111,6 +122,29 @@ export function SubjectsPage() {
     }
   };
 
+  const openEdit = (subject: Subject) => {
+    setEditTarget(subject);
+    setEditName(subject.name);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    const name = editName.trim();
+    if (!name) return;
+    try {
+      setEditing(true);
+      await updateSubject(editTarget.subject_id, name);
+      toast.success(`Subject renamed to "${name}"`);
+      setEditTarget(null);
+      fetchSubjects(offset);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setEditing(false);
+    }
+  };
+
   return (
     <DashboardLayout title="Subjects">
       {/* Create form */}
@@ -178,38 +212,49 @@ export function SubjectsPage() {
                     </TableCell>
                     <TableCell className="font-medium">{subject.name}</TableCell>
                     <TableCell className="text-right">
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-muted-foreground hover:text-destructive"
-                            disabled={deletingId === subject.subject_id}
-                            aria-label={`Delete ${subject.name}`}
-                          >
-                            <Trash2Icon className="size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Subject</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to deactivate{" "}
-                              <span className="font-semibold">{subject.name}</span>?
-                              This subject will be deactivated. It can be reactivated later.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDelete(subject)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-foreground"
+                          aria-label={`Edit ${subject.name}`}
+                          onClick={() => openEdit(subject)}
+                        >
+                          <PencilIcon className="size-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-destructive"
+                              disabled={deletingId === subject.subject_id}
+                              aria-label={`Delete ${subject.name}`}
                             >
-                              Deactivate
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Trash2Icon className="size-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Subject</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to deactivate{" "}
+                                <span className="font-semibold">{subject.name}</span>?
+                                This subject will be deactivated. It can be reactivated later.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(subject)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Deactivate
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -262,6 +307,38 @@ export function SubjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit dialog */}
+      <Dialog open={editTarget !== null} onOpenChange={(o) => !o && setEditTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Subject</DialogTitle>
+            <DialogDescription>
+              Rename the subject <span className="font-semibold">{editTarget?.name}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="edit-subject-name">Subject Name</Label>
+              <Input
+                id="edit-subject-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Mathematics"
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditTarget(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={editing}>
+                {editing ? "Saving…" : "Save"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

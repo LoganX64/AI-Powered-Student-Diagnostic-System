@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -69,6 +70,44 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": subjects})
 }
 
+func (h *AdminHandler) UpdateSubject(c *gin.Context) {
+	subjectID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid subject id")
+		return
+	}
+
+	tenantID, err := resolveTenantID(c)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	found, err := h.TestPaperRepo.UpdateSubject(subjectID, tenantID, req.Name)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate") {
+			utils.BadRequest(c, "subject name already exists in your organization")
+			return
+		}
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update subject")
+		return
+	}
+	if !found {
+		utils.NotFound(c, "subject not found")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "subject updated"})
+}
+
 func (h *AdminHandler) DeleteSubject(c *gin.Context) {
 	subjectID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -121,4 +160,42 @@ func (h *AdminHandler) ReactivateSubject(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "subject reactivated"})
+}
+
+func (h *CoachHandler) UpdateSubject(c *gin.Context) {
+	subjectID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid subject id")
+		return
+	}
+
+	_, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
+	if err != nil {
+		utils.Unauthorized(c, "coach not found")
+		return
+	}
+
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	found, err := h.TestPaperRepo.UpdateSubject(subjectID, tenantID, req.Name)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate") {
+			utils.BadRequest(c, "subject name already exists in your organization")
+			return
+		}
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update subject")
+		return
+	}
+	if !found {
+		utils.NotFound(c, "subject not found")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "subject updated"})
 }

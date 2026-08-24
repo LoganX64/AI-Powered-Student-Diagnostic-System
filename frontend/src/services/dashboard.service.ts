@@ -239,6 +239,12 @@ export const deleteBatch = (batchId: number) =>
     { method: "DELETE" },
   );
 
+export const updateBatch = (batchId: number, name: string) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/batches/${batchId}`, {
+    method: "PUT",
+    body: JSON.stringify({ name }),
+  });
+
 export const transferStudentBatch = (
   studentId: number,
   batchId: number | null,
@@ -268,6 +274,12 @@ export const reactivateSubject = (subjectId: number) =>
       method: "PUT",
     },
   );
+
+export const updateSubject = (subjectId: number, name: string) =>
+  apiFetch<{ message: string }>(`${getPrefix()}/subjects/${subjectId}`, {
+    method: "PUT",
+    body: JSON.stringify({ name }),
+  });
 
 export const getSubjects = (params?: PaginationParams) =>
   apiFetch<PaginatedResponse<Subject>>(

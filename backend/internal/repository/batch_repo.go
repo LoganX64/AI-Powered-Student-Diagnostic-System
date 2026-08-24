@@ -103,6 +103,22 @@ func (r *BatchRepo) SetStudentBatch(tenantID, studentID int, batchID *int) error
 	return err
 }
 
+// Update renames a batch within a tenant. Returns false if the batch does not exist.
+func (r *BatchRepo) Update(tenantID, id int, name string) (bool, error) {
+	res, err := r.DB.Exec(
+		`UPDATE batches SET name = $1 WHERE id = $2 AND tenant_id = $3`,
+		name, id, tenantID,
+	)
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected > 0, nil
+}
+
 // MemberIDs returns active student IDs belonging to a batch within a tenant.
 func (r *BatchRepo) MemberIDs(tenantID, batchID int) ([]int, error) {
 	rows, err := r.DB.Query(

@@ -64,6 +64,35 @@ func deleteBatchHelper(c *gin.Context, tenantID int, batchRepo *repository.Batch
 	c.JSON(http.StatusOK, gin.H{"message": "batch deleted", "students_reassigned": reassigned})
 }
 
+func updateBatchHelper(c *gin.Context, tenantID int, batchRepo *repository.BatchRepo) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid batch id")
+		return
+	}
+	var req struct {
+		Name string `json:"name" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+	exists, err := batchRepo.Exists(tenantID, id)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify batch")
+		return
+	}
+	if !exists {
+		utils.NotFound(c, "batch not found")
+		return
+	}
+	if _, err := batchRepo.Update(tenantID, id, req.Name); err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update batch")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "batch updated"})
+}
+
 func transferStudentBatchHelper(c *gin.Context, tenantID int, studentRepo *repository.StudentRepo, batchRepo *repository.BatchRepo) {
 	studentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -139,6 +168,15 @@ func (h *AdminHandler) DeleteBatch(c *gin.Context) {
 	deleteBatchHelper(c, tenantID, h.BatchRepo)
 }
 
+func (h *AdminHandler) UpdateBatch(c *gin.Context) {
+	tenantID, err := resolveTenantID(c)
+	if err != nil {
+		utils.InternalError(c, err, "failed to fetch tenant info")
+		return
+	}
+	updateBatchHelper(c, tenantID, h.BatchRepo)
+}
+
 func (h *AdminHandler) TransferStudentBatch(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
@@ -177,6 +215,15 @@ func (h *CoachHandler) DeleteBatch(c *gin.Context) {
 		return
 	}
 	deleteBatchHelper(c, tenantID, h.BatchRepo)
+}
+
+func (h *CoachHandler) UpdateBatch(c *gin.Context) {
+	_, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
+	if err != nil {
+		utils.Unauthorized(c, "coach not found")
+		return
+	}
+	updateBatchHelper(c, tenantID, h.BatchRepo)
 }
 
 func (h *CoachHandler) TransferStudentBatch(c *gin.Context) {
