@@ -1,11 +1,13 @@
 package handlers
 
 import (
+	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -231,6 +233,9 @@ func (h *AdminHandler) DeleteAssignment(c *gin.Context) {
 		return
 	}
 
+	// Release any metered proctoring storage for this assignment.
+	releaseAssignmentStorage(h.SubscriptionRepo, h.QuotaMW, tenantID, assignmentID)
+
 	c.JSON(http.StatusOK, gin.H{"message": "assignment cancelled"})
 }
 
@@ -257,5 +262,22 @@ func (h *CoachHandler) DeleteAssignment(c *gin.Context) {
 		return
 	}
 
+	// Release any metered proctoring storage for this assignment.
+	releaseAssignmentStorage(h.SubscriptionRepo, h.QuotaMW, tenantID, assignmentID)
+
 	c.JSON(http.StatusOK, gin.H{"message": "assignment cancelled"})
+}
+
+// releaseAssignmentStorage frees metered storage and invalidates the quota cache.
+// Both operations are best-effort; a failure here must not fail the delete.
+func releaseAssignmentStorage(subRepo *repository.SubscriptionRepo, quotaMW *middleware.QuotaMiddleware, tenantID, assignmentID int) {
+	if subRepo == nil {
+		return
+	}
+	if err := subRepo.ReleaseStorageForAssignment(tenantID, assignmentID); err != nil {
+		log.Printf("[ASSIGNMENT] failed to release storage for assignment %d: %v", assignmentID, err)
+	}
+	if quotaMW != nil {
+		quotaMW.Invalidate(tenantID)
+	}
 }

@@ -2,29 +2,37 @@ package services
 
 import (
 	"ai-student-diagnostic/backend/internal/repository"
+	"database/sql"
 	"errors"
 	"log"
+	"net/http"
 
 	"github.com/lib/pq"
 )
 
+// proctoringBytesPerMinute is the fixed recording rate (500 kbps / 480x360),
+// ~3.75 MB/min. Mirrors frontend StudentQuizPage.tsx:391.
+const proctoringBytesPerMinute = 3_750_000
+
 type AssignmentService struct {
-	AssignmentRepo *repository.AssignmentRepo
-	StudentRepo    *repository.StudentRepo
-	TestPaperRepo       *repository.TestPaperRepo
-	CoachRepo      *repository.CoachRepo
-	UserRepo       *repository.UserRepo
-	RedisEnabled   bool
+	AssignmentRepo    *repository.AssignmentRepo
+	StudentRepo       *repository.StudentRepo
+	TestPaperRepo     *repository.TestPaperRepo
+	CoachRepo         *repository.CoachRepo
+	UserRepo          *repository.UserRepo
+	SubscriptionRepo  *repository.SubscriptionRepo
+	RedisEnabled      bool
 }
 
-func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testPaperRepo *repository.TestPaperRepo, coachRepo *repository.CoachRepo, userRepo *repository.UserRepo, redisEnabled bool) *AssignmentService {
+func NewAssignmentService(assignmentRepo *repository.AssignmentRepo, studentRepo *repository.StudentRepo, testPaperRepo *repository.TestPaperRepo, coachRepo *repository.CoachRepo, userRepo *repository.UserRepo, subscriptionRepo *repository.SubscriptionRepo, redisEnabled bool) *AssignmentService {
 	return &AssignmentService{
-		AssignmentRepo: assignmentRepo,
-		StudentRepo:    studentRepo,
-		TestPaperRepo:       testPaperRepo,
-		CoachRepo:      coachRepo,
-		UserRepo:       userRepo,
-		RedisEnabled:   redisEnabled,
+		AssignmentRepo:   assignmentRepo,
+		StudentRepo:      studentRepo,
+		TestPaperRepo:    testPaperRepo,
+		CoachRepo:        coachRepo,
+		UserRepo:         userRepo,
+		SubscriptionRepo: subscriptionRepo,
+		RedisEnabled:     redisEnabled,
 	}
 }
 
@@ -104,6 +112,11 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 		return 0, &CreateAssignmentError{Status: 403, Message: "test not found or not in your organization"}
 	}
 
+	// Project proctoring storage at creation; block only if it would exceed the cap.
+	if err := s.guardStorageForProctoring(tenantID, input.TestID, 1); err != nil {
+		return 0, err
+	}
+
 	id, err := s.AssignmentRepo.Create(input.StudentID, input.TestID, coachID, input.IntegrityPolicy, input.EstimatedCost, input.DeliveryMode)
 	if err != nil {
 		var pqErr *pq.Error
@@ -162,6 +175,12 @@ func (s *AssignmentService) CreateBatchAssignment(input CreateBatchAssignmentInp
 		return 0, &CreateAssignmentError{Status: 400, Message: "no valid students to assign"}
 	}
 
+	// Project proctoring storage across the whole batch; block only if it would
+	// exceed the plan cap. No-op when the plan does not include proctoring.
+	if err := s.guardStorageForProctoring(tenantID, input.TestID, len(valid)); err != nil {
+		return 0, err
+	}
+
 	created, err := s.AssignmentRepo.CreateBatch(valid, input.TestID, coachID, input.IntegrityPolicy, input.EstimatedCost, input.DeliveryMode)
 	if err != nil {
 		return 0, &CreateAssignmentError{Status: 500, Message: "failed to create assignments"}
@@ -184,6 +203,41 @@ func (s *AssignmentService) guardScaleMode(deliveryMode string) error {
 		return &CreateAssignmentError{
 			Status:  400,
 			Message: "scale (Band C) delivery requires Redis; either set delivery_mode='standard' or split the cohort into staggered sub-batches",
+		}
+	}
+	return nil
+}
+
+// guardStorageForProctoring projects the storage a video-proctored assignment
+// will consume and blocks (402) only when it would exceed the plan cap. It is a
+// projection only — no storage is written here. The path is a no-op when the
+// plan does not include video proctoring, or when there is no subscription
+// (Free default, which never accrues proctoring storage).
+func (s *AssignmentService) guardStorageForProctoring(tenantID, testID, studentCount int) error {
+	if s.SubscriptionRepo == nil {
+		return nil
+	}
+	sub, err := s.SubscriptionRepo.GetByTenantID(tenantID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil // no subscription → Free default → no proctoring
+		}
+		return &CreateAssignmentError{Status: 500, Message: "failed to check storage quota"}
+	}
+	if !sub.VideoProctoringIncluded {
+		return nil
+	}
+
+	duration, err := s.TestPaperRepo.GetDuration(testID)
+	if err != nil {
+		return &CreateAssignmentError{Status: 500, Message: "failed to read test duration"}
+	}
+
+	est := int64(proctoringBytesPerMinute) * int64(duration) * int64(studentCount)
+	if sub.StorageUsedBytes+est > sub.StorageLimitBytes {
+		return &CreateAssignmentError{
+			Status:  http.StatusPaymentRequired,
+			Message: "video proctoring storage quota exceeded for this plan; upgrade or reduce the assignment scope",
 		}
 	}
 	return nil

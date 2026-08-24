@@ -20,6 +20,7 @@ type AdminHandler struct {
 	AttemptService    *services.AttemptService
 	AssignmentService *services.AssignmentService
 	JobService        *services.JobService
+	SubscriptionRepo  *repository.SubscriptionRepo
 	Queue             queue.Queue
 	Cfg               *config.Config
 	// QuotaMW is optional (nil in tests). Guarded before every use.
@@ -38,6 +39,7 @@ func NewAdminHandler(
 	attemptService *services.AttemptService,
 	assignmentService *services.AssignmentService,
 	jobService *services.JobService,
+	subscriptionRepo *repository.SubscriptionRepo,
 	q queue.Queue,
 	cfg *config.Config,
 	quotaMW *middleware.QuotaMiddleware,
@@ -54,6 +56,7 @@ func NewAdminHandler(
 		AttemptService:    attemptService,
 		AssignmentService: assignmentService,
 		JobService:        jobService,
+		SubscriptionRepo:  subscriptionRepo,
 		Queue:             q,
 		Cfg:               cfg,
 		QuotaMW:           quotaMW,

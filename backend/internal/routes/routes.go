@@ -86,7 +86,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	quotaMW := middleware.NewQuotaMiddleware(subscriptionRepo, planRepo)
 
 	attemptService := services.NewAttemptService(attemptRepo, assignmentRepo, studentRepo, testPaperRepo)
-	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo, cfg.RedisEnabled)
+	assignmentService := services.NewAssignmentService(assignmentRepo, studentRepo, testPaperRepo, coachRepo, userRepo, subscriptionRepo, cfg.RedisEnabled)
 	jobService := services.NewJobService(jobRepo, attemptService, cfg.ComputeChunkSize)
 	authService := services.NewAuthService(userRepo, coachRepo)
 
@@ -115,9 +115,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	jobQueue := queue.New(cfg)
 
 	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo, planRepo, subscriptionRepo, quotaMW)
-	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg, quotaMW)
-	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, jobQueue, cfg, quotaMW)
-	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, jobQueue, autosaveBuffer, storageBackend, cfg)
+	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW)
+	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW)
+	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, subscriptionRepo, jobQueue, autosaveBuffer, storageBackend, cfg, quotaMW)
 
 	billingHandler := handlers.NewBillingHandler(planRepo, subscriptionRepo, studentRepo, coachRepo, storageBackend, quotaMW)
 
@@ -250,10 +250,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.POST("/sqi/compute-batch", quotaMW.CheckSQIAccess(), adminHandler.ComputeSQIBatch)
 		admin.GET("/jobs/:id", adminHandler.GetJob)
 
-		admin.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.ListVideoChunks)
-		admin.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.StreamVideoChunk)
-		admin.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.GenerateVideoToken)
-		admin.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.DeleteVideo)
+		admin.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), videoHandler.ListVideoChunks)
+		admin.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamVideoChunk)
+		admin.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), videoHandler.GenerateVideoToken)
+		admin.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), videoHandler.DeleteVideo)
 
 		admin.GET("/tenant/settings", tenantSettingsHandler.GetSettings)
 		admin.PUT("/tenant/settings", tenantSettingsHandler.UpdateSettings)
@@ -269,7 +269,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	videoStream := r.Group("/admin")
 	videoStream.Use(middleware.VideoTokenMiddleware())
 	{
-		videoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), quotaMW.CheckStorageLimit(), videoHandler.StreamMergedVideo)
+		videoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamMergedVideo)
 	}
 
 	view := r.Group("/view")

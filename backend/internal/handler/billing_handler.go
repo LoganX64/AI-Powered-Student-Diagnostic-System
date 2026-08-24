@@ -5,11 +5,28 @@ import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/storage"
 	"ai-student-diagnostic/backend/utils"
+	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
+
+// storageOverageRatePerGBPaise bills ₹50/GB (5000 paise) for video proctoring
+// storage used beyond the plan cap (TEMPORARY model, re-evaluate on review).
+const (
+	storageOverageRatePerGBPaise = 5000
+	bytesPerGB                   = 1024 * 1024 * 1024
+)
+
+// overageCostPaise converts overage bytes into the per-GB overage charge (paise).
+func overageCostPaise(overageBytes int64) int64 {
+	if overageBytes <= 0 {
+		return 0
+	}
+	gb := float64(overageBytes) / float64(bytesPerGB)
+	return int64(math.Ceil(gb)) * storageOverageRatePerGBPaise
+}
 
 type BillingHandler struct {
 	PlanRepo         *repository.PlanRepo
@@ -133,7 +150,15 @@ func (h *BillingHandler) GetSubscription(c *gin.Context) {
 		utils.NotFound(c, "no subscription found")
 		return
 	}
-	c.JSON(http.StatusOK, sub)
+	// Surface the overage charge alongside the subscription (overage_bytes is
+	// already part of the row). additional_cost_paise is computed from it.
+	c.JSON(http.StatusOK, struct {
+		repository.SubscriptionRow
+		AdditionalCostPaise int64 `json:"additional_cost_paise"`
+	}{
+		SubscriptionRow:     *sub,
+		AdditionalCostPaise: overageCostPaise(sub.OverageBytes),
+	})
 }
 
 // POST /admin/subscription/checkout { plan_slug } (MOCK)
@@ -159,9 +184,17 @@ func (h *BillingHandler) CreateCheckout(c *gin.Context) {
 	if h.QuotaMW != nil {
 		h.QuotaMW.Invalidate(tenantID)
 	}
+
+	// Surface any pre-existing overage so the checkout UI can show the bill.
+	var overage int64
+	if cur, cerr := h.SubscriptionRepo.GetByTenantID(tenantID); cerr == nil {
+		overage = cur.OverageBytes
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"checkout_url":    "https://mock-razorpay.com/checkout/" + req.PlanSlug,
-		"subscription_id": "mock_sub_" + strconv.Itoa(tenantID),
+		"checkout_url":         "https://mock-razorpay.com/checkout/" + req.PlanSlug,
+		"subscription_id":      "mock_sub_" + strconv.Itoa(tenantID),
+		"overage_bytes":        overage,
+		"additional_cost_paise": overageCostPaise(overage),
 	})
 }
 

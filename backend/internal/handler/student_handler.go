@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/config"
+	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/queue"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
@@ -22,11 +23,14 @@ type StudentHandler struct {
 	TestPaperRepo    *repository.TestPaperRepo
 	AttemptService   *services.AttemptService
 	LoginAttemptRepo *repository.LoginAttemptRepo
+	SubscriptionRepo *repository.SubscriptionRepo
 	Queue            queue.Queue
 	AutosaveBuffer   *services.AutosaveBuffer
 	Storage          storage.Storage
 	Cfg              *config.Config
 	VideoHandler     *VideoHandler
+	// QuotaMW is optional (nil in tests). Guarded before every use.
+	QuotaMW *middleware.QuotaMiddleware
 }
 
 func NewStudentHandler(
@@ -36,10 +40,12 @@ func NewStudentHandler(
 	testPaperRepo *repository.TestPaperRepo,
 	attemptService *services.AttemptService,
 	loginAttemptRepo *repository.LoginAttemptRepo,
+	subscriptionRepo *repository.SubscriptionRepo,
 	q queue.Queue,
 	autosaveBuffer *services.AutosaveBuffer,
 	storageBackend storage.Storage,
 	cfg *config.Config,
+	quotaMW *middleware.QuotaMiddleware,
 ) *StudentHandler {
 	return &StudentHandler{
 		StudentRepo:      studentRepo,
@@ -48,10 +54,12 @@ func NewStudentHandler(
 		TestPaperRepo:    testPaperRepo,
 		AttemptService:   attemptService,
 		LoginAttemptRepo: loginAttemptRepo,
+		SubscriptionRepo: subscriptionRepo,
 		Queue:            q,
 		AutosaveBuffer:   autosaveBuffer,
 		Storage:          storageBackend,
 		Cfg:              cfg,
+		QuotaMW:          quotaMW,
 	}
 }
 

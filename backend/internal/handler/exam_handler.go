@@ -388,6 +388,18 @@ func (h *StudentHandler) VideoChunk(c *gin.Context) {
 		return
 	}
 
+	// Meter actual storage usage. Failure to meter must NOT block the upload —
+	// exam video is stored regardless of quota; overage is billed later.
+	if h.SubscriptionRepo != nil {
+		tenantID := c.GetInt("tenant_id")
+		if metErr := h.SubscriptionRepo.IncrementStorageUsage(tenantID, chunk.Size, assignmentID, index); metErr != nil {
+			log.Printf("[VIDEO] failed to meter storage for assignment %d chunk %s: %v", assignmentID, index, metErr)
+		}
+		if h.QuotaMW != nil {
+			h.QuotaMW.Invalidate(tenantID)
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"received_index": index, "url": storedURL})
 }
 
