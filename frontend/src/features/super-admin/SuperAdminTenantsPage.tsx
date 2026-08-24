@@ -34,21 +34,29 @@ export function SuperAdminTenantsPage() {
   const [saving, setSaving] = useState(false);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const fetchTenants = useCallback(async (off: number, searchTerm: string) => {
+  const fetchTenants = useCallback(async (off: number, searchTerm: string, shouldAbort?: () => boolean) => {
     setLoading(true);
     try {
       const res = await getTenants({ limit: PAGE_SIZE, offset: off, search: searchTerm || undefined });
+      if (shouldAbort?.()) return;
       setTenants(res.data ?? []);
       setTotal(res.total);
     } catch (err) {
-      toast.error((err as Error).message);
+      if (!shouldAbort?.()) toast.error((err as Error).message);
     } finally {
-      setLoading(false);
+      if (!shouldAbort?.()) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchTenants(offset, search);
+    let cancelled = false;
+    async function load() {
+      await fetchTenants(offset, search, () => cancelled);
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, [offset, search, fetchTenants]);
 
   useEffect(() => {

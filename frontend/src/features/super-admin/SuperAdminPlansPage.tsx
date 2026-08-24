@@ -38,18 +38,28 @@ export function SuperAdminPlansPage() {
   const [form, setForm] = useState<CreatePlanPayload>(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const fetchPlans = async () => {
+  const fetchPlans = async (shouldAbort?: () => boolean) => {
     try {
       const res = await getPlans();
+      if (shouldAbort?.()) return;
       setPlans(res.data ?? []);
     } catch (err) {
-      toast.error((err as Error).message);
+      if (!shouldAbort?.()) toast.error((err as Error).message);
     } finally {
-      setLoading(false);
+      if (!shouldAbort?.()) setLoading(false);
     }
   };
 
-  useEffect(() => { fetchPlans(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      await fetchPlans(() => cancelled);
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const openEdit = (plan: Plan) => {
     setEditPlan(plan);

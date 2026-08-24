@@ -32,7 +32,7 @@ export function SuperAdminTenantDetailPage() {
   const [adminForm, setAdminForm] = useState({ email: "", password: "", name: "" });
   const [saving, setSaving] = useState(false);
 
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (shouldAbort?: () => boolean) => {
     if (!id) return;
     setLoading(true);
     try {
@@ -41,18 +41,28 @@ export function SuperAdminTenantDetailPage() {
         getTenantAdmins(Number(id)),
         getPlans(),
       ]);
+      if (shouldAbort?.()) return;
       setTenant(t);
       setAdmins(a.data ?? []);
       setPlans(p.data ?? []);
       setSelectedPlan(t.plan_id ? String(t.plan_id) : "");
     } catch (err) {
-      toast.error((err as Error).message);
+      if (!shouldAbort?.()) toast.error((err as Error).message);
     } finally {
-      setLoading(false);
+      if (!shouldAbort?.()) setLoading(false);
     }
   }, [id]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      await fetchAll(() => cancelled);
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchAll]);
 
   if (loading) return <SuperAdminLayout title="Tenant Details"><div>Loading...</div></SuperAdminLayout>;
   if (!tenant) return <SuperAdminLayout title="Tenant Details"><div>Tenant not found</div></SuperAdminLayout>;
