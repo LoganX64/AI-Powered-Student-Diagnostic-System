@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { profileSettingsSchema, changePasswordSchema, zodErrors } from "@/lib/validations";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
@@ -15,15 +15,41 @@ import {
   BellIcon,
   ShieldIcon,
   PaletteIcon,
+  Building2Icon,
 } from "lucide-react";
 import {
-  mockUserProfile,
-  mockNotificationPreferences,
-} from "@/features/shared/mockData";
+  getProfile,
+  updateProfile,
+  updatePassword,
+  updateTenantName,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+  type Profile,
+} from "@/services/settings.service";
+import { useRole } from "@/hooks/useRole";
+
+const NOTIFICATION_EVENTS: { event_type: string; label: string; description: string }[] = [
+  { event_type: "exam_submitted", label: "Exam Submitted", description: "When a student submits an exam" },
+  { event_type: "coach_activity", label: "Coach Activity", description: "Test and assignment activity by coaches" },
+  { event_type: "system_alert", label: "System Alerts", description: "Warnings about storage and system health" },
+  { event_type: "sqi_complete", label: "SQI Complete", description: "When an SQI computation job finishes" },
+  { event_type: "storage_warning", label: "Storage Warning", description: "Storage quota warning and critical alerts" },
+  { event_type: "student_exam_logout", label: "Student Exam Logout", description: "When a student logs out during an active exam" },
+];
 
 export function SettingsPage() {
-  const [profile, setProfile] = useState(mockUserProfile);
-  const [notifications, setNotifications] = useState(mockNotificationPreferences);
+  const role = useRole();
+  const isAdmin = role === "admin";
+
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [displayName, setDisplayName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [tenantName, setTenantName] = useState("");
+
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
@@ -33,10 +59,59 @@ export function SettingsPage() {
     confirmNewPassword: "",
   });
 
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const p = await getProfile();
+        if (cancelled) return;
+        setProfile(p);
+        setDisplayName(p.display_name ?? "");
+        setPhone(p.phone ?? "");
+        setTenantName(p.tenant_name ?? "");
+      } catch (err) {
+        toast.error((err as Error).message);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPrefs() {
+      setNotificationsLoading(true);
+      try {
+        const res = await getNotificationPreferences();
+        if (cancelled) return;
+        const map: Record<string, boolean> = {};
+        res.preferences.forEach((pref) => {
+          map[pref.event_type] = pref.enabled;
+        });
+        setPrefs(map);
+        setPrefsLoaded(true);
+      } catch (err) {
+        toast.error((err as Error).message);
+      } finally {
+        if (!cancelled) setNotificationsLoading(false);
+      }
+    }
+    loadPrefs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const result = profileSettingsSchema.safeParse(profile);
+    const result = profileSettingsSchema.safeParse({
+      name: displayName,
+      email: profile?.email ?? "",
+      phone,
+    });
     if (!result.success) {
       setProfileErrors(zodErrors(result.error));
       return;
@@ -44,16 +119,26 @@ export function SettingsPage() {
     setProfileErrors({});
 
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    toast.success("Profile updated successfully");
-    setSaving(false);
+    try {
+      await updateProfile({ display_name: displayName, phone });
+      toast.success("Profile updated successfully");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveNotifications = async () => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    toast.success("Notification preferences saved");
-    setSaving(false);
+    try {
+      await updateNotificationPreferences(prefs);
+      toast.success("Notification preferences saved");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSavePassword = async () => {
@@ -65,250 +150,261 @@ export function SettingsPage() {
     setPasswordErrors({});
 
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    toast.success("Password updated successfully");
-    setPasswords({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
-    setSaving(false);
+    try {
+      await updatePassword({
+        current_password: passwords.currentPassword,
+        new_password: passwords.newPassword,
+      });
+      toast.success("Password updated successfully");
+      setPasswords({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tenantName.trim()) {
+      toast.error("Organization name is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateTenantName(tenantName.trim());
+      toast.success("Organization name updated");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <DashboardLayout title="Settings">
-    <Tabs defaultValue="profile" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="profile" className="flex items-center gap-2">
-          <UserIcon className="size-4" />
-          Profile
-        </TabsTrigger>
-        <TabsTrigger value="notifications" className="flex items-center gap-2">
-          <BellIcon className="size-4" />
-          Notifications
-        </TabsTrigger>
-        <TabsTrigger value="appearance" className="flex items-center gap-2">
-          <PaletteIcon className="size-4" />
-          Appearance
-        </TabsTrigger>
-        <TabsTrigger value="security" className="flex items-center gap-2">
-          <ShieldIcon className="size-4" />
-          Security
-        </TabsTrigger>
-      </TabsList>
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className={isAdmin ? "grid w-full grid-cols-5" : "grid w-full grid-cols-4"}>
+          <TabsTrigger value="profile" className="flex items-center gap-2">
+            <UserIcon className="size-4" />
+            Profile
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <BellIcon className="size-4" />
+            Notifications
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="tenant" className="flex items-center gap-2">
+              <Building2Icon className="size-4" />
+              Organization
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="appearance" className="flex items-center gap-2">
+            <PaletteIcon className="size-4" />
+            Appearance
+          </TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-2">
+            <ShieldIcon className="size-4" />
+            Security
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="profile" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserIcon className="size-5" />
-              Profile Settings
-            </CardTitle>
-            <CardDescription>
-              Manage your personal information and preferences.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 max-w-lg">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  value={profile.name}
-                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                />
-                {profileErrors.name && <p className="text-sm text-destructive">{profileErrors.name}</p>}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={profile.email}
-                  onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                />
-                {profileErrors.email && <p className="text-sm text-destructive">{profileErrors.email}</p>}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={profile.phone}
-                  onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                />
-                {profileErrors.phone && <p className="text-sm text-destructive">{profileErrors.phone}</p>}
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">{profile.role}</Badge>
-                <span className="text-sm text-muted-foreground">
-                  Member since {new Date(profile.joinedAt).toLocaleDateString()}
-                </span>
-              </div>
-              <Button type="submit" disabled={saving} className="w-fit">
-                {saving ? "Saving..." : "Save Changes"}
+        <TabsContent value="profile" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserIcon className="size-5" />
+                Profile Settings
+              </CardTitle>
+              <CardDescription>
+                Manage your personal information and preferences.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 max-w-lg">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                  />
+                  {profileErrors.name && <p className="text-sm text-destructive">{profileErrors.name}</p>}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={profile?.email ?? ""}
+                    disabled
+                    onChange={() => {}}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                  {profileErrors.phone && <p className="text-sm text-destructive">{profileErrors.phone}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {profile?.role && <Badge variant="secondary">{profile.role}</Badge>}
+                  {profile?.created_at && (
+                    <span className="text-sm text-muted-foreground">
+                      Member since {new Date(profile.created_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <Button type="submit" disabled={saving} className="w-fit">
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="notifications" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BellIcon className="size-5" />
+                Notification Preferences
+              </CardTitle>
+              <CardDescription>
+                Choose which events you want to be notified about.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-6 max-w-lg">
+              {notificationsLoading && (
+                <p className="text-sm text-muted-foreground">Loading preferences...</p>
+              )}
+              {prefsLoaded &&
+                NOTIFICATION_EVENTS.map((evt, idx) => (
+                  <div key={evt.event_type}>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label>{evt.label}</Label>
+                        <p className="text-sm text-muted-foreground">{evt.description}</p>
+                      </div>
+                      <Switch
+                        checked={prefs[evt.event_type] ?? false}
+                        onCheckedChange={(checked) =>
+                          setPrefs((prev) => ({ ...prev, [evt.event_type]: checked }))
+                        }
+                      />
+                    </div>
+                    {idx < NOTIFICATION_EVENTS.length - 1 && <Separator className="mt-6" />}
+                  </div>
+                ))}
+              <Button onClick={handleSaveNotifications} disabled={saving || !prefsLoaded} className="w-fit">
+                {saving ? "Saving..." : "Save Preferences"}
               </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </TabsContent>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <TabsContent value="notifications" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BellIcon className="size-5" />
-              Notification Preferences
-            </CardTitle>
-            <CardDescription>
-              Choose how you want to be notified about updates.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-6 max-w-lg">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive notifications via email
-                </p>
-              </div>
-              <Switch
-                checked={notifications.emailNotifications}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, emailNotifications: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive push notifications in browser
-                </p>
-              </div>
-              <Switch
-                checked={notifications.pushNotifications}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, pushNotifications: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Weekly Digest</Label>
-                <p className="text-sm text-muted-foreground">
-                  Get a weekly summary of activity
-                </p>
-              </div>
-              <Switch
-                checked={notifications.weeklyDigest}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, weeklyDigest: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Test Alerts</Label>
-                <p className="text-sm text-muted-foreground">
-                  Alerts for test submissions and deadlines
-                </p>
-              </div>
-              <Switch
-                checked={notifications.testAlerts}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, testAlerts: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Student Activity</Label>
-                <p className="text-sm text-muted-foreground">
-                  Notifications about student progress
-                </p>
-              </div>
-              <Switch
-                checked={notifications.studentActivity}
-                onCheckedChange={(checked) =>
-                  setNotifications({ ...notifications, studentActivity: checked })
-                }
-              />
-            </div>
-            <Button onClick={handleSaveNotifications} disabled={saving} className="w-fit">
-              {saving ? "Saving..." : "Save Preferences"}
-            </Button>
-          </CardContent>
-        </Card>
-      </TabsContent>
+        {isAdmin && (
+          <TabsContent value="tenant" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2Icon className="size-5" />
+                  Organization Settings
+                </CardTitle>
+                <CardDescription>
+                  Manage your organization name and details.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveTenant} className="flex flex-col gap-4 max-w-lg">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="tenant-name">Organization Name</Label>
+                    <Input
+                      id="tenant-name"
+                      value={tenantName}
+                      onChange={(e) => setTenantName(e.target.value)}
+                    />
+                  </div>
+                  <Button type="submit" disabled={saving} className="w-fit">
+                    {saving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
-      <TabsContent value="appearance" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PaletteIcon className="size-5" />
-              Appearance
-            </CardTitle>
-            <CardDescription>
-              Customize the look and feel of your dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              This app uses a light theme.
-            </p>
-          </CardContent>
-        </Card>
-      </TabsContent>
+        <TabsContent value="appearance" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PaletteIcon className="size-5" />
+                Appearance
+              </CardTitle>
+              <CardDescription>
+                Customize the look and feel of your dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                This app uses a light theme.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <TabsContent value="security" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldIcon className="size-5" />
-              Security
-            </CardTitle>
-            <CardDescription>
-              Manage your password and security settings.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 max-w-lg">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="current-password">Current Password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={passwords.currentPassword}
-                onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
-              />
-              {passwordErrors.currentPassword && <p className="text-sm text-destructive">{passwordErrors.currentPassword}</p>}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={passwords.newPassword}
-                onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
-              />
-              {passwordErrors.newPassword && <p className="text-sm text-destructive">{passwordErrors.newPassword}</p>}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={passwords.confirmNewPassword}
-                onChange={(e) => setPasswords({ ...passwords, confirmNewPassword: e.target.value })}
-              />
-              {passwordErrors.confirmNewPassword && <p className="text-sm text-destructive">{passwordErrors.confirmNewPassword}</p>}
-            </div>
-            <Button className="w-fit" onClick={handleSavePassword} disabled={saving}>
-              {saving ? "Updating..." : "Update Password"}
-            </Button>
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="security" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShieldIcon className="size-5" />
+                Security
+              </CardTitle>
+              <CardDescription>
+                Manage your password and security settings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 max-w-lg">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="current-password">Current Password</Label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  value={passwords.currentPassword}
+                  onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+                />
+                {passwordErrors.currentPassword && <p className="text-sm text-destructive">{passwordErrors.currentPassword}</p>}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="new-password">New Password</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={passwords.newPassword}
+                  onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+                />
+                {passwordErrors.newPassword && <p className="text-sm text-destructive">{passwordErrors.newPassword}</p>}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={passwords.confirmNewPassword}
+                  onChange={(e) => setPasswords({ ...passwords, confirmNewPassword: e.target.value })}
+                />
+                {passwordErrors.confirmNewPassword && <p className="text-sm text-destructive">{passwordErrors.confirmNewPassword}</p>}
+              </div>
+              <Button className="w-fit" onClick={handleSavePassword} disabled={saving}>
+                {saving ? "Updating..." : "Update Password"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </DashboardLayout>
   );
 }

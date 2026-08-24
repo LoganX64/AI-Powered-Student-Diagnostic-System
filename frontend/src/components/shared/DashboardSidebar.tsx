@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboardIcon,
   UsersIcon,
@@ -26,6 +27,7 @@ import { NavMain } from "@/components/shared/nav-main";
 import { NavSecondary } from "@/components/shared/nav-secondary";
 import { NavUser } from "@/components/shared/nav-user";
 import { useRole } from "@/hooks/useRole";
+import { getProfile } from "@/services/settings.service";
 
 const adminNavItems = [
   {
@@ -122,6 +124,33 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
 
+  const [user, setUser] = useState<{ name: string; email: string; avatar?: string }>({
+    name: role === "admin" ? "Admin User" : "Coach Alex",
+    email: role === "admin" ? "admin@example.com" : "coach@example.com",
+    avatar: undefined,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const p = await getProfile();
+        if (cancelled) return;
+        setUser({
+          name: p.display_name || p.email,
+          email: p.email,
+          avatar: p.avatar_url ?? undefined,
+        });
+      } catch {
+        // keep fallback values
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
+
   const secondaryNavItems = [
     {
       title: "Settings",
@@ -159,13 +188,7 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
         <NavSecondary items={secondaryNavItems} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser
-          user={{
-            name: role === "admin" ? "Admin User" : "Coach Alex",
-            email: role === "admin" ? "admin@example.com" : "coach@example.com",
-            avatar: role === "admin" ? "/avatars/shadcn.jpg" : "/avatars/coach.jpg",
-          }}
-        />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   );
