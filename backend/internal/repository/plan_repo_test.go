@@ -5,13 +5,16 @@ import (
 	"os"
 	"testing"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 func testDB(t *testing.T) *sql.DB {
+	_ = godotenv.Load()
+	_ = godotenv.Load("../../.env")
 	url := os.Getenv("DB_URL")
 	if url == "" {
-		url = "postgres://postgres:9908@localhost:5432/sqi_db?sslmode=disable"
+		t.Skip("DB_URL not set")
 	}
 	db, err := sql.Open("postgres", url)
 	if err != nil {
