@@ -262,6 +262,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.PUT("/tenant/settings", tenantSettingsHandler.UpdateSettings)
 		admin.PUT("/tenant", tenantSettingsHandler.UpdateTenantName)
 
+		// Plans (admin can list plans for upgrade comparison)
+		admin.GET("/plans", billingHandler.ListPlans)
+
 		// Subscription (per-tenant)
 		admin.GET("/subscription", billingHandler.GetSubscription)
 		admin.POST("/subscription/checkout", billingHandler.CreateCheckout)

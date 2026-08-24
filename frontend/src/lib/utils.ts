@@ -20,3 +20,8 @@ export function parseRouteId(id: string | undefined): number | null {
   const n = Number(id);
   return isNaN(n) ? null : n;
 }
+
+export function bytesToGB(bytes: number): string {
+  if (bytes === -1) return "Unlimited";
+  return `${(bytes / 1073741824).toFixed(1)} GB`;
+}
