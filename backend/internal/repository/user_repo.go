@@ -1,6 +1,10 @@
 package repository
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+)
 
 type UserRepo struct {
 	DB *sql.DB
@@ -103,4 +107,40 @@ func (r *UserRepo) ExistsByID(userID int) (bool, error) {
 	var exists bool
 	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&exists)
 	return exists, err
+}
+
+// ListIDsByTenantRoles returns the user IDs of all users in a tenant matching
+// one of the given roles. Used for per-user notification fan-out (admin + coach).
+func (r *UserRepo) ListIDsByTenantRoles(tenantID int, roles []string) ([]int, error) {
+	if len(roles) == 0 {
+		return []int{}, nil
+	}
+	placeholders := make([]string, len(roles))
+	args := make([]interface{}, 0, len(roles)+1)
+	args = append(args, tenantID)
+	for i, role := range roles {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args = append(args, role)
+	}
+	query := "SELECT id FROM users WHERE tenant_id = $1 AND role IN (" + strings.Join(placeholders, ",") + ")"
+	rows, err := r.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []int{}
+	}
+	return out, nil
 }
