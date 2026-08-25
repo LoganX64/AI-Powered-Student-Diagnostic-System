@@ -37,11 +37,12 @@ func (r *TenantRepo) List(search string, limit, offset int) ([]TenantRow, int, e
 
 	query := `
 		SELECT
-			t.id, t.name, t.created_at, t.suspended_at, t.plan_id,
+			t.id, t.name, t.created_at, t.suspended_at, ts.plan_id,
 			(SELECT COUNT(*) FROM students s WHERE s.tenant_id = t.id),
 			(SELECT COUNT(*) FROM coaches c WHERE c.tenant_id = t.id AND c.deleted_at IS NULL),
 			(SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id)
-		FROM tenants t` + where + `
+		FROM tenants t
+		LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id` + where + `
 		ORDER BY t.id DESC
 		LIMIT $2 OFFSET $3`
 
@@ -84,11 +85,12 @@ func (r *TenantRepo) List(search string, limit, offset int) ([]TenantRow, int, e
 func (r *TenantRepo) GetByID(tenantID int) (*TenantRow, error) {
 	query := `
 		SELECT
-			t.id, t.name, t.created_at, t.suspended_at, t.plan_id,
+			t.id, t.name, t.created_at, t.suspended_at, ts.plan_id,
 			(SELECT COUNT(*) FROM students s WHERE s.tenant_id = t.id),
 			(SELECT COUNT(*) FROM coaches c WHERE c.tenant_id = t.id AND c.deleted_at IS NULL),
 			(SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id)
 		FROM tenants t
+		LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id
 		WHERE t.id = $1`
 
 	var t TenantRow
