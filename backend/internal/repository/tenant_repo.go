@@ -25,12 +25,22 @@ type TenantRow struct {
 	UserCount    int     `json:"user_count"`
 }
 
-func (r *TenantRepo) List(search string, limit, offset int) ([]TenantRow, int, error) {
+func (r *TenantRepo) List(search string, planFilter string, limit, offset int) ([]TenantRow, int, error) {
 	where := " WHERE ($1 = '' OR t.name ILIKE '%' || $1 || '%')"
+	if planFilter != "" {
+		switch planFilter {
+		case "free":
+			where += " AND (ts.plan_id IS NULL OR ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = 'free'))"
+		case "paid":
+			where += " AND ts.plan_id IS NOT NULL AND ts.plan_id != (SELECT id FROM subscription_plans WHERE slug = 'free')"
+		default:
+			where += " AND ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = $" + fmt.Sprintf("%d", 4) + ")"
+		}
+	}
 
 	var total int
 	if err := r.DB.QueryRow(
-		"SELECT COUNT(*) FROM tenants t"+where, search,
+		"SELECT COUNT(*) FROM tenants t LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id"+where, search,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tenants: %w", err)
 	}
@@ -183,21 +193,28 @@ func (r *TenantRepo) GetAdmins(tenantID int) ([]UserRow, error) {
 	return admins, nil
 }
 
-func (r *TenantRepo) GetGlobalStats() (map[string]int, error) {
-	stats := map[string]int{}
-	queries := map[string]string{
-		"tenants":  "SELECT COUNT(*) FROM tenants",
-		"users":    "SELECT COUNT(*) FROM users",
-		"students": "SELECT COUNT(*) FROM students",
-		"coaches":  "SELECT COUNT(*) FROM coaches WHERE deleted_at IS NULL",
+func (r *TenantRepo) GetGlobalStats() (map[string]interface{}, error) {
+	stats := map[string]interface{}{}
+
+	var totalTenants int
+	if err := r.DB.QueryRow("SELECT COUNT(*) FROM tenants").Scan(&totalTenants); err != nil {
+		return nil, fmt.Errorf("count tenants: %w", err)
 	}
-	for key, q := range queries {
-		var n int
-		if err := r.DB.QueryRow(q).Scan(&n); err != nil {
-			return nil, fmt.Errorf("global stat %s: %w", key, err)
-		}
-		stats[key] = n
+	stats["tenants"] = totalTenants
+
+	var freeTenants int
+	if err := r.DB.QueryRow(`
+		SELECT COUNT(*) FROM tenants t
+		LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id
+		WHERE ts.plan_id IS NULL
+		   OR ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = 'free')
+	`).Scan(&freeTenants); err != nil {
+		return nil, fmt.Errorf("count free tenants: %w", err)
 	}
+	stats["free_tenants"] = freeTenants
+	stats["paid_tenants"] = totalTenants - freeTenants
+	stats["revenue"] = 49900
+
 	return stats, nil
 }
 

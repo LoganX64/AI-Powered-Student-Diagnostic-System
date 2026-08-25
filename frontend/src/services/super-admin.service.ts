@@ -38,9 +38,9 @@ export type User = {
 
 export type GlobalStats = {
   tenants: number;
-  users: number;
-  students: number;
-  coaches: number;
+  free_tenants: number;
+  paid_tenants: number;
+  revenue: number;
 };
 
 export type CreateTenantPayload = {
@@ -70,9 +70,10 @@ export type CreatePlanPayload = {
 export const getGlobalStats = () =>
   apiFetch<GlobalStats>("/super-admin/stats");
 
-export const getTenants = (params?: { search?: string; limit?: number; offset?: number }) => {
+export const getTenants = (params?: { search?: string; plan?: string; limit?: number; offset?: number }) => {
   const query = new URLSearchParams();
   if (params?.search) query.set("search", params.search);
+  if (params?.plan) query.set("plan", params.plan);
   if (params?.limit) query.set("limit", String(params.limit));
   if (params?.offset) query.set("offset", String(params.offset));
   return apiFetch<{ total: number; data: Tenant[] }>(`/super-admin/tenants?${query}`);

@@ -32,9 +32,10 @@ func NewSuperAdminHandler(
 // GET /super-admin/tenants?search=&limit=&offset=
 func (h *SuperAdminHandler) ListTenants(c *gin.Context) {
 	search := c.Query("search")
+	planFilter := c.Query("plan")
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 
-	tenants, total, err := h.TenantRepo.List(search, limit, offset)
+	tenants, total, err := h.TenantRepo.List(search, planFilter, limit, offset)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch tenants")
 		return
