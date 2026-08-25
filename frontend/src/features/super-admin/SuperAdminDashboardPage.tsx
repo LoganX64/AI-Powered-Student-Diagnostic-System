@@ -1,18 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Building2, Users, CreditCard, IndianRupee, Search } from "lucide-react";
+import { Building2, Users, CreditCard, IndianRupee, Search, Ban, RotateCcw } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { SuperAdminLayout } from "@/components/super-admin/SuperAdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { getGlobalStats, getTenants, getPlans, type GlobalStats, type Tenant, type Plan } from "@/services/super-admin.service";
+import { getGlobalStats, getTenants, getPlans, suspendTenant, reactivateTenant, type GlobalStats, type Tenant, type Plan } from "@/services/super-admin.service";
 
 const PAGE_SIZE = 10;
 
@@ -69,6 +71,7 @@ export function SuperAdminDashboardPage() {
   const [planFilter, setPlanFilter] = useState("all");
   const [plans, setPlans] = useState<Plan[]>([]);
   const [tableLoading, setTableLoading] = useState(true);
+  const [suspendTenantId, setSuspendTenantId] = useState<number | null>(null);
   const searchDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
@@ -130,6 +133,28 @@ export function SuperAdminDashboardPage() {
   const handlePlanFilterChange = (value: string) => {
     setPlanFilter(value);
     setOffset(0);
+  };
+
+  const handleSuspend = async () => {
+    if (!suspendTenantId) return;
+    try {
+      await suspendTenant(suspendTenantId);
+      toast.success("Tenant suspended");
+      setSuspendTenantId(null);
+      fetchTenants(offset, search, planFilter);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const handleReactivate = async (id: number) => {
+    try {
+      await reactivateTenant(id);
+      toast.success("Tenant reactivated");
+      fetchTenants(offset, search, planFilter);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   const statCards = [
@@ -244,16 +269,17 @@ export function SuperAdminDashboardPage() {
                   <TableHead className="text-center">Users</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Joined At</TableHead>
+                  <TableHead className="w-20 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {tableLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">Loading...</TableCell>
+                    <TableCell colSpan={9} className="text-center py-8">Loading...</TableCell>
                   </TableRow>
                 ) : tenants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No tenants found</TableCell>
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No tenants found</TableCell>
                   </TableRow>
                 ) : tenants.map((t) => {
                   const planSlug = getPlanSlug(t.plan_id, plans);
@@ -288,6 +314,17 @@ export function SuperAdminDashboardPage() {
                           year: "numeric",
                         })}
                       </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {t.suspended_at ? (
+                          <Button variant="ghost" size="icon" className="size-8" onClick={() => handleReactivate(t.id)}>
+                            <RotateCcw className="size-4" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="size-8" onClick={() => setSuspendTenantId(t.id)}>
+                            <Ban className="size-4" />
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -319,6 +356,23 @@ export function SuperAdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={suspendTenantId !== null} onOpenChange={(open) => !open && setSuspendTenantId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Suspend Tenant</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to suspend this tenant? They will lose access to the platform until reactivated.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSuspend} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Suspend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SuperAdminLayout>
   );
 }

@@ -26,6 +26,7 @@ type TenantRow struct {
 }
 
 func (r *TenantRepo) List(search string, planFilter string, limit, offset int) ([]TenantRow, int, error) {
+	baseJoin := " LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id"
 	where := " WHERE ($1 = '' OR t.name ILIKE '%' || $1 || '%')"
 	if planFilter != "" {
 		switch planFilter {
@@ -34,13 +35,13 @@ func (r *TenantRepo) List(search string, planFilter string, limit, offset int) (
 		case "paid":
 			where += " AND ts.plan_id IS NOT NULL AND ts.plan_id != (SELECT id FROM subscription_plans WHERE slug = 'free')"
 		default:
-			where += " AND ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = $" + fmt.Sprintf("%d", 4) + ")"
+			where += " AND ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = '" + planFilter + "')"
 		}
 	}
 
 	var total int
 	if err := r.DB.QueryRow(
-		"SELECT COUNT(*) FROM tenants t LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id"+where, search,
+		"SELECT COUNT(*) FROM tenants t"+baseJoin+where, search,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tenants: %w", err)
 	}
@@ -51,8 +52,7 @@ func (r *TenantRepo) List(search string, planFilter string, limit, offset int) (
 			(SELECT COUNT(*) FROM students s WHERE s.tenant_id = t.id),
 			(SELECT COUNT(*) FROM coaches c WHERE c.tenant_id = t.id AND c.deleted_at IS NULL),
 			(SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id)
-		FROM tenants t
-		LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id` + where + `
+		FROM tenants t` + baseJoin + where + `
 		ORDER BY t.id DESC
 		LIMIT $2 OFFSET $3`
 
