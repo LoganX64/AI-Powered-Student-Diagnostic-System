@@ -6,8 +6,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-
-	"github.com/lib/pq"
 )
 
 // proctoringBytesPerMinute is the fixed recording rate (500 kbps / 480x360),
@@ -117,12 +115,17 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 		return 0, err
 	}
 
+	// Check for an active (non-submitted) assignment first.
+	active, err := s.AssignmentRepo.HasActiveAssignment(input.StudentID, input.TestID)
+	if err != nil {
+		return 0, &CreateAssignmentError{Status: 500, Message: "failed to check existing assignment"}
+	}
+	if active {
+		return 0, &CreateAssignmentError{Status: 409, Message: "student already has an active assignment for this test"}
+	}
+
 	id, err := s.AssignmentRepo.Create(input.StudentID, input.TestID, coachID, input.IntegrityPolicy, input.EstimatedCost, input.DeliveryMode)
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-			return 0, &CreateAssignmentError{Status: 409, Message: "student is already assigned to this test"}
-		}
 		return 0, &CreateAssignmentError{Status: 500, Message: "failed to create assignment"}
 	}
 
@@ -130,30 +133,30 @@ func (s *AssignmentService) CreateAssignment(input CreateAssignmentInput) (int, 
 }
 
 // CreateBatchAssignment expands a set of student IDs (and optionally cohort/batch
-// IDs) into assignments for one test, deduped and dup-guarded at the DB level.
-func (s *AssignmentService) CreateBatchAssignment(input CreateBatchAssignmentInput) (int, error) {
+// IDs) into assignments for one test. Students with an active (non-submitted)
+// assignment are skipped.
+func (s *AssignmentService) CreateBatchAssignment(input CreateBatchAssignmentInput) (created int, skipped int, err error) {
 	var coachID, tenantID int
-	var err error
 
 	if input.CallerRole == "coach" {
 		coachID, tenantID, err = s.CoachRepo.GetIDAndTenantFromUser(input.CallerID)
 		if err != nil {
-			return 0, &CreateAssignmentError{Status: 401, Message: "coach not found"}
+			return 0, 0, &CreateAssignmentError{Status: 401, Message: "coach not found"}
 		}
 	} else if input.CallerRole == "admin" {
 		coachID = input.CoachID
 		tenantID = input.TenantID
 	} else {
-		return 0, &CreateAssignmentError{Status: 403, Message: "only admin or coach can assign tests"}
+		return 0, 0, &CreateAssignmentError{Status: 403, Message: "only admin or coach can assign tests"}
 	}
 
 	if err := s.guardScaleMode(input.DeliveryMode); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	testCoachID, testTenantID, err := s.TestPaperRepo.GetCoachAndTenant(input.TestID)
 	if err != nil || testCoachID != coachID || testTenantID != tenantID {
-		return 0, &CreateAssignmentError{Status: 403, Message: "test not found or not in your organization"}
+		return 0, 0, &CreateAssignmentError{Status: 403, Message: "test not found or not in your organization"}
 	}
 
 	// Validate every student belongs to the caller's organization.
@@ -166,26 +169,26 @@ func (s *AssignmentService) CreateBatchAssignment(input CreateBatchAssignmentInp
 		seen[sid] = true
 		studentCoachID, studentTenantID, err := s.StudentRepo.GetCoachIDAndTenantID(sid)
 		if err != nil || studentCoachID != coachID || studentTenantID != tenantID {
-			return 0, &CreateAssignmentError{Status: 403, Message: "one or more students are not in your organization"}
+			return 0, 0, &CreateAssignmentError{Status: 403, Message: "one or more students are not in your organization"}
 		}
 		valid = append(valid, sid)
 	}
 
 	if len(valid) == 0 {
-		return 0, &CreateAssignmentError{Status: 400, Message: "no valid students to assign"}
+		return 0, 0, &CreateAssignmentError{Status: 400, Message: "no valid students to assign"}
 	}
 
 	// Project proctoring storage across the whole batch; block only if it would
 	// exceed the plan cap. No-op when the plan does not include proctoring.
 	if err := s.guardStorageForProctoring(tenantID, input.TestID, len(valid)); err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
-	created, err := s.AssignmentRepo.CreateBatch(valid, input.TestID, coachID, input.IntegrityPolicy, input.EstimatedCost, input.DeliveryMode)
+	created, skipped, err = s.AssignmentRepo.CreateBatch(valid, input.TestID, coachID, input.IntegrityPolicy, input.EstimatedCost, input.DeliveryMode)
 	if err != nil {
-		return 0, &CreateAssignmentError{Status: 500, Message: "failed to create assignments"}
+		return 0, 0, &CreateAssignmentError{Status: 500, Message: "failed to create assignments"}
 	}
-	return created, nil
+	return created, skipped, nil
 }
 
 // DeliveryModeForN derives the delivery_mode from the student count N.

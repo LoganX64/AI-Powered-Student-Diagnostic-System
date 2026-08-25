@@ -96,7 +96,7 @@ func (h *AdminHandler) CreateBatchAssignment(c *gin.Context) {
 		deliveryMode = services.DeliveryModeForN(len(studentIDs), h.scaleBandC())
 	}
 
-	created, err := h.AssignmentService.CreateBatchAssignment(services.CreateBatchAssignmentInput{
+	created, skipped, err := h.AssignmentService.CreateBatchAssignment(services.CreateBatchAssignmentInput{
 		CallerRole:      role,
 		CallerID:        userID,
 		TenantID:        tenantID,
@@ -117,7 +117,7 @@ func (h *AdminHandler) CreateBatchAssignment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"created": created})
+	c.JSON(http.StatusCreated, gin.H{"created": created, "skipped": skipped})
 }
 
 func (h *CoachHandler) CreateBatchAssignment(c *gin.Context) {
@@ -143,7 +143,7 @@ func (h *CoachHandler) CreateBatchAssignment(c *gin.Context) {
 		deliveryMode = services.DeliveryModeForN(len(studentIDs), h.scaleBandC())
 	}
 
-	created, err := h.AssignmentService.CreateBatchAssignment(services.CreateBatchAssignmentInput{
+	created, skipped, err := h.AssignmentService.CreateBatchAssignment(services.CreateBatchAssignmentInput{
 		CallerRole:      "coach",
 		CallerID:        c.GetInt("user_id"),
 		TenantID:        tenantID,
@@ -164,7 +164,7 @@ func (h *CoachHandler) CreateBatchAssignment(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"created": created})
+	c.JSON(http.StatusCreated, gin.H{"created": created, "skipped": skipped})
 }
 
 func (h *AdminHandler) ListAssignments(c *gin.Context) {

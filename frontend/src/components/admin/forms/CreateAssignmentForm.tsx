@@ -317,7 +317,11 @@ export function CreateAssignmentForm() {
           integrity_policy: policy,
           estimated_cost: cost,
         });
-        toast.success(`${res.created} assignment(s) created`);
+        if (res.skipped > 0) {
+          toast.success(`${res.created} created, ${res.skipped} skipped (already active)`);
+        } else {
+          toast.success(`${res.created} assignment(s) created`);
+        }
       }
       setPayOpen(false);
       resetAfter();

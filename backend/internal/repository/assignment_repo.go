@@ -3,8 +3,6 @@ package repository
 import (
 	"database/sql"
 	"strconv"
-
-	"github.com/lib/pq"
 )
 
 type AssignmentRepo struct {
@@ -39,6 +37,21 @@ type AssignmentDetailRow struct {
 	SubjectName string `json:"subject_name"`
 }
 
+// HasActiveAssignment reports whether a non-submitted (active) assignment
+// already exists for the given student and test. This is used to prevent
+// re-assigning a test while the student still has an unattempted version.
+func (r *AssignmentRepo) HasActiveAssignment(studentID, testID int) (bool, error) {
+	var n int
+	err := r.DB.QueryRow(
+		"SELECT 1 FROM assignments WHERE student_id=$1 AND test_id=$2 AND status <> 'submitted' LIMIT 1",
+		studentID, testID,
+	).Scan(&n)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func (r *AssignmentRepo) Create(studentID, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
 	if len(integrityPolicy) == 0 {
 		integrityPolicy = []byte("{}")
@@ -54,33 +67,42 @@ func (r *AssignmentRepo) Create(studentID, testID, coachID int, integrityPolicy 
 	return id, err
 }
 
-// CreateBatch assigns a test to many students in one call. Duplicate
-// (student_id, test_id) pairs are skipped (unique constraint).
-// Returns the number of assignments actually created.
-func (r *AssignmentRepo) CreateBatch(studentIDs []int, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (int, error) {
+// CreateBatch assigns a test to many students in one call. Students with an
+// active (non-submitted) assignment for the same test are skipped.
+// Returns the number of assignments actually created and skipped.
+func (r *AssignmentRepo) CreateBatch(studentIDs []int, testID, coachID int, integrityPolicy []byte, estimatedCost float64, deliveryMode string) (created int, skipped int, err error) {
 	if len(integrityPolicy) == 0 {
 		integrityPolicy = []byte("{}")
 	}
 	if deliveryMode == "" {
 		deliveryMode = "standard"
 	}
-	created := 0
 	for _, studentID := range studentIDs {
+		// Check for an active (non-submitted) assignment first.
+		var n int
+		qErr := r.DB.QueryRow(
+			"SELECT 1 FROM assignments WHERE student_id=$1 AND test_id=$2 AND status <> 'submitted' LIMIT 1",
+			studentID, testID,
+		).Scan(&n)
+		if qErr == nil {
+			skipped++
+			continue
+		}
+		if qErr != sql.ErrNoRows {
+			return created, skipped, qErr
+		}
+
 		var id int
 		err := r.DB.QueryRow(`
 			INSERT INTO assignments (student_id, test_id, coach_id, integrity_policy, estimated_cost, delivery_mode)
 			VALUES ($1,$2,$3, COALESCE($4, '{}'::jsonb), $5, $6) RETURNING id
 		`, studentID, testID, coachID, integrityPolicy, estimatedCost, deliveryMode).Scan(&id)
 		if err != nil {
-			// Skip duplicate assignments, surface real errors.
-			if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
-				continue
-			}
-			return created, err
+			return created, skipped, err
 		}
 		created++
 	}
-	return created, nil
+	return created, skipped, nil
 }
 
 // GetPolicy returns the raw integrity_policy JSONB for an assignment.

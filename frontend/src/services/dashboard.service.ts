@@ -362,7 +362,7 @@ export const createAssignment = (data: CreateAssignmentPayload) =>
   });
 
 export const createBatchAssignment = (data: CreateBatchAssignmentPayload) =>
-  apiFetch<{ created: number }>(`${getPrefix()}/assignments/batch`, {
+  apiFetch<{ created: number; skipped: number }>(`${getPrefix()}/assignments/batch`, {
     method: "POST",
     body: JSON.stringify(data),
   });
