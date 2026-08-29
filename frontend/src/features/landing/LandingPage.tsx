@@ -5,16 +5,17 @@ import {
 } from "lucide-react";
 import { landingPageText } from "@/types/static/landing";
 import { HoverEffect } from "@/components/ui/card-hover-effect";
+import { SvgIcon } from "@/components/ui/svg-icon";
 
 const t = landingPageText;
 
 const featureIcons = [
-  <img src="/images/cartoon-person-appraising-performance.svg" alt="" className="h-16 w-auto" />,
-  <img src="/images/person-presenting-concept.svg" alt="" className="h-16 w-auto" />,
-  <img src="/images/facilitation-prioritisation.svg" alt="" className="h-16 w-auto" />,
-  <img src="/images/role-permissions.svg" alt="" className="h-16 w-auto" />,
-  <img src="/images/chart.svg" alt="" className="h-16 w-auto" />,
-  <img src="/images/cartoon-ai-model-as-single.svg" alt="" className="h-16 w-auto" />,
+  <SvgIcon src="/images/cartoon-person-appraising-performance.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/person-presenting-concept.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/facilitation-prioritisation.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/role-permissions.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/chart.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/cartoon-ai-model-as-single.svg" className="h-16 w-auto text-primary" />,
 ];
 
 function HeroIllustration() {
