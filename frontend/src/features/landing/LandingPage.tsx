@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import {
   BarChart3Icon,
@@ -83,7 +84,12 @@ function HeroIllustration() {
 
 export function LandingPage() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <motion.div
+      className="flex flex-col min-h-screen"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
       {/* Navbar */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
@@ -108,7 +114,12 @@ export function LandingPage() {
 
       {/* Hero */}
       <section className="mx-auto flex w-full max-w-6xl flex-col-reverse items-center gap-12 px-4 py-20 md:flex-row md:py-28">
-        <div className="flex-1 space-y-6">
+        <motion.div
+          className="flex-1 space-y-6"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
           <div className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
             {t.hero.badge}
           </div>
@@ -128,14 +139,26 @@ export function LandingPage() {
               <Link to="/student-login">{t.hero.ctaSecondary}</Link>
             </Button>
           </div>
-        </div>
-        <div className="flex-1 flex justify-center">
+        </motion.div>
+        <motion.div
+          className="flex-1 flex justify-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
           <HeroIllustration />
-        </div>
+        </motion.div>
       </section>
 
       {/* Features */}
-      <section id="features" className="border-t bg-muted/40">
+      <motion.section
+        id="features"
+        className="border-t bg-muted/40"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-100px" }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="mx-auto max-w-6xl px-4 py-20">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold tracking-tight">{t.features.sectionTitle}</h2>
@@ -153,10 +176,16 @@ export function LandingPage() {
             }))}
           />
         </div>
-      </section>
+      </motion.section>
 
       {/* CTA */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-20">
+      <motion.section
+        className="mx-auto w-full max-w-6xl px-4 py-20"
+        initial={{ opacity: 0, y: 40 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-100px" }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="rounded-2xl border bg-card p-8 text-center shadow-sm md:p-12">
           <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
             {t.cta.heading}
@@ -170,7 +199,7 @@ export function LandingPage() {
             </Button>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Footer */}
       <footer className="border-t mt-auto">
@@ -183,6 +212,6 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
-    </div>
+    </motion.div>
   );
 }

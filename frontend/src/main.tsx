@@ -14,3 +14,9 @@ createRoot(document.getElementById("root")!).render(
     </TooltipProvider>
   </StrictMode>,
 );
+
+const splash = document.getElementById("splash-loader");
+if (splash) {
+  splash.classList.add("hidden");
+  setTimeout(() => splash.remove(), 500);
+}

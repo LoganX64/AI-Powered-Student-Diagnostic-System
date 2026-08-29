@@ -7,7 +7,27 @@
     <title>Student Diagnostic System</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="splash-loader" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;font-family:system-ui,-apple-system,sans-serif;">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="20" stroke="#e5e7eb" stroke-width="4"/>
+          <path d="M24 4a20 20 0 0 1 20 20" stroke="#6366f1" stroke-width="4" stroke-linecap="round">
+            <animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="1s" repeatCount="indefinite"/>
+          </path>
+        </svg>
+        <p style="margin:0;color:#6b7280;font-size:14px;">Loading...</p>
+      </div>
+    </div>
+    <style>
+      @keyframes splash-fade-out {
+        from { opacity: 1; }
+        to { opacity: 0; visibility: hidden; }
+      }
+      #splash-loader.hidden {
+        animation: splash-fade-out 0.4s ease-out forwards;
+        pointer-events: none;
+      }
+    </style>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

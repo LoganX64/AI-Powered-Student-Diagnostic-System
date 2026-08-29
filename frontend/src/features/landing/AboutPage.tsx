@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { BarChart3Icon, MailIcon, MapPinIcon, BuildingIcon } from "lucide-react";
 import { aboutPageText } from "@/types/static/about";
@@ -16,7 +17,12 @@ const aboutIcons = [
 
 export function AboutPage() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <motion.div
+      className="flex flex-col min-h-screen"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
       {/* Navbar */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -38,23 +44,39 @@ export function AboutPage() {
       {/* Content */}
       <main className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-16 space-y-16">
         {/* Hero */}
-        <div className="text-center space-y-4 max-w-3xl mx-auto">
+        <motion.div
+          className="text-center space-y-4 max-w-3xl mx-auto"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
           <h1 className="text-4xl font-bold tracking-tight">{t.hero.title}</h1>
           <p className="text-muted-foreground text-lg leading-relaxed">
             {t.hero.description}
           </p>
-        </div>
+        </motion.div>
 
         {/* Mission */}
-        <section className="rounded-xl border bg-card p-8 md:p-10 shadow-sm">
+        <motion.section
+          className="rounded-xl border bg-card p-8 md:p-10 shadow-sm"
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.5 }}
+        >
           <h2 className="text-2xl font-semibold mb-4">{t.mission.title}</h2>
           <p className="text-muted-foreground leading-relaxed text-base">
             {t.mission.description}
           </p>
-        </section>
+        </motion.section>
 
         {/* What We Do */}
-        <section>
+        <motion.section
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.5 }}
+        >
           <h2 className="text-2xl font-semibold mb-6">{t.whatWeDo.title}</h2>
           <HoverEffect
             columns={{ lg: 4 }}
@@ -66,10 +88,16 @@ export function AboutPage() {
               icon: aboutIcons[index],
             }))}
           />
-        </section>
+        </motion.section>
 
         {/* Contact */}
-        <section className="rounded-xl border bg-card p-8 md:p-10 shadow-sm">
+        <motion.section
+          className="rounded-xl border bg-card p-8 md:p-10 shadow-sm"
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.5 }}
+        >
           <h2 className="text-2xl font-semibold mb-6">{t.contact.title}</h2>
           <div className="grid gap-8 sm:grid-cols-3">
             <div className="flex items-start gap-4">
@@ -107,7 +135,7 @@ export function AboutPage() {
               </div>
             </div>
           </div>
-        </section>
+        </motion.section>
       </main>
 
       {/* Footer */}
@@ -121,6 +149,6 @@ export function AboutPage() {
           </div>
         </div>
       </footer>
-    </div>
+    </motion.div>
   );
 }
