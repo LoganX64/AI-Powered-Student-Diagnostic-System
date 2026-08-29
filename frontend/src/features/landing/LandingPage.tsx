@@ -9,6 +9,7 @@ import {
   SparklesIcon,
 } from "lucide-react";
 import { landingPageText } from "@/types/static/landing";
+import { HoverEffect } from "@/components/ui/card-hover-effect";
 
 const t = landingPageText;
 
@@ -145,22 +146,14 @@ export function LandingPage() {
               {t.features.sectionDescription}
             </p>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {t.features.items.map((feature, index) => (
-              <div
-                key={feature.title}
-                className="rounded-xl border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  {featureIcons[index]}
-                </div>
-                <h3 className="mb-1 font-semibold">{feature.title}</h3>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
+          <HoverEffect
+            className="mt-12"
+            items={t.features.items.map((feature, index) => ({
+              title: feature.title,
+              description: feature.description,
+              icon: featureIcons[index],
+            }))}
+          />
         </div>
       </section>
 
