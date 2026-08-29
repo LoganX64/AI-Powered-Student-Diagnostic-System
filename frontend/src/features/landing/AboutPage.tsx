@@ -2,8 +2,17 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BarChart3Icon, MailIcon, MapPinIcon, BuildingIcon } from "lucide-react";
 import { aboutPageText } from "@/types/static/about";
+import { HoverEffect } from "@/components/ui/card-hover-effect";
+import { SvgIcon } from "@/components/ui/svg-icon";
 
 const t = aboutPageText;
+
+const aboutIcons = [
+  <SvgIcon src="/images/isometric-bank.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/coach-clipboard.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/student-backpack.svg" className="h-16 w-auto text-primary" />,
+  <SvgIcon src="/images/parent-child.svg" className="h-16 w-auto text-primary" />,
+];
 
 export function AboutPage() {
   return (
@@ -47,16 +56,14 @@ export function AboutPage() {
         {/* What We Do */}
         <section>
           <h2 className="text-2xl font-semibold mb-6">{t.whatWeDo.title}</h2>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {t.whatWeDo.items.map((item) => (
-              <div key={item.title} className="rounded-xl border bg-card p-6 shadow-sm">
-                <h3 className="font-semibold mb-2">{item.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {item.description}
-                </p>
-              </div>
-            ))}
-          </div>
+          <HoverEffect
+            columns={{ lg: 4 }}
+            items={t.whatWeDo.items.map((item, index) => ({
+              title: item.title,
+              description: item.description,
+              icon: aboutIcons[index],
+            }))}
+          />
         </section>
 
         {/* Contact */}

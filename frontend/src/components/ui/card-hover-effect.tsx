@@ -10,9 +10,11 @@ export interface HoverEffectItem {
 export const HoverEffect = ({
   items,
   className,
+  columns = { sm: 2, lg: 3 },
 }: {
   items: HoverEffectItem[];
   className?: string;
+  columns?: { sm?: number; lg?: number };
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -38,7 +40,13 @@ export const HoverEffect = ({
     <div
       ref={containerRef}
       className={cn(
-        "relative grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 py-10",
+        "relative grid grid-cols-1 gap-4 py-6",
+        columns.sm === 2 && "sm:grid-cols-2",
+        columns.sm === 3 && "sm:grid-cols-3",
+        columns.sm === 4 && "sm:grid-cols-4",
+        columns.lg === 2 && "lg:grid-cols-2",
+        columns.lg === 3 && "lg:grid-cols-3",
+        columns.lg === 4 && "lg:grid-cols-4",
         className,
       )}
     >
@@ -93,7 +101,7 @@ export const Card = ({
       )}
     >
       <div className="relative z-50">
-        <div className="p-4">{children}</div>
+        {children}
       </div>
     </div>
   );
@@ -107,7 +115,7 @@ export const CardTitle = ({
   children?: ReactNode;
 }) => {
   return (
-    <h3 className={cn("text-primary font-bold tracking-wide mt-4", className)}>
+    <h3 className={cn("text-primary font-bold tracking-wide mt-2", className)}>
       {children}
     </h3>
   );
@@ -123,7 +131,7 @@ export const CardDescription = ({
   return (
     <p
       className={cn(
-        "mt-8 text-muted-foreground tracking-wide leading-relaxed text-sm",
+        "mt-1 text-muted-foreground tracking-wide leading-relaxed text-sm",
         className,
       )}
     >
