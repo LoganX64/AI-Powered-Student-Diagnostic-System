@@ -12,11 +12,13 @@ export const HoverEffect = ({
   className,
   columns = { sm: 2, lg: 3 },
   cardClassName,
+  layout = "horizontal",
 }: {
   items: HoverEffectItem[];
   className?: string;
   columns?: { sm?: number; lg?: number };
   cardClassName?: string;
+  layout?: "horizontal" | "vertical";
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -74,13 +76,29 @@ export const HoverEffect = ({
           onMouseLeave={onMouseLeave}
         >
           <Card className={cardClassName}>
-            {item.icon && (
-              <div className="mb-4">
-                {item.icon}
+            {layout === "horizontal" ? (
+              <div className="flex items-start gap-4">
+                {item.icon && (
+                  <div className="shrink-0 pr-4 border-r border-border">
+                    {item.icon}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <CardTitle>{item.title}</CardTitle>
+                  <CardDescription>{item.description}</CardDescription>
+                </div>
               </div>
+            ) : (
+              <>
+                {item.icon && (
+                  <div className="mb-4 flex justify-center pb-4 border-b border-border">
+                    {item.icon}
+                  </div>
+                )}
+                <CardTitle>{item.title}</CardTitle>
+                <CardDescription>{item.description}</CardDescription>
+              </>
             )}
-            <CardTitle>{item.title}</CardTitle>
-            <CardDescription>{item.description}</CardDescription>
           </Card>
         </div>
       ))}
