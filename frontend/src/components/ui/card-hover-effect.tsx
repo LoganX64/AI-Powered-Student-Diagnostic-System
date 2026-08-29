@@ -11,10 +11,12 @@ export const HoverEffect = ({
   items,
   className,
   columns = { sm: 2, lg: 3 },
+  cardClassName,
 }: {
   items: HoverEffectItem[];
   className?: string;
   columns?: { sm?: number; lg?: number };
+  cardClassName?: string;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -71,7 +73,7 @@ export const HoverEffect = ({
           onMouseEnter={() => onMouseEnter(idx)}
           onMouseLeave={onMouseLeave}
         >
-          <Card>
+          <Card className={cardClassName}>
             {item.icon && (
               <div className="mb-4">
                 {item.icon}

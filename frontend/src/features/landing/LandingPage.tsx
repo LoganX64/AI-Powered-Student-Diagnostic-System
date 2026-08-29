@@ -145,6 +145,7 @@ export function LandingPage() {
           </div>
           <HoverEffect
             className="mt-12"
+            cardClassName="border border-border border-b-2 border-b-primary group-hover:border-l-transparent group-hover:border-r-transparent group-hover:border-t-transparent group-hover:border-b-primary group-hover:border-b-2 transition-all"
             items={t.features.items.map((feature, index) => ({
               title: feature.title,
               description: feature.description,

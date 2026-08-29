@@ -58,6 +58,7 @@ export function AboutPage() {
           <h2 className="text-2xl font-semibold mb-6">{t.whatWeDo.title}</h2>
           <HoverEffect
             columns={{ lg: 4 }}
+            cardClassName="border border-border border-b-2 border-b-primary group-hover:border-l-transparent group-hover:border-r-transparent group-hover:border-t-transparent group-hover:border-b-primary group-hover:border-b-2 transition-all"
             items={t.whatWeDo.items.map((item, index) => ({
               title: item.title,
               description: item.description,
