@@ -45,7 +45,7 @@ export const HoverEffect = ({
       {/* single sliding highlight */}
       <div
         className={cn(
-          "absolute rounded-3xl bg-neutral-200 dark:bg-slate-800/[0.8] transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+          "absolute rounded-3xl bg-primary/10 transition-all duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
           highlight ? "opacity-100" : "opacity-0 pointer-events-none",
         )}
         style={{
@@ -65,7 +65,7 @@ export const HoverEffect = ({
         >
           <Card>
             {item.icon && (
-              <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="mb-4">
                 {item.icon}
               </div>
             )}
@@ -88,7 +88,7 @@ export const Card = ({
   return (
     <div
       className={cn(
-        "rounded-2xl h-full w-full p-4 overflow-hidden bg-card border border-transparent group-hover:border-primary/30 relative z-20",
+        "rounded-2xl h-full w-full p-4 overflow-hidden bg-card border border-border group-hover:border-primary/30 relative z-20",
         className,
       )}
     >
