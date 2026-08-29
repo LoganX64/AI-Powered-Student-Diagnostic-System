@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 import { toast } from "sonner";
 import { Eye, EyeOff, BarChart3Icon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -60,8 +61,11 @@ export function AdminSignupForm({
   };
 
   return (
-    <div
+    <motion.div
       className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
       {...props}
     >
       <Link to="/" className="flex items-center justify-center gap-2">
@@ -198,6 +202,6 @@ export function AdminSignupForm({
         By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
         and <a href="#">Privacy Policy</a>.
       </FieldDescription>
-    </div>
+    </motion.div>
   );
 }

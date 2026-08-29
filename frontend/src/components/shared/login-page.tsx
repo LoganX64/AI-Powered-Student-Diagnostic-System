@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion } from "motion/react";
 import { Eye, EyeOff, BarChart3Icon, AlertCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loginSchema, zodErrors } from "@/lib/validations";
@@ -86,8 +87,11 @@ export function LoginPage({
   };
 
   return (
-    <div
+    <motion.div
       className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
       {...props}
     >
       <Link to="/" className="flex items-center justify-center gap-2">
@@ -185,6 +189,6 @@ export function LoginPage({
         and{" "}
         <a href="#" className="underline hover:no-underline">Privacy Policy</a>.
       </FieldDescription>
-    </div>
+    </motion.div>
   );
 }

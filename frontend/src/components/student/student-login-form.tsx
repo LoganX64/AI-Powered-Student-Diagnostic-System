@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { BarChart3Icon, AlertCircleIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { studentLoginSchema, zodErrors } from "@/lib/validations";
@@ -50,7 +51,12 @@ export function StudentLoginForm({
   };
 
   return (
-    <div className={cn("flex w-full max-w-md flex-col gap-6", className)}>
+    <motion.div
+      className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
       <Link to="/" className="flex items-center justify-center gap-2">
         <BarChart3Icon className="size-6 text-primary" />
         <span className="text-lg font-bold">EduQuant</span>
@@ -94,6 +100,6 @@ export function StudentLoginForm({
           </form>
         </CardContent>
       </Card>
-    </div>
+    </motion.div>
   );
 }
