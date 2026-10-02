@@ -17,10 +17,7 @@ import { FieldGroup, Field, FieldLabel, FieldDescription } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { register } from "@/services/auth.service";
 
-export function AdminSignupForm({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
+export function AdminSignupForm({ className }: { className?: string }) {
   const navigate = useNavigate();
   const [orgName, setOrgName] = useState("");
   const [email, setEmail] = useState("");
@@ -66,7 +63,6 @@ export function AdminSignupForm({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      {...props}
     >
       <Link to="/" className="flex items-center justify-center gap-2">
         <BarChart3Icon className="size-6 text-primary" />

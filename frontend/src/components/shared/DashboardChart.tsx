@@ -139,7 +139,7 @@ export function DashboardChart() {
               tickMargin={8}
               minTickGap={32}
               tickFormatter={(value) =>
-                new Date(value).toLocaleDateString("en-US", {
+                new Date(String(value ?? "")).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                 })
@@ -150,7 +150,7 @@ export function DashboardChart() {
               content={
                 <ChartTooltipContent
                   labelFormatter={(value) =>
-                    new Date(value).toLocaleDateString("en-US", {
+                    new Date(String(value ?? "")).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                     })

@@ -27,12 +27,13 @@ export interface FooterLink {
   href: string;
 }
 
-export interface LoginPageProps extends React.ComponentProps<"div"> {
+export interface LoginPageProps {
   title: string;
   description: string;
   emailPlaceholder?: string;
   dashboardPath: string;
   footerLinks?: FooterLink[];
+  className?: string;
 }
 
 export function LoginPage({
@@ -42,7 +43,6 @@ export function LoginPage({
   dashboardPath,
   footerLinks = [],
   className,
-  ...props
 }: LoginPageProps) {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -92,7 +92,6 @@ export function LoginPage({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      {...props}
     >
       <Link to="/" className="flex items-center justify-center gap-2">
         <BarChart3Icon className="size-6 text-primary" />
