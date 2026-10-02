@@ -259,8 +259,13 @@ export function StudentQuizPage() {
           queued_at: Date.now(),
         }),
       );
-      clearExamStorage(assignmentId);
-      navigate("/submitted", { replace: true });
+      // Deliberately not clearing exam storage here. pending_submission is a copy,
+      // and if the retry below also fails the per-assignment records are the only
+      // remaining copy of this attempt.
+      navigate("/submitted", {
+        replace: true,
+        state: { submitFailed: true, submitError: msg },
+      });
     }
   }, [submitting, stopTracking, flushAutosave, getPayload, questionIds, navigate, assignmentId]);
 
