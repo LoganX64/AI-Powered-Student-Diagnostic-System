@@ -51,8 +51,12 @@ type Question = {
 // Helpers — localStorage persistence (for current index only)
 // ---------------------------------------------------------------------------
 
-function loadCurrentIndex(): number {
-  const raw = localStorage.getItem("current_question_index");
+function indexKey(assignmentId: number): string {
+  return `current_question_index_${assignmentId}`;
+}
+
+function loadCurrentIndex(assignmentId: number): number {
+  const raw = localStorage.getItem(indexKey(assignmentId));
   if (raw !== null) {
     const parsed = parseInt(raw, 10);
     if (!isNaN(parsed) && parsed >= 0) return parsed;
@@ -60,14 +64,14 @@ function loadCurrentIndex(): number {
   return 0;
 }
 
-function saveCurrentIndex(index: number) {
-  localStorage.setItem("current_question_index", String(index));
+function saveCurrentIndex(assignmentId: number, index: number) {
+  localStorage.setItem(indexKey(assignmentId), String(index));
 }
 
-function clearExamStorage() {
+function clearExamStorage(assignmentId: number) {
   localStorage.removeItem("quiz_answers");
-  localStorage.removeItem("quiz_answer_details");
-  localStorage.removeItem("current_question_index");
+  localStorage.removeItem(`quiz_answer_details_${assignmentId}`);
+  localStorage.removeItem(indexKey(assignmentId));
   localStorage.removeItem("exam_started");
   localStorage.removeItem("exam_started_at");
   localStorage.removeItem("exam_timer");
@@ -91,7 +95,11 @@ export function StudentQuizPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [currentIndex, setCurrentIndex] = useState<number>(loadCurrentIndex);
+  // Restoring an out-of-range index on first render would point currentQuestion at
+  // undefined and render the "no questions" branch. Hold at 0 until the fetch
+  // returns, then clamp to the real length.
+  const [restoredIndex] = useState<number>(() => loadCurrentIndex(assignmentId));
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const isAutoSubmitRef = useRef(false);
@@ -133,6 +141,13 @@ export function StudentQuizPage() {
             },
           }));
           setQuestions(mapped);
+          // Restore the saved position now that the real length is known, clamped
+          // so a stale index from a longer exam can't strand the student.
+          setCurrentIndex(() => {
+            const next = Math.min(Math.max(restoredIndex, 0), mapped.length - 1);
+            saveCurrentIndex(assignmentId, next);
+            return next;
+          });
           setPolicy(data.integrity_policy ?? null);
           localStorage.setItem("exam_duration", String(data.duration));
           localStorage.setItem("exam_started", "true");
@@ -150,7 +165,7 @@ export function StudentQuizPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [assignmentId, refreshKey]);
+  }, [assignmentId, refreshKey, restoredIndex]);
 
   const questionIds = useMemo(() => questions.map((q) => q.id), [questions]);
 
@@ -166,7 +181,7 @@ export function StudentQuizPage() {
     getAutosavePayload,
     answeredCount,
     markedForReviewIds,
-  } = useAnswerTracker(questionIds);
+  } = useAnswerTracker(questionIds, assignmentId);
 
   const currentQuestion = questions[currentIndex];
   const currentRecord = currentQuestion ? records[currentQuestion.id] : undefined;
@@ -226,13 +241,13 @@ export function StudentQuizPage() {
 
     try {
       const result: SubmitResponse = await submitExam(assignmentId, payload);
-      clearExamStorage();
+      clearExamStorage(assignmentId);
       localStorage.removeItem("exam_ctx_" + assignmentId);
       navigate("/submitted", { replace: true, state: { submitResult: result } });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("already submitted")) {
-        clearExamStorage();
+        clearExamStorage(assignmentId);
         navigate("/submitted", { replace: true });
         return;
       }
@@ -244,7 +259,7 @@ export function StudentQuizPage() {
           queued_at: Date.now(),
         }),
       );
-      clearExamStorage();
+      clearExamStorage(assignmentId);
       navigate("/submitted", { replace: true });
     }
   }, [submitting, stopTracking, flushAutosave, getPayload, questionIds, navigate, assignmentId]);
@@ -361,8 +376,7 @@ export function StudentQuizPage() {
       if (payload.length) autosaveAnswers(assignmentId, payload).catch(() => {});
     }, 15000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [policy, examStarted, submitting, assignmentId]);
+  }, [policy, examStarted, submitting, assignmentId, getAutosavePayload]);
 
   // Tab-switch detection: flush autosave + warn when the tab is hidden.
   useEffect(() => {
@@ -539,13 +553,13 @@ export function StudentQuizPage() {
     if (currentQuestion && currentIndex < questions.length - 1) {
       const next = currentIndex + 1;
       setCurrentIndex(next);
-      saveCurrentIndex(next);
+      saveCurrentIndex(assignmentId, next);
     }
   };
 
   const handleNavigate = (index: number) => {
     setCurrentIndex(index);
-    saveCurrentIndex(index);
+    saveCurrentIndex(assignmentId, index);
   };
 
   const handleMarkForReview = () => {

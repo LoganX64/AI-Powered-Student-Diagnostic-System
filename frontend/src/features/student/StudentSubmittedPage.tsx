@@ -18,12 +18,17 @@ function clearStudentSession() {
   localStorage.removeItem("exam_timer");
   localStorage.removeItem("exam_duration");
   localStorage.removeItem("quiz_answers");
-  localStorage.removeItem("quiz_answer_details");
-  localStorage.removeItem("current_question_index");
   localStorage.removeItem("pending_submission");
-  for (let i = localStorage.length - 1; i >= 0; i--) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith("exam_ctx_")) localStorage.removeItem(k);
+  // Per-assignment keys are namespaced by assignment id, so sweep by prefix.
+  for (const prefix of [
+    "exam_ctx_",
+    "quiz_answer_details_",
+    "current_question_index_",
+  ]) {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) localStorage.removeItem(k);
+    }
   }
   window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
 }

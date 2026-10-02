@@ -51,6 +51,10 @@ export function StudentDashboardPage() {
     localStorage.removeItem("exam_started_at");
     localStorage.removeItem("exam_timer");
     localStorage.removeItem("exam_ctx_" + assignmentId);
+    // Per-assignment exam state. Without this, a stale index or a previous
+    // attempt's answers leak into the exam that is starting now.
+    localStorage.removeItem(`quiz_answer_details_${assignmentId}`);
+    localStorage.removeItem(`current_question_index_${assignmentId}`);
     localStorage.setItem("assignment_id", String(assignmentId));
     navigate("/instructions");
   };

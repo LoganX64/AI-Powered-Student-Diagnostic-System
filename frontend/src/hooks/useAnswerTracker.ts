@@ -24,41 +24,49 @@ export type AnswerRecord = {
 // localStorage helpers
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = "quiz_answer_details";
+const STORAGE_KEY_PREFIX = "quiz_answer_details_";
 
-function loadRecords(): Record<number, AnswerRecord> {
+function loadRecords(storageKey: string): Record<number, AnswerRecord> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-function saveRecords(records: Record<number, AnswerRecord>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+function saveRecords(storageKey: string, records: Record<number, AnswerRecord>) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(records));
+  } catch {
+    // QuotaExceededError (or storage disabled) must not kill the tracker.
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useAnswerTracker(questionIds: number[]) {
-  const [records, setRecords] = useState<Record<number, AnswerRecord>>(
-    loadRecords,
+export function useAnswerTracker(questionIds: number[], assignmentId: number) {
+  // Answers are namespaced per assignment so exams on the same device can never
+  // read each other's records.
+  const storageKey = `${STORAGE_KEY_PREFIX}${assignmentId}`;
+
+  const [records, setRecords] = useState<Record<number, AnswerRecord>>(() =>
+    loadRecords(storageKey),
   );
 
   // Timer refs — mutable, no re-renders
   const activeQuestionIdRef = useRef<number | null>(null);
-  const segmentStartRef = useRef<number>(0);
-  const committedTimeRef = useRef<number>(0);
+  const segmentStartRef = useRef(0);
+  const committedTimeRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordsRef = useRef(records);
 
   // Persist to localStorage on every state change
   useEffect(() => {
-    saveRecords(records);
-  }, [records]);
+    saveRecords(storageKey, records);
+  }, [records, storageKey]);
 
   // Keep a ref mirror of records so the []-deps callbacks can read latest values
   useEffect(() => {
@@ -235,8 +243,13 @@ export function useAnswerTracker(questionIds: number[]) {
   /** Get the final payload array for backend submission. */
   const getPayload = useCallback(
     (ids: number[]): AnswerPayload[] => {
+      // Read through recordsRef so this callback's identity never changes. `records`
+      // changes every second (time-tracking tick), which would otherwise give this
+      // callback a new identity each second and cascade re-creations up into the
+      // autosave interval.
+      const recs = recordsRef.current;
       return ids.map((id) => {
-        const r = records[id];
+        const r = recs[id];
         if (!r) {
           // Question was never seen
           return {
@@ -262,15 +275,8 @@ export function useAnswerTracker(questionIds: number[]) {
         };
       });
     },
-    [records],
+    [],
   );
-
-  /** Clear all tracking data (on submit). */
-  const clearAll = useCallback(() => {
-    stopTracking();
-    setRecords({});
-    localStorage.removeItem(STORAGE_KEY);
-  }, [stopTracking]);
 
   /** Overwrite the current records (used to resume a saved attempt). */
   const restoreRecords = useCallback(
@@ -282,7 +288,10 @@ export function useAnswerTracker(questionIds: number[]) {
 
   /** Build the payload used by the server autosave endpoint. */
   const getAutosavePayload = useCallback((): AutosaveAnswer[] => {
-    return Object.values(records).map((r) => ({
+    // recordsRef (not `records`) so this callback is stable for the component's
+    // lifetime. Otherwise the interval would post a payload frozen at the render
+    // that created it, and would never send the student's later answers.
+    return Object.values(recordsRef.current).map((r) => ({
       question_id: r.question_id,
       selected_answer: r.selected_answer,
       seen: r.seen,
@@ -292,14 +301,16 @@ export function useAnswerTracker(questionIds: number[]) {
       changed_answer: r.changed_answer,
       first_answer: r.first_answer ?? "",
     }));
-  }, [records]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Derived state for convenience
   // ---------------------------------------------------------------------------
 
+  // `?? ""` is load-bearing: a never-visited question has no record at all, and
+  // `undefined !== ""` would count it as answered.
   const answeredCount = questionIds.filter(
-    (id) => records[id]?.selected_answer !== "",
+    (id) => (records[id]?.selected_answer ?? "") !== "",
   ).length;
 
   const markedForReviewIds = questionIds.filter(
@@ -316,7 +327,6 @@ export function useAnswerTracker(questionIds: number[]) {
     startTracking,
     stopTracking,
     getPayload,
-    clearAll,
     restoreRecords,
     getAutosavePayload,
     answeredCount,
