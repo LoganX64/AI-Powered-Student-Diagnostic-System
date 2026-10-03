@@ -1,5 +1,7 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ChevronDownIcon, CheckIcon, SearchIcon } from "lucide-react";
+import { useCombobox } from "@/hooks/useCombobox";
+import { cn } from "@/lib/utils";
 
 export type SearchableSelectOption = {
   label: string;
@@ -14,6 +16,8 @@ type SearchableSelectProps = {
   placeholder?: string;
   disabled?: boolean;
   cap?: number;
+  id?: string;
+  className?: string;
 };
 
 export function SearchableSelect({
@@ -23,14 +27,11 @@ export function SearchableSelect({
   placeholder = "Search...",
   disabled = false,
   cap = 50,
+  id,
+  className,
 }: SearchableSelectProps) {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
-
   const selected = options.find((o) => o.value === value);
-
-  const displayValue = open ? search : selected?.label ?? "";
 
   const filtered = options.filter((o) => {
     const term = search.toLowerCase();
@@ -43,22 +44,44 @@ export function SearchableSelect({
   const totalMatches = filtered.length;
   const displayed = filtered.slice(0, cap);
 
+  const handleSelect = useCallback(
+    (option: SearchableSelectOption) => {
+      onChange(option.value);
+      setSearch("");
+    },
+    [onChange],
+  );
+
+  const {
+    open,
+    setOpen,
+    closeList,
+    activeIndex,
+    containerRef,
+    inputProps,
+    listboxProps,
+    optionProps,
+  } = useCombobox(displayed, handleSelect);
+
+  const displayValue = open ? search : selected?.label ?? "";
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeList();
         setSearch("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [closeList, containerRef]);
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={cn("relative", className)} ref={containerRef}>
       <div className="relative">
         <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <input
+          id={id}
           type="text"
           placeholder={placeholder}
           value={displayValue}
@@ -70,31 +93,36 @@ export function SearchableSelect({
             setOpen(true);
             setSearch("");
           }}
-          disabled={disabled}
           className="flex h-9 w-full rounded-md border bg-transparent pl-9 pr-8 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          {...inputProps(disabled)}
         />
         <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
       </div>
 
       {open && (
-        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-sm">
+        <div
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-sm"
+          {...listboxProps}
+        >
           {displayed.length === 0 ? (
             <p className="py-2 text-center text-xs text-muted-foreground">No results found.</p>
           ) : (
-            displayed.map((o) => (
+            displayed.map((o, i) => (
               <button
                 key={o.value}
                 type="button"
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                  setSearch("");
-                }}
-                className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground ${
-                  value === o.value ? "bg-accent" : ""
-                }`}
+                tabIndex={-1}
+                onClick={() => handleSelect(o)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
+                  i === activeIndex && "bg-accent text-accent-foreground",
+                  value === o.value && "font-medium",
+                )}
+                {...optionProps(i)}
               >
-                <CheckIcon className={`size-3.5 shrink-0 ${value === o.value ? "opacity-100" : "opacity-0"}`} />
+                <CheckIcon
+                  className={cn("size-3.5 shrink-0", value === o.value ? "opacity-100" : "opacity-0")}
+                />
                 <span>{o.label}</span>
               </button>
             ))

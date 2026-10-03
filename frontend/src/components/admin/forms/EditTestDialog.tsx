@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useCombobox } from "@/hooks/useCombobox";
 import { toast } from "sonner";
 import { createTestSchema, zodErrors } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,6 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
   const [subjectSearch, setSubjectSearch] = useState("");
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
   const subjectInputRef = useRef<HTMLInputElement>(null);
   const subjectDropdownRef = useRef<HTMLDivElement>(null);
   const [subjectDropdownPos, setSubjectDropdownPos] = useState({ top: 0, left: 0, width: 0 });
@@ -41,7 +41,6 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
   const [coachSearch, setCoachSearch] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [showCoachDropdown, setShowCoachDropdown] = useState(false);
   const coachInputRef = useRef<HTMLInputElement>(null);
   const coachDropdownRef = useRef<HTMLDivElement>(null);
   const [coachDropdownPos, setCoachDropdownPos] = useState({ top: 0, left: 0, width: 0 });
@@ -91,24 +90,48 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
     return () => { if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current); };
   }, [coachSearch, fetchCoaches]);
 
+  const handleSelectSubject = useCallback((subject: Subject) => {
+    setSelectedSubject(subject);
+    setSubjectSearch(subject.name);
+  }, []);
+
+  const handleSelectCoach = useCallback((coach: Coach) => {
+    setSelectedCoach(coach);
+    setCoachSearch(coach.name);
+  }, []);
+
+  const {
+    open: showSubjectDropdown,
+    setOpen: setShowSubjectDropdown,
+    closeList: closeSubjectList,
+    activeIndex: activeSubjectIndex,
+    inputProps: subjectInputProps,
+    listboxProps: subjectListboxProps,
+    optionProps: subjectOptionProps,
+  } = useCombobox(subjects, handleSelectSubject);
+
+  const {
+    open: showCoachDropdown,
+    setOpen: setShowCoachDropdown,
+    closeList: closeCoachList,
+    activeIndex: activeCoachIndex,
+    inputProps: coachInputProps,
+    listboxProps: coachListboxProps,
+    optionProps: coachOptionProps,
+  } = useCombobox(coaches, handleSelectCoach);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (subjectDropdownRef.current && !subjectDropdownRef.current.contains(e.target as Node)) {
-        setShowSubjectDropdown(false);
+        closeSubjectList();
       }
       if (coachDropdownRef.current && !coachDropdownRef.current.contains(e.target as Node)) {
-        setShowCoachDropdown(false);
+        closeCoachList();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSelectSubject = (subject: Subject) => {
-    setSelectedSubject(subject);
-    setSubjectSearch(subject.name);
-    setShowSubjectDropdown(false);
-  };
+  }, [closeSubjectList, closeCoachList]);
 
   const handleSubjectInputChange = (value: string) => {
     setSubjectSearch(value);
@@ -118,12 +141,6 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
       const rect = subjectInputRef.current.getBoundingClientRect();
       setSubjectDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
     }
-  };
-
-  const handleSelectCoach = (coach: Coach) => {
-    setSelectedCoach(coach);
-    setCoachSearch(coach.name);
-    setShowCoachDropdown(false);
   };
 
   const handleCoachInputChange = (value: string) => {
@@ -209,22 +226,26 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
                     setSubjectDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
                   }
                 }}
+                {...subjectInputProps()}
               />
               {showSubjectDropdown && subjects.length > 0 && (
                 <div
                   ref={subjectDropdownRef}
                   style={{ position: "fixed", top: subjectDropdownPos.top, left: subjectDropdownPos.left, width: subjectDropdownPos.width }}
                   className="z-50 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+                  {...subjectListboxProps}
                 >
-                  {subjects.map((subject) => (
+                  {subjects.map((subject, i) => (
                     <button
                       type="button"
                       key={subject.subject_id}
+                      tabIndex={-1}
                       className={`flex w-full items-center px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${
-                        selectedSubject?.subject_id === subject.subject_id ? "bg-accent text-accent-foreground" : ""
+                        i === activeSubjectIndex ? "bg-accent text-accent-foreground" : ""
                       }`}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => handleSelectSubject(subject)}
+                      {...subjectOptionProps(i)}
                     >
                       {subject.name}
                     </button>
@@ -257,22 +278,26 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
                     setCoachDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
                   }
                 }}
+                {...coachInputProps()}
               />
               {showCoachDropdown && coaches.length > 0 && (
                 <div
                   ref={coachDropdownRef}
                   style={{ position: "fixed", top: coachDropdownPos.top, left: coachDropdownPos.left, width: coachDropdownPos.width }}
                   className="z-50 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+                  {...coachListboxProps}
                 >
-                  {coaches.map((coach) => (
+                  {coaches.map((coach, i) => (
                     <button
                       type="button"
                       key={coach.coach_id}
+                      tabIndex={-1}
                       className={`flex w-full items-center px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${
-                        selectedCoach?.coach_id === coach.coach_id ? "bg-accent text-accent-foreground" : ""
+                        i === activeCoachIndex ? "bg-accent text-accent-foreground" : ""
                       }`}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => handleSelectCoach(coach)}
+                      {...coachOptionProps(i)}
                     >
                       {coach.name}
                     </button>

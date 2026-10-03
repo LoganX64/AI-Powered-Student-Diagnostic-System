@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
+import { useCombobox } from "@/hooks/useCombobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,7 +72,6 @@ function StudentFormFields({
   const [coachSearch, setCoachSearch] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const prefilledRef = useRef(false);
@@ -116,27 +116,39 @@ function StudentFormFields({
     };
   }, [coachSearch, isAdmin, mode, initialCoachId, initialCoachName]);
 
+  const handleSelectCoach = useCallback(
+    (coach: Coach) => {
+      setSelectedCoach(coach);
+      setCoachSearch(coach.name);
+    },
+    [],
+  );
+
+  const {
+    open: showDropdown,
+    setOpen,
+    closeList,
+    activeIndex,
+    inputProps: coachInputProps,
+    listboxProps: coachListboxProps,
+    optionProps: coachOptionProps,
+  } = useCombobox(coaches, handleSelectCoach);
+
   useEffect(() => {
     if (!isAdmin) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
+        closeList();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isAdmin]);
-
-  const handleSelectCoach = (coach: Coach) => {
-    setSelectedCoach(coach);
-    setCoachSearch(coach.name);
-    setShowDropdown(false);
-  };
+  }, [isAdmin, closeList]);
 
   const handleCoachInputChange = (value: string) => {
     setCoachSearch(value);
     setSelectedCoach(null);
-    setShowDropdown(true);
+    setOpen(true);
   };
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (e) => {
@@ -222,19 +234,27 @@ function StudentFormFields({
             placeholder="Search coach by name…"
             value={coachSearch}
             onChange={(e) => handleCoachInputChange(e.target.value)}
-            onFocus={() => setShowDropdown(true)}
+            onFocus={() => setOpen(true)}
+            {...coachInputProps(!isAdmin)}
           />
           {showDropdown && coaches.length > 0 && (
-            <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
-              {coaches.map((coach) => (
+            <div
+              className="absolute top-full left-0 right-0 z-50 mt-1 max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+              {...coachListboxProps}
+            >
+              {coaches.map((coach, i) => (
                 <button
                   type="button"
                   key={coach.coach_id}
+                  tabIndex={-1}
                   className={`flex w-full items-center px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground ${
+                    i === activeIndex ? "bg-accent text-accent-foreground" : ""
+                  } ${
                     selectedCoach?.coach_id === coach.coach_id ? "bg-accent text-accent-foreground" : ""
                   }`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSelectCoach(coach)}
+                  {...coachOptionProps(i)}
                 >
                   {coach.name}
                 </button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -47,6 +47,7 @@ import {
   type IntegrityPolicy,
 } from "@/services/dashboard.service";
 import { computeEstimatedCost, PRICING } from "@/config/pricing";
+import { useCombobox } from "@/hooks/useCombobox";
 
 const EMPTY_POLICY: IntegrityPolicy = {
   server_timing: false,
@@ -109,39 +110,51 @@ function StudentPicker({
   onChange: (id: string) => void;
   disabled: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const selected = students.find((s) => String(s.student_id) === value);
 
-  const displayValue = open ? search : selected ? `${selected.name} (${selected.student_code})` : "";
-
-  const filtered = students
-    .filter(
-      (s) =>
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.student_code.toLowerCase().includes(search.toLowerCase())
-    )
-    .slice(0, 50);
-
-  const totalMatches = students.filter(
+  const matches = students.filter(
     (s) =>
       s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.student_code.toLowerCase().includes(search.toLowerCase())
-  ).length;
+      s.student_code.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const totalMatches = matches.length;
+  const filtered = matches.slice(0, 50);
+
+  const handleSelect = useCallback(
+    (s: Student) => {
+      onChange(String(s.student_id));
+      setSearch("");
+    },
+    [onChange],
+  );
+
+  const {
+    open,
+    setOpen,
+    closeList,
+    activeIndex,
+    containerRef,
+    inputProps,
+    listboxProps,
+    optionProps,
+  } = useCombobox(filtered, handleSelect);
+
+  const displayValue = open ? search : selected ? `${selected.name} (${selected.student_code})` : "";
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
+        closeList();
         setSearch("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [closeList, containerRef]);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -160,29 +173,30 @@ function StudentPicker({
             setOpen(true);
             setSearch("");
           }}
-          disabled={disabled}
           className="flex h-9 w-full rounded-md border bg-transparent pl-9 pr-8 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          {...inputProps(disabled)}
         />
         <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
       </div>
 
       {open && (
-        <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-sm">
+        <div
+          className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-sm"
+          {...listboxProps}
+        >
           {filtered.length === 0 ? (
             <p className="py-2 text-center text-xs text-muted-foreground">No students found.</p>
           ) : (
-            filtered.map((s) => (
+            filtered.map((s, i) => (
               <button
                 key={s.student_id}
                 type="button"
-                onClick={() => {
-                  onChange(String(s.student_id));
-                  setOpen(false);
-                  setSearch("");
-                }}
+                tabIndex={-1}
+                onClick={() => handleSelect(s)}
                 className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground ${
-                  value === String(s.student_id) ? "bg-accent" : ""
+                  i === activeIndex ? "bg-accent text-accent-foreground" : ""
                 }`}
+                {...optionProps(i)}
               >
                 <CheckIcon className={`size-3.5 shrink-0 ${value === String(s.student_id) ? "opacity-100" : "opacity-0"}`} />
                 <span>{s.name}</span>
