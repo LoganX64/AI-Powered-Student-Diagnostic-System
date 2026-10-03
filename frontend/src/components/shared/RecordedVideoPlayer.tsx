@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { AlertCircle, Loader2, Film, Trash2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { currentPrefix } from "@/config/routes";
 import { deleteVideo, getVideoToken } from "@/services/dashboard.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export function RecordedVideoPlayer({
     setError(null);
     try {
       const data = await apiFetch<VideoStatusResponse>(
-        `/admin/assignments/${assignmentId}/video-chunks`
+        `${currentPrefix()}/assignments/${assignmentId}/video-chunks`
       );
       const exists = Boolean(data.has_merged) || (data.chunks?.length ?? 0) > 0;
       setHasVideo(exists);
@@ -52,8 +53,11 @@ export function RecordedVideoPlayer({
         const tokenData = await getVideoToken(assignmentId);
         setVideoToken(tokenData.token);
       }
-    } catch {
+    } catch (e) {
+      // Distinguish "no video" from "could not check": the request itself may have
+      // failed (403 for another coach's student, 402 on a plan without proctoring).
       setHasVideo(false);
+      setError((e as Error).message || "Failed to load video");
     } finally {
       setLoading(false);
     }
@@ -79,7 +83,7 @@ export function RecordedVideoPlayer({
   };
 
   const videoUrl = videoToken
-    ? `${import.meta.env.VITE_BACKEND_URL}/admin/assignments/${assignmentId}/video-merged?token=${videoToken}`
+    ? `${import.meta.env.VITE_BACKEND_URL}${currentPrefix()}/assignments/${assignmentId}/video-merged?token=${videoToken}`
     : "";
 
   if (loading) {

@@ -334,7 +334,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.PUT("/subjects/:id", coachHandler.UpdateSubject)
 		coach.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		coach.GET("/assignments", adminHandler.ListAssignments)
-		coach.DELETE("/assignments/:id/video", videoHandler.DeleteVideo)
+		coach.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), videoHandler.ListVideoChunks)
+		coach.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamVideoChunk)
+		coach.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), videoHandler.GenerateVideoToken)
+		coach.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), videoHandler.DeleteVideo)
 
 		coach.POST("/batches", coachHandler.CreateBatch)
 		coach.GET("/batches", coachHandler.ListBatches)
