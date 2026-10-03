@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import { getActiveRole } from "@/lib/token";
+import { currentPrefix } from "@/config/routes";
 
 export type Profile = {
   user_id: number;
@@ -24,28 +24,42 @@ export type NotificationPreference = {
   enabled: boolean;
 };
 
-function getPrefix(): string {
-  const role = getActiveRole();
-  if (role === "coach") return "/coach";
-  return "/admin";
-}
+// Route-derived, so a coach builds /coach URLs even when an admin is also signed in
+// on this machine. apiFetch then picks the matching coach token from the URL.
+const getPrefix = currentPrefix;
 
-export const getProfile = () => apiFetch<Profile>("/auth/profile");
+// /auth/* is shared by every staff role, so the caller names the session it means.
+export const getProfile = (tokenKey: string) =>
+  apiFetch<Profile>("/auth/profile", {}, tokenKey);
 
-export const updateProfile = (data: { display_name: string; phone: string }) =>
-  apiFetch<{ message: string }>("/auth/profile", {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
+export const updateProfile = (
+  tokenKey: string,
+  data: { display_name: string; phone: string },
+) =>
+  apiFetch<{ message: string }>(
+    "/auth/profile",
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+    tokenKey,
+  );
 
-export const updatePassword = (data: {
-  current_password: string;
-  new_password: string;
-}) =>
-  apiFetch<{ message: string }>("/auth/password", {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
+export const updatePassword = (
+  tokenKey: string,
+  data: {
+    current_password: string;
+    new_password: string;
+  },
+) =>
+  apiFetch<{ message: string }>(
+    "/auth/password",
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    },
+    tokenKey,
+  );
 
 export const getTenantSettings = () =>
   apiFetch<TenantSettings>(`${getPrefix()}/tenant/settings`);

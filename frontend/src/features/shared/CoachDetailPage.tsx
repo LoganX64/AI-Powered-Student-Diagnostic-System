@@ -32,6 +32,7 @@ export function CoachDetailPage() {
   const coachId = parseRouteId(id);
 
   const [coach, setCoach] = useState<CoachDetail | null>(null);
+  const [coachError, setCoachError] = useState<string | null>(null);
   const [tests, setTests] = useState<CoachTest[]>([]);
   const [testTotal, setTestTotal] = useState(0);
   const [testOffset, setTestOffset] = useState(0);
@@ -39,10 +40,17 @@ export function CoachDetailPage() {
   const [studentTotal, setStudentTotal] = useState(0);
   const [studentOffset, setStudentOffset] = useState(0);
 
-  useEffect(() => {
+  const fetchCoach = useCallback(() => {
     if (coachId === null) return;
-    getCoach(coachId).then(setCoach).catch(() => {});
+    setCoachError(null);
+    getCoach(coachId)
+      .then(setCoach)
+      .catch((err) => setCoachError((err as Error).message || "Failed to load coach"));
   }, [coachId]);
+
+  useEffect(() => {
+    fetchCoach();
+  }, [fetchCoach]);
 
   const fetchTests = useCallback(async (off: number) => {
     if (coachId === null) return;
@@ -79,6 +87,17 @@ export function CoachDetailPage() {
       <DashboardLayout title="Coach Not Found">
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="text-muted-foreground">Invalid coach ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (coachError) {
+    return (
+      <DashboardLayout title="Coach Detail">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+          <p role="alert" className="text-sm text-destructive">{coachError}</p>
+          <Button variant="outline" onClick={fetchCoach}>Try Again</Button>
         </div>
       </DashboardLayout>
     );

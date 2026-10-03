@@ -55,6 +55,7 @@ export function StudentDetailPage() {
   const studentId = parseRouteId(id);
 
   const [student, setStudent] = useState<StudentDetail | null>(null);
+  const [studentError, setStudentError] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -83,10 +84,17 @@ export function StudentDetailPage() {
     [studentId]
   );
 
-  useEffect(() => {
+  const fetchStudent = useCallback(() => {
     if (studentId === null) return;
-    getStudent(studentId).then(setStudent).catch(() => {});
+    setStudentError(null);
+    getStudent(studentId)
+      .then(setStudent)
+      .catch((err) => setStudentError((err as Error).message || "Failed to load student"));
   }, [studentId]);
+
+  useEffect(() => {
+    fetchStudent();
+  }, [fetchStudent]);
 
   useEffect(() => {
     getBatches()
@@ -113,6 +121,17 @@ export function StudentDetailPage() {
       <DashboardLayout title="Student Not Found">
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="text-muted-foreground">Invalid student ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (studentError) {
+    return (
+      <DashboardLayout title="Student Detail">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+          <p role="alert" className="text-sm text-destructive">{studentError}</p>
+          <Button variant="outline" onClick={fetchStudent}>Try Again</Button>
         </div>
       </DashboardLayout>
     );
@@ -384,9 +403,7 @@ export function StudentDetailPage() {
             : undefined
         }
         onSaved={() => {
-          if (studentId != null) {
-            getStudent(studentId).then(setStudent).catch(() => {});
-          }
+          fetchStudent();
         }}
       />
 

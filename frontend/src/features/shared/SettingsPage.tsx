@@ -27,6 +27,7 @@ import {
   type Profile,
 } from "@/services/settings.service";
 import { useRole } from "@/hooks/useRole";
+import { TOKEN_KEYS } from "@/lib/token";
 
 const NOTIFICATION_EVENTS: { event_type: string; label: string; description: string }[] = [
   { event_type: "exam_submitted", label: "Exam Submitted", description: "When a student submits an exam" },
@@ -40,6 +41,7 @@ const NOTIFICATION_EVENTS: { event_type: string; label: string; description: str
 export function SettingsPage() {
   const role = useRole();
   const isAdmin = role === "admin";
+  const tokenKey = role === "super_admin" ? TOKEN_KEYS.super_admin : TOKEN_KEYS[role ?? "admin"];
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -63,7 +65,7 @@ export function SettingsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const p = await getProfile();
+        const p = await getProfile(tokenKey);
         if (cancelled) return;
         setProfile(p);
         setDisplayName(p.display_name ?? "");
@@ -77,7 +79,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tokenKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +122,7 @@ export function SettingsPage() {
 
     setSaving(true);
     try {
-      await updateProfile({ display_name: displayName, phone });
+      await updateProfile(tokenKey, { display_name: displayName, phone });
       toast.success("Profile updated successfully");
     } catch (err) {
       toast.error((err as Error).message);
@@ -151,7 +153,7 @@ export function SettingsPage() {
 
     setSaving(true);
     try {
-      await updatePassword({
+      await updatePassword(tokenKey, {
         current_password: passwords.currentPassword,
         new_password: passwords.newPassword,
       });

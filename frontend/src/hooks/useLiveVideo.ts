@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { TOKEN_KEYS, getActiveRole } from "@/lib/token";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL as string;
-
-function getToken(): string | null {
-  const role = getActiveRole();
-  if (!role) return null;
-  return localStorage.getItem(TOKEN_KEYS[role]);
-}
 
 interface UseLiveVideoResult {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -17,7 +10,14 @@ interface UseLiveVideoResult {
   reconnect: () => void;
 }
 
-export function useLiveVideo(studentId: number | null): UseLiveVideoResult {
+export function useLiveVideo(
+  studentId: number | null,
+  tokenKey: string,
+): UseLiveVideoResult {
+  const getToken = useCallback(
+    () => localStorage.getItem(tokenKey),
+    [tokenKey],
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [connected, setConnected] = useState(false);
   const [live, setLive] = useState(false);
@@ -69,7 +69,7 @@ export function useLiveVideo(studentId: number | null): UseLiveVideoResult {
     } catch {
       return false;
     }
-  }, []);
+  }, [getToken]);
 
   const connectWs = useCallback((id: number) => {
     closeWs();
@@ -131,7 +131,7 @@ export function useLiveVideo(studentId: number | null): UseLiveVideoResult {
         }, 3000);
       }
     };
-  }, [closeWs]);
+  }, [closeWs, getToken]);
 
   useEffect(() => {
     connectWsRef.current = connectWs;

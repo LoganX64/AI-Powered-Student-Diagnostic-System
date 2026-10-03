@@ -1,26 +1,21 @@
-import { useEffect, useState } from "react";
-import { getActiveRole, type Role } from "@/lib/token";
+import { useLocation } from "react-router-dom";
+import { roleFromPath } from "@/config/routes";
+import type { Role } from "@/lib/token";
 
 export type { Role };
 
 export const ROLE_CHANGE_EVENT = "role-change";
 
-function readTokenRole(): Role | null {
-  return getActiveRole();
-}
-
+/**
+ * Returns the role for the current route.
+ *
+ * Derived from the pathname rather than by scanning localStorage for a token:
+ * when several roles are signed in on one machine, the route is what says who is
+ * browsing right now. Scanning storage instead returns whichever token appears
+ * first in key-declaration order, which is always `admin` once an admin session
+ * exists.
+ */
 export function useRole(): Role | null {
-  const [role, setRole] = useState<Role | null>(() => readTokenRole());
-
-  useEffect(() => {
-    const sync = () => setRole(readTokenRole());
-    window.addEventListener("storage", sync);
-    window.addEventListener(ROLE_CHANGE_EVENT, sync);
-    return () => {
-      window.removeEventListener("storage", sync);
-      window.removeEventListener(ROLE_CHANGE_EVENT, sync);
-    };
-  }, []);
-
-  return role;
+  const { pathname } = useLocation();
+  return roleFromPath(pathname);
 }

@@ -1,4 +1,4 @@
-import { getActiveRole, TOKEN_KEYS } from "@/lib/token";
+import { TOKEN_KEYS, type Role } from "@/lib/token";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -6,23 +6,73 @@ if (!BASE_URL) {
   throw new Error("VITE_BACKEND_URL is not set in frontend/.env");
 }
 
-function getTokenKey(): string {
-  const role = getActiveRole();
-  if (role === "coach") return TOKEN_KEYS.coach;
-  if (role === "super_admin") return TOKEN_KEYS.super_admin;
-  return TOKEN_KEYS.admin;
+/**
+ * Error carrying the HTTP status, so callers can branch on 401/403/404 instead of
+ * matching on the message text.
+ */
+export class ApiError extends Error {
+  status: number;
+  payload?: unknown;
+  constructor(message: string, status: number, payload?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
+/**
+ * Resolves the role from an API path. The path already encodes the role, so this
+ * stays correct when several roles are signed in on one machine — reading a
+ * single named role's key, rather than scanning storage for "who is active".
+ *
+ * Returns null for shared endpoints (/auth/*), where the caller must supply the
+ * role via `tokenKey`.
+ */
+function roleFromUrl(url: string): Role | null {
+  if (url.startsWith("/super-admin")) return "super_admin";
+  if (url.startsWith("/coach")) return "coach";
+  if (url.startsWith("/student")) return "student";
+  if (url.startsWith("/admin")) return "admin";
+  return null;
+}
+
+function resolveTokenKey(url: string): string {
+  const role = roleFromUrl(url);
+  return role ? TOKEN_KEYS[role] : TOKEN_KEYS.admin;
+}
+
+function handleUnauthorized(tokenKey: string) {
+  const role = (Object.keys(TOKEN_KEYS) as Role[]).find(
+    (r) => TOKEN_KEYS[r] === tokenKey,
+  ) ?? "admin";
+  // Only the session that actually failed is cleared, so other roles signed in on
+  // the same machine stay valid.
+  localStorage.removeItem(tokenKey);
+  if (role === "student") localStorage.removeItem("student_code");
+  window.dispatchEvent(new Event("role-change"));
+  window.location.replace(
+    role === "admin"
+      ? "/admin-signin"
+      : role === "coach"
+        ? "/coach-signin"
+        : role === "student"
+          ? "/student-login"
+          : "/super-admin-signin",
+  );
 }
 
 /**
  * Shared fetch wrapper that attaches a JWT and handles errors.
- * @param tokenKey - localStorage key for the token (auto-detected if not provided)
+ * @param tokenKey - localStorage key for the token. Defaults to the role implied
+ *   by `url`; pass it explicitly for shared endpoints like /auth/profile.
  */
 export async function apiFetch<T = unknown>(
   url: string,
   options: RequestInit = {},
-  tokenKey?: string
+  tokenKey?: string,
 ): Promise<T> {
-  const key = tokenKey || getTokenKey();
+  const key = tokenKey || resolveTokenKey(url);
   const token = localStorage.getItem(key);
 
   const headers = new Headers(options.headers);
@@ -44,8 +94,8 @@ export async function apiFetch<T = unknown>(
       typeof payload === "object" && payload !== null && "error" in payload
         ? (payload as { error: string }).error
         : `Request failed with status ${res.status}`;
-    const err = new Error(message);
-    (err as Error & { payload?: unknown }).payload = payload;
+    const err = new ApiError(message, res.status, payload);
+    if (res.status === 401) handleUnauthorized(key);
     throw err;
   }
 

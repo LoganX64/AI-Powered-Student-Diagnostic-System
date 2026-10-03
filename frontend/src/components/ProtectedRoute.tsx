@@ -1,16 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { getTokenPayload, isTokenExpired } from "@/lib/token";
-import { ROLE_CHANGE_EVENT } from "@/hooks/useRole";
-import { STUDENT_ROUTES, ROLE_REDIRECT_MAP } from "@/config/routes";
-import { type Role } from "@/lib/token";
-
-function detectRoleFromPath(pathname: string): Role | null {
-  if (pathname.startsWith("/super-admin")) return "super_admin";
-  if (pathname.startsWith("/admin")) return "admin";
-  if (pathname.startsWith("/coach")) return "coach";
-  if (STUDENT_ROUTES.includes(pathname as (typeof STUDENT_ROUTES)[number])) return "student";
-  return null;
-}
+import { TOKEN_KEYS, getTokenPayload, isTokenExpired, type Role } from "@/lib/token";
+import { roleFromPath, ROLE_REDIRECT_MAP } from "@/config/routes";
 
 function getRoleFromToken(tokenKey: string): Role | null {
   const token = localStorage.getItem(tokenKey);
@@ -23,18 +13,11 @@ function getRoleFromToken(tokenKey: string): Role | null {
   return null;
 }
 
+// Only the expired session is cleared, so other roles signed in on the same
+// machine stay signed in.
 function clearExpiredToken(tokenKey: string) {
-  if (tokenKey === "student_token") {
-    localStorage.removeItem("student_token");
-    localStorage.removeItem("student_code");
-  } else if (tokenKey === "coach_token") {
-    localStorage.removeItem("coach_token");
-  } else if (tokenKey === "super_admin_token") {
-    localStorage.removeItem("super_admin_token");
-  } else {
-    localStorage.removeItem("admin_token");
-  }
-  window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
+  localStorage.removeItem(tokenKey);
+  if (tokenKey === TOKEN_KEYS.student) localStorage.removeItem("student_code");
 }
 
 function isAuthenticated(role: Role): boolean {
@@ -94,7 +77,7 @@ function isAuthenticated(role: Role): boolean {
 
 export function ProtectedRoute() {
   const { pathname } = useLocation();
-  const requiredRole = detectRoleFromPath(pathname);
+  const requiredRole = roleFromPath(pathname);
 
   if (!requiredRole) return <Navigate to="/" replace />;
   if (isAuthenticated(requiredRole)) return <Outlet />;

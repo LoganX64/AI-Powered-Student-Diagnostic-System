@@ -10,16 +10,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useNavigate } from "react-router-dom";
-import { getActiveRole, getPrefix } from "@/lib/token";
+import { useRole } from "@/hooks/useRole";
+import { prefixForRole } from "@/config/routes";
 
 export function NotificationBell() {
-  const role = getActiveRole();
+  const role = useRole();
   // No notifications endpoint exists for super_admin — suppress the bell
   // (hooks must still run unconditionally to satisfy rules-of-hooks).
   const enabled = role === "admin" || role === "coach";
   const { unreadCount, notifications } = useNotifications(30000, enabled);
   const navigate = useNavigate();
-  const prefix = getPrefix();
+  const prefix = prefixForRole(role);
 
   if (!enabled) return null;
 

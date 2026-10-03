@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "@/lib/api";
-import { getPrefix } from "@/lib/token";
+import { currentPrefix } from "@/config/routes";
 
 export type Notification = {
   id: number;
@@ -23,7 +23,7 @@ export function useNotifications(pollInterval = 30000, enabled = true) {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const prefix = getPrefix();
+      const prefix = currentPrefix();
       const [notifRes, countRes] = await Promise.all([
         apiFetch<{ total: number; data: Notification[] }>(
           `${prefix}/notifications?limit=20`

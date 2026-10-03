@@ -25,32 +25,6 @@ export function getTokenPayload(token: string): TokenPayload | null {
   }
 }
 
-/**
- * Derives the active user role from the stored JWTs (not from stale
- * localStorage flag mirrors). Returns null when no valid token is present.
- */
-export function getActiveRole(): Role | null {
-  for (const role of Object.keys(TOKEN_KEYS) as Role[]) {
-    const token = localStorage.getItem(TOKEN_KEYS[role]);
-    if (token) {
-      const payload = getTokenPayload(token);
-      if (payload && payload.role === role) return role;
-    }
-  }
-  return null;
-}
-
-/**
- * Returns the API path prefix for the active role.
- * coach -> /coach, everything else (admin/super_admin) -> /admin.
- * Used to build role-correct endpoints (e.g. notifications, tenant settings).
- */
-export function getPrefix(): string {
-  const role = getActiveRole();
-  if (role === "coach") return "/coach";
-  return "/admin";
-}
-
 export function isTokenExpired(token: string): boolean {
   const payload = getTokenPayload(token);
   if (!payload) return true;

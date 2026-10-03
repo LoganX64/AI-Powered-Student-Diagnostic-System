@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import { getActiveRole } from "@/lib/token";
+import { currentPrefix } from "@/config/routes";
 import type {
   CreateCoachPayload,
   CreateStudentPayload,
@@ -63,11 +63,9 @@ export type { IntegrityPolicy, CreateBatchAssignmentPayload } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getPrefix(): string {
-  const role = getActiveRole();
-  if (role === "coach") return "/coach";
-  return "/admin";
-}
+// Route-derived, so a coach builds /coach URLs even when an admin is also signed
+// in on this machine. apiFetch then picks the matching coach token from the URL.
+const getPrefix = currentPrefix;
 
 function buildQuery(params?: PaginationParams): string {
   const query = new URLSearchParams();

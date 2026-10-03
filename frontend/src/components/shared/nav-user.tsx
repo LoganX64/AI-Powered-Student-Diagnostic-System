@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useNavigate, useLocation } from "react-router-dom"
 import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
-import { ROLE_CHANGE_EVENT } from "@/hooks/useRole"
+import { TOKEN_KEYS } from "@/lib/token"
 
 export function NavUser({
   user,
@@ -40,15 +40,16 @@ export function NavUser({
       ? "/admin"
       : "/coach"
 
+  // Clears only this role's session. Other roles signed in on the same machine
+  // stay signed in.
   const handleLogout = () => {
     if (prefix === "/coach") {
-      localStorage.removeItem("coach_token")
+      localStorage.removeItem(TOKEN_KEYS.coach)
     } else if (prefix === "/super-admin") {
-      localStorage.removeItem("super_admin_token")
+      localStorage.removeItem(TOKEN_KEYS.super_admin)
     } else {
-      localStorage.removeItem("admin_token")
+      localStorage.removeItem(TOKEN_KEYS.admin)
     }
-    window.dispatchEvent(new Event(ROLE_CHANGE_EVENT))
     navigate(
       prefix === "/admin"
         ? "/admin-signin"

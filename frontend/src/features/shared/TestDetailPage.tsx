@@ -67,6 +67,7 @@ export function TestDetailPage() {
   const testId = parseRouteId(id);
 
   const [test, setTest] = useState<TestDetail | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
   const [assignmentOffset, setAssignmentOffset] = useState(0);
@@ -91,13 +92,20 @@ export function TestDetailPage() {
   const [questionForm, setQuestionForm] = useState<QuestionDraft>(emptyQuestion());
   const [savingQuestion, setSavingQuestion] = useState(false);
 
-  useEffect(() => {
+  const fetchTest = useCallback(() => {
     if (testId === null) return;
-    getTest(testId).then(setTest).catch(() => {});
+    setTestError(null);
+    getTest(testId)
+      .then(setTest)
+      .catch((err) => setTestError((err as Error).message || "Failed to load test"));
+  }, [testId]);
+
+  useEffect(() => {
+    fetchTest();
     if (isAdmin && window.location.search.includes("edit=true")) {
       setEditingTest(true);
     }
-  }, [testId, isAdmin]);
+  }, [fetchTest, isAdmin]);
 
   const fetchAssignments = useCallback(async (off: number) => {
     if (testId === null) return;
@@ -184,6 +192,17 @@ export function TestDetailPage() {
       <DashboardLayout title="Test Not Found">
         <div className="flex flex-1 items-center justify-center p-6">
           <p className="text-muted-foreground">Invalid test ID in URL.</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (testError) {
+    return (
+      <DashboardLayout title="Test Detail">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+          <p role="alert" className="text-sm text-destructive">{testError}</p>
+          <Button variant="outline" onClick={fetchTest}>Try Again</Button>
         </div>
       </DashboardLayout>
     );
@@ -529,7 +548,7 @@ export function TestDetailPage() {
           onOpenChange={(open) => {
             if (!open) {
               setEditingTest(false);
-              getTest(testId).then(setTest).catch(() => {});
+              fetchTest();
             }
           }}
         />

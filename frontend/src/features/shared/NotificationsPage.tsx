@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
 import { apiFetch } from "@/lib/api";
-import { getPrefix } from "@/lib/token";
+import { currentPrefix } from "@/config/routes";
 import { toast } from "sonner";
 
 function formatEventType(eventType: string): string {
@@ -57,7 +57,7 @@ export function NotificationsPage() {
   });
 
   const markAsRead = async (id: number) => {
-    const prefix = getPrefix();
+    const prefix = currentPrefix();
     try {
       await apiFetch(`${prefix}/notifications/${id}/read`, { method: "PUT" });
       refetch();
@@ -67,7 +67,7 @@ export function NotificationsPage() {
   };
 
   const markAllAsRead = async () => {
-    const prefix = getPrefix();
+    const prefix = currentPrefix();
     try {
       await apiFetch(`${prefix}/notifications/read-all`, { method: "PUT" });
       refetch();
@@ -78,7 +78,7 @@ export function NotificationsPage() {
   };
 
   const deleteNotification = async (id: number) => {
-    const prefix = getPrefix();
+    const prefix = currentPrefix();
     try {
       await apiFetch(`${prefix}/notifications/${id}`, { method: "DELETE" });
       refetch();
