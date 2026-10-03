@@ -148,7 +148,11 @@ function StudentFormFields({
     const raw = {
       name: name.trim(),
       student_code: studentCode.trim() || undefined,
-      coach_id: isAdmin ? (coachId || undefined) : undefined,
+      // Pass 0 through rather than coercing to undefined, so the schema's
+      // "Please select a coach" rule can actually fire. The backend otherwise
+      // files the student under the admin's own coach record (student_ops.go:274),
+      // which hides them from the assignment picker.
+      coach_id: isAdmin ? coachId : undefined,
       batch_id: batchId,
     };
 

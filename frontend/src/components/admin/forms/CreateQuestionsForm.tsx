@@ -47,7 +47,11 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
   const [testId, setTestId] = useState(testIdProp?.toString() ?? "");
   const [questions, setQuestions] = useState<QuestionDraft[]>([emptyQuestion()]);
   const [loading, setLoading] = useState(false);
-  const [, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // zodErrors keys batch failures as `questions.<index>.<field>`.
+  const errFor = (index: number, field: keyof QuestionDraft) =>
+    errors[`questions.${index}.${field}`];
 
   const update = (index: number, field: keyof QuestionDraft, value: string | number) => {
     setQuestions((prev) =>
@@ -69,6 +73,7 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
     const result = createQuestionsBatchSchema.safeParse({ test_id: id, questions });
     if (!result.success) {
       setErrors(zodErrors(result.error));
+      toast.error("Please fix the highlighted fields");
       return;
     }
     setErrors({});
@@ -76,7 +81,7 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
     try {
       setLoading(true);
       const createFn = onSubmit ?? adminCreateQuestions;
-      const res = await createFn(id, questions);
+      const res = await createFn(id, result.data.questions);
       toast.success(`${res.count} question(s) added to test ${id}`);
       onCreated?.(id, res.count);
       setQuestions([emptyQuestion()]);
@@ -99,6 +104,14 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
       </CardHeader>
       <CardContent className="pt-4">
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {errors["test_id"] && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {errors["test_id"]}
+            </p>
+          )}
           <Separator />
 
           {/* Question list */}
@@ -138,6 +151,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                     required
                     className="resize-none overflow-hidden"
                   />
+                  {errFor(idx, "question_text") && (
+                    <p className="text-xs text-destructive">{errFor(idx, "question_text")}</p>
+                  )}
                 </div>
 
                 {/* Options — 2×2 grid */}
@@ -151,6 +167,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                         placeholder={`Option ${["A", "B", "C", "D"][oi]}`}
                         required
                       />
+                      {errFor(idx, opt) && (
+                        <p className="text-xs text-destructive">{errFor(idx, opt)}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -185,6 +204,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       onChange={(e) => update(idx, "marks", parseFloat(e.target.value) || 0)}
                       required
                     />
+                    {errFor(idx, "marks") && (
+                      <p className="text-xs text-destructive">{errFor(idx, "marks")}</p>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs">Neg Marks</Label>
@@ -196,6 +218,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       onChange={(e) => update(idx, "neg_marks", parseFloat(e.target.value) || 0)}
                       required
                     />
+                    {errFor(idx, "neg_marks") && (
+                      <p className="text-xs text-destructive">{errFor(idx, "neg_marks")}</p>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
                     <Label className="text-xs">Time (min)</Label>
@@ -207,6 +232,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       onChange={(e) => update(idx, "expected_time", parseFloat(e.target.value) || 0)}
                       required
                     />
+                    {errFor(idx, "expected_time") && (
+                      <p className="text-xs text-destructive">{errFor(idx, "expected_time")}</p>
+                    )}
                   </div>
                 </div>
 
@@ -273,6 +301,9 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
                       onChange={(e) => update(idx, "concept_tag", e.target.value)}
                       placeholder="basic_arithmetic"
                     />
+                    {errFor(idx, "concept_tag") && (
+                      <p className="text-xs text-destructive">{errFor(idx, "concept_tag")}</p>
+                    )}
                   </div>
                 </div>
               </div>

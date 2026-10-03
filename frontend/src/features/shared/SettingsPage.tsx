@@ -122,7 +122,12 @@ export function SettingsPage() {
 
     setSaving(true);
     try {
-      await updateProfile(tokenKey, { display_name: displayName, phone });
+      await updateProfile(tokenKey, {
+        display_name: result.data.name.trim(),
+        // The schema treats phone as optional; the backend binds a plain string,
+        // so a cleared field is sent as "" rather than dropped from the body.
+        phone: result.data.phone ?? "",
+      });
       toast.success("Profile updated successfully");
     } catch (err) {
       toast.error((err as Error).message);
