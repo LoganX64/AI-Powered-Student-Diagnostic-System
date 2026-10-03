@@ -15,6 +15,7 @@ import { TOKEN_KEYS } from "@/lib/token";
 
 export function AccountsPage() {
   const role = useRole();
+  const layoutVariant = role === "super_admin" ? "super-admin" : "admin";
   const tokenKey = role === "super_admin" ? TOKEN_KEYS.super_admin : TOKEN_KEYS[role ?? "admin"];
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +38,7 @@ export function AccountsPage() {
   }, [tokenKey]);
 
   return (
-    <DashboardLayout title="Accounts">
+    <DashboardLayout title="Accounts" variant={layoutVariant}>
       <div className="flex flex-col gap-6">
         {/* Account Info */}
         <Card>

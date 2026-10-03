@@ -41,6 +41,10 @@ const NOTIFICATION_EVENTS: { event_type: string; label: string; description: str
 export function SettingsPage() {
   const role = useRole();
   const isAdmin = role === "admin";
+  const layoutVariant = role === "super_admin" ? "super-admin" : "admin";
+  // Profile + Appearance + Security, plus Notifications for tenant roles and
+  // Organization for admins only.
+  const tabCount = role === "super_admin" ? 3 : isAdmin ? 5 : 4;
   const tokenKey = role === "super_admin" ? TOKEN_KEYS.super_admin : TOKEN_KEYS[role ?? "admin"];
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -82,6 +86,9 @@ export function SettingsPage() {
   }, [tokenKey]);
 
   useEffect(() => {
+    // Preferences are tenant-scoped. A super-admin has no tenant, so this call
+    // would resolve to an /admin endpoint with no admin session and 401.
+    if (role === "super_admin") return;
     let cancelled = false;
     async function loadPrefs() {
       setNotificationsLoading(true);
@@ -104,7 +111,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [role]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,17 +196,19 @@ export function SettingsPage() {
   };
 
   return (
-    <DashboardLayout title="Settings">
+    <DashboardLayout title="Settings" variant={layoutVariant}>
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className={isAdmin ? "grid w-full grid-cols-5" : "grid w-full grid-cols-4"}>
+        <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }}>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <UserIcon className="size-4" />
             Profile
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <BellIcon className="size-4" />
-            Notifications
-          </TabsTrigger>
+          {role !== "super_admin" && (
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <BellIcon className="size-4" />
+              Notifications
+            </TabsTrigger>
+          )}
           {isAdmin && (
             <TabsTrigger value="tenant" className="flex items-center gap-2">
               <Building2Icon className="size-4" />
@@ -273,7 +282,8 @@ export function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="notifications" className="mt-6">
+        {role !== "super_admin" && (
+          <TabsContent value="notifications" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -312,6 +322,7 @@ export function SettingsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+          )}
 
         {isAdmin && (
           <TabsContent value="tenant" className="mt-6">

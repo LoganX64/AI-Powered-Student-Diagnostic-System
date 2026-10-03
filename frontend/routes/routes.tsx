@@ -16,6 +16,8 @@ import { SuperAdminDashboardPage } from "../src/features/super-admin/SuperAdminD
 import { SuperAdminTenantsPage } from "../src/features/super-admin/SuperAdminTenantsPage.tsx";
 import { SuperAdminTenantDetailPage } from "../src/features/super-admin/SuperAdminTenantDetailPage.tsx";
 import { SuperAdminPlansPage } from "../src/features/super-admin/SuperAdminPlansPage.tsx";
+import { SuperAdminNotificationsPage } from "../src/features/super-admin/SuperAdminNotificationsPage.tsx";
+import { NotFoundPage } from "../src/features/shared/NotFoundPage.tsx";
 
   // Unified pages
   import { DashboardPage } from "../src/features/shared/DashboardPage.tsx";
@@ -104,12 +106,19 @@ const router = createBrowserRouter([
           { path: "super-admin/tenants", Component: SuperAdminTenantsPage },
           { path: "super-admin/tenants/:id", Component: SuperAdminTenantDetailPage },
           { path: "super-admin/plans", Component: SuperAdminPlansPage },
+          { path: "super-admin/settings", Component: SettingsPage },
+          { path: "super-admin/accounts", Component: AccountsPage },
+          { path: "super-admin/notifications", Component: SuperAdminNotificationsPage },
 
           // Student flow
           { path: "dashboard", Component: StudentDashboardPage },
           { path: "instructions", Component: StudentInstructionsPage },
           { path: "quiz", Component: StudentQuizPage },
           { path: "submitted", Component: StudentSubmittedPage },
+
+          // Catch-all — must stay last so a future dead link lands here
+          // instead of React Router's bare error screen.
+          { path: "*", Component: NotFoundPage },
         ],
       },
     ],
