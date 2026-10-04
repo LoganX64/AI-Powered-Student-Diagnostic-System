@@ -96,7 +96,10 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 	}, nil
 }
 
-func validateAnswers(answers []AnswerInput, correctMap map[int]string, duration int) error {
+// validateAnswers rejects payloads that are structurally impossible to score.
+// durationMinutes is the test's duration in MINUTES (tests.duration); TimeSpent is
+// per-question SECONDS. Over-duration totals are logged, not rejected — see below.
+func validateAnswers(answers []AnswerInput, correctMap map[int]string, durationMinutes int) error {
 	seen := make(map[int]bool)
 	var totalTime float64
 	for _, ans := range answers {
@@ -117,9 +120,15 @@ func validateAnswers(answers []AnswerInput, correctMap map[int]string, duration 
 			return &SubmitAnswersError{Status: 400, Message: "selected_answer must be A/B/C/D"}
 		}
 		totalTime += ans.TimeSpent
-		if duration > 0 && totalTime > float64(duration) {
-			return &SubmitAnswersError{Status: 400, Message: "total time_spent exceeds test duration"}
-		}
+	}
+
+	// A total above the duration means the student idled with a question open, or the
+	// client clock was reset. Record it rather than reject: time_spent feeds SQI
+	// analytics only (scoring reads selected_answer), and a 400 here is
+	// unrecoverable — the student retries with an identical payload and fails forever.
+	if durationMinutes > 0 && totalTime > float64(durationMinutes)*60 {
+		log.Printf("[SUBMIT] total time_spent %.1fs exceeds duration %dm across %d answers; recording as-is",
+			totalTime, durationMinutes, len(answers))
 	}
 	return nil
 }
@@ -345,6 +354,18 @@ func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (typ
 // SubmitTimed (server-authoritative timing tier)
 // ─────────────────────────────────────────────
 
+// ExamDeadline converts tests.duration (MINUTES) into an absolute deadline.
+// Single source of truth for the conversion: SubmitTimed, ValidateTimedSubmit and
+// the exam handler's /start and /state endpoints must agree, or the client shows
+// one expiry while the server enforces another. A non-positive duration means
+// untimed and yields the zero time.
+func ExamDeadline(startedAt time.Time, durationMinutes int) time.Time {
+	if durationMinutes <= 0 {
+		return time.Time{}
+	}
+	return startedAt.Add(time.Duration(durationMinutes) * time.Minute)
+}
+
 func (s *AttemptService) SubmitTimed(assignmentID, studentID, graceSeconds int, answers []AnswerInput) (*SubmitAnswersResult, error) {
 	owner, err := s.AssignmentRepo.GetOwnerAndTest(assignmentID)
 	if err != nil {
@@ -360,7 +381,7 @@ func (s *AttemptService) SubmitTimed(assignmentID, studentID, graceSeconds int, 
 	}
 
 	if owner.Duration > 0 {
-		deadline := startedAt.Add(time.Duration(owner.Duration) * time.Second)
+		deadline := ExamDeadline(startedAt, owner.Duration)
 		if time.Now().After(deadline.Add(time.Duration(graceSeconds) * time.Second)) {
 			return nil, &SubmitAnswersError{Status: 410, Message: "exam deadline has passed"}
 		}
@@ -444,7 +465,7 @@ func (s *AttemptService) ValidateTimedSubmit(assignmentID, studentID, graceSecon
 	}
 
 	if owner.Duration > 0 {
-		deadline := startedAt.Add(time.Duration(owner.Duration) * time.Second)
+		deadline := ExamDeadline(startedAt, owner.Duration)
 		if time.Now().After(deadline.Add(time.Duration(graceSeconds) * time.Second)) {
 			return 0, &SubmitAnswersError{Status: 410, Message: "exam deadline has passed"}
 		}

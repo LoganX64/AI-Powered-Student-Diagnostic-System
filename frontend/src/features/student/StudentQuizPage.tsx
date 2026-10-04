@@ -225,11 +225,13 @@ export function StudentQuizPage() {
 
     const payload = getPayload(questionIds);
 
-    // Sanity check: validate total time is plausible (time_spent is in seconds,
-    // matching the autosave path; exam_duration is stored in minutes).
+    // Heads-up only: the summed per-question time is above the exam duration, which
+    // means time was lost to idling or a clock reset. The submission is recorded
+    // either way — time_spent feeds SQI analytics, it does not decide the score — so
+    // the threshold is the real duration, not an arbitrary multiple of it.
     const totalTimeSeconds = payload.reduce((sum, p) => sum + p.time_spent, 0);
     const examDurationSeconds = Number(localStorage.getItem("exam_duration") || "60") * 60;
-    if (totalTimeSeconds > examDurationSeconds * 1.5) {
+    if (totalTimeSeconds > examDurationSeconds) {
       const proceed = window.confirm(
         `Total time spent (${(totalTimeSeconds / 60).toFixed(1)} min) exceeds exam duration (${(examDurationSeconds / 60).toFixed(1)} min). Submit anyway?`
       );

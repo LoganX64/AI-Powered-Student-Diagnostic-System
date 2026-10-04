@@ -97,7 +97,7 @@ func (h *StudentHandler) StartExam(c *gin.Context) {
 		attemptID, startedAt = id, t
 	}
 
-	deadline := startedAt.Add(time.Duration(duration) * time.Minute)
+	deadline := services.ExamDeadline(startedAt, duration)
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id": attemptID,
 		"deadline":   deadline.Format(time.RFC3339),
@@ -211,7 +211,7 @@ func (h *StudentHandler) GetState(c *gin.Context) {
 		return
 	}
 
-	deadline := startedAt.Add(time.Duration(duration) * time.Minute)
+	deadline := services.ExamDeadline(startedAt, duration)
 	remaining := int(time.Until(deadline).Seconds())
 	if remaining < 0 {
 		remaining = 0
