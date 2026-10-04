@@ -35,8 +35,13 @@ export function SvgIcon({
 
   if (!svg) return null;
 
-  const fixed = svg
-    .replace(/<svg/, '<svg width="100%" height="100%" style="color: currentColor"');
+  const sanitized = sanitizeSvg(svg);
+  if (!sanitized) return null;
+
+  const fixed = sanitized.replace(
+    /<svg/,
+    '<svg width="100%" height="100%" style="color: currentColor"',
+  );
 
   return (
     <span
@@ -44,4 +49,29 @@ export function SvgIcon({
       dangerouslySetInnerHTML={{ __html: fixed }}
     />
   );
+}
+
+// Parse the fetched markup and strip anything that can execute script before it
+// reaches the DOM: <script>, event-handler attributes (on*), and javascript: URLs.
+function sanitizeSvg(markup: string): string {
+  const doc = new DOMParser().parseFromString(markup, "image/svg+xml");
+  const root = doc.documentElement;
+  if (root.tagName.toLowerCase() !== "svg") return "";
+
+  const walk = (node: Element) => {
+    if (node.tagName.toLowerCase() === "script") {
+      node.remove();
+      return;
+    }
+    for (const attr of Array.from(node.attributes)) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim().toLowerCase();
+      if (name.startsWith("on") || value.startsWith("javascript:")) {
+        node.removeAttribute(attr.name);
+      }
+    }
+    Array.from(node.children).forEach((child) => walk(child as Element));
+  };
+  walk(root);
+  return new XMLSerializer().serializeToString(root);
 }

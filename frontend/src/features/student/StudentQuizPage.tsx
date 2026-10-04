@@ -480,11 +480,11 @@ export function StudentQuizPage() {
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsBase = import.meta.env.VITE_BACKEND_URL?.replace(/^http/, "ws") || `${protocol}//${window.location.host}`;
-    const wsUrl = `${wsBase}/student/assignments/${assignmentId}/live?token=${encodeURIComponent(studentToken)}`;
+    const wsUrl = `${wsBase}/student/assignments/${assignmentId}/live`;
 
     (async () => {
       try {
-        ws = new WebSocket(wsUrl);
+        ws = new WebSocket(wsUrl, [studentToken]);
         ws.binaryType = "arraybuffer";
 
         ws.onopen = () => {

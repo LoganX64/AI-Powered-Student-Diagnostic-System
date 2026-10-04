@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,18 @@ func NewViewerWSHandler(
 }
 
 func (h *ViewerWSHandler) ViewerLiveStream(c *gin.Context) {
-	tokenStr := c.Query("token")
+	tokenStr := ""
+	if h := c.GetHeader("Authorization"); h != "" {
+		tokenStr = strings.TrimPrefix(h, "Bearer ")
+	}
+	usedSubprotocol := false
+	if tokenStr == "" {
+		if ws := c.GetHeader("Sec-WebSocket-Protocol"); ws != "" {
+			parts := strings.Split(ws, ",")
+			tokenStr = strings.TrimSpace(parts[0])
+			usedSubprotocol = tokenStr != ""
+		}
+	}
 	if tokenStr == "" {
 		utils.Unauthorized(c, "missing token")
 		return
@@ -85,6 +97,9 @@ func (h *ViewerWSHandler) ViewerLiveStream(c *gin.Context) {
 		return
 	}
 
+	if usedSubprotocol {
+		c.Writer.Header().Set("Sec-WebSocket-Protocol", tokenStr)
+	}
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("[LIVEVIEW] Viewer WS upgrade failed: %v", err)
@@ -130,7 +145,16 @@ func (h *ViewerWSHandler) viewerReadLoop(conn *websocket.Conn) {
 }
 
 func (h *ViewerWSHandler) LiveStatus(c *gin.Context) {
-	tokenStr := c.Query("token")
+	tokenStr := ""
+	if h := c.GetHeader("Authorization"); h != "" {
+		tokenStr = strings.TrimPrefix(h, "Bearer ")
+	}
+	if tokenStr == "" {
+		if ws := c.GetHeader("Sec-WebSocket-Protocol"); ws != "" {
+			parts := strings.Split(ws, ",")
+			tokenStr = strings.TrimSpace(parts[0])
+		}
+	}
 	if tokenStr == "" {
 		utils.Unauthorized(c, "missing token")
 		return

@@ -15,6 +15,7 @@ type Config struct {
 	JWTSecret         string
 	JWTExpiry         string
 	JWTIssuer         string
+	VideoTokenSecret  string
 	Port              string
 	DBMaxOpenConns    int
 	DBMaxIdleConns    int
@@ -55,7 +56,9 @@ func LoadConfig() *Config {
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET is not set")
 	}
-
+	if len(jwtSecret) < 32 {
+		log.Fatal("JWT_SECRET must be at least 32 bytes long")
+	}
 	if port == "" {
 		log.Fatal("PORT is not set")
 	}
@@ -67,6 +70,15 @@ func LoadConfig() *Config {
 	jwtIssuer := os.Getenv("JWT_ISSUER")
 	if jwtIssuer == "" {
 		log.Fatal("JWT_ISSUER is not set")
+	}
+
+	videoTokenSecret := os.Getenv("VIDEO_TOKEN_SECRET")
+	if videoTokenSecret == "" {
+		log.Println("VIDEO_TOKEN_SECRET is not set; falling back to JWT_SECRET")
+		videoTokenSecret = jwtSecret
+	}
+	if len(videoTokenSecret) < 32 {
+		log.Fatal("VIDEO_TOKEN_SECRET must be at least 32 bytes long")
 	}
 
 	// Defaults (only if not provided)
@@ -134,6 +146,7 @@ func LoadConfig() *Config {
 		JWTSecret:         jwtSecret,
 		JWTExpiry:         jwtExpiry,
 		JWTIssuer:         jwtIssuer,
+		VideoTokenSecret:  videoTokenSecret,
 		Port:              port,
 		DBMaxOpenConns:    maxOpen,
 		DBMaxIdleConns:    maxIdle,

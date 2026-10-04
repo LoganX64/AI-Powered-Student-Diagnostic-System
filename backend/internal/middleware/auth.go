@@ -75,7 +75,19 @@ func AuthMiddleware(studentRepo *repository.StudentRepo, userRepo *repository.Us
 
 func VideoTokenMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenStr := c.Query("token")
+		tokenStr := ""
+		if h := c.GetHeader("Authorization"); h != "" {
+			tokenStr = strings.TrimPrefix(h, "Bearer ")
+		}
+		if tokenStr == "" {
+			if ws := c.GetHeader("Sec-WebSocket-Protocol"); ws != "" {
+				parts := strings.Split(ws, ",")
+				tokenStr = strings.TrimSpace(parts[0])
+			}
+		}
+		if tokenStr == "" {
+			tokenStr = c.Query("token")
+		}
 		if tokenStr == "" {
 			utils.Unauthorized(c, "missing token")
 			c.Abort()
@@ -106,7 +118,16 @@ func VideoTokenMiddleware() gin.HandlerFunc {
 
 func AuthMiddlewareWS(studentRepo *repository.StudentRepo, userRepo *repository.UserRepo) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenStr := c.Query("token")
+		tokenStr := ""
+		if h := c.GetHeader("Authorization"); h != "" {
+			tokenStr = strings.TrimPrefix(h, "Bearer ")
+		}
+		if tokenStr == "" {
+			if ws := c.GetHeader("Sec-WebSocket-Protocol"); ws != "" {
+				parts := strings.Split(ws, ",")
+				tokenStr = strings.TrimSpace(parts[0])
+			}
+		}
 		if tokenStr == "" {
 			utils.Unauthorized(c, "missing token")
 			c.Abort()

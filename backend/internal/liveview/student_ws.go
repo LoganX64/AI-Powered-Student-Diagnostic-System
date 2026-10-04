@@ -32,7 +32,18 @@ func NewStudentWSHandler(hub *Hub, studentRepo *repository.StudentRepo, assignme
 }
 
 func (h *StudentWSHandler) StudentLiveStream(c *gin.Context) {
-	tokenStr := c.Query("token")
+	tokenStr := ""
+	if h := c.GetHeader("Authorization"); h != "" {
+		tokenStr = strings.TrimPrefix(h, "Bearer ")
+	}
+	usedSubprotocol := false
+	if tokenStr == "" {
+		if ws := c.GetHeader("Sec-WebSocket-Protocol"); ws != "" {
+			parts := strings.Split(ws, ",")
+			tokenStr = strings.TrimSpace(parts[0])
+			usedSubprotocol = tokenStr != ""
+		}
+	}
 	if tokenStr == "" {
 		utils.Unauthorized(c, "missing token")
 		return
@@ -78,6 +89,9 @@ func (h *StudentWSHandler) StudentLiveStream(c *gin.Context) {
 		return
 	}
 
+	if usedSubprotocol {
+		c.Writer.Header().Set("Sec-WebSocket-Protocol", tokenStr)
+	}
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("[LIVEVIEW] WebSocket upgrade failed: %v", err)

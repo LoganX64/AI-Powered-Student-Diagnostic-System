@@ -9,9 +9,10 @@ import (
 )
 
 type JWTManager struct {
-	secret []byte
-	expiry time.Duration
-	issuer string
+	secret      []byte
+	videoSecret []byte
+	expiry      time.Duration
+	issuer      string
 }
 
 func NewJWTManager(secret, expiryStr, issuer string) *JWTManager {
@@ -25,15 +26,26 @@ func NewJWTManager(secret, expiryStr, issuer string) *JWTManager {
 	}
 	return &JWTManager{
 		secret: []byte(secret),
+		videoSecret: []byte(secret),
 		expiry: expiry,
 		issuer: issuer,
 	}
+}
+
+func NewJWTManagerWithVideoSecret(secret, videoSecret, expiryStr, issuer string) *JWTManager {
+	m := NewJWTManager(secret, expiryStr, issuer)
+	m.videoSecret = []byte(videoSecret)
+	return m
 }
 
 var defaultManager *JWTManager
 
 func InitJWTConfig(secret, expiry, issuer string) {
 	defaultManager = NewJWTManager(secret, expiry, issuer)
+}
+
+func InitJWTConfigWithVideoSecret(secret, videoSecret, expiry, issuer string) {
+	defaultManager = NewJWTManagerWithVideoSecret(secret, videoSecret, expiry, issuer)
 }
 
 func jwtManager() *JWTManager {
@@ -142,7 +154,7 @@ func (m *JWTManager) GenerateVideoToken(assignmentID int, tenantID int, role str
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(m.secret)
+	return token.SignedString(m.videoSecret)
 }
 
 func (m *JWTManager) ValidateVideoToken(tokenStr string) (*VideoClaims, error) {
@@ -150,7 +162,7 @@ func (m *JWTManager) ValidateVideoToken(tokenStr string) (*VideoClaims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Method.Alg())
 		}
-		return m.secret, nil
+		return m.videoSecret, nil
 	})
 
 	if err != nil {

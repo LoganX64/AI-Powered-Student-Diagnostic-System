@@ -75,7 +75,9 @@ export function useLiveVideo(
     if (!token) return null;
     try {
       const httpBase = BASE_URL.replace(/\/$/, "");
-      const res = await fetch(`${httpBase}/view/students/${id}/live/status?token=${encodeURIComponent(token)}`);
+      const res = await fetch(`${httpBase}/view/students/${id}/live/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (!res.ok) return null;
       const data = await res.json();
       return data.live === true;
@@ -92,11 +94,11 @@ export function useLiveVideo(
 
     const httpBase = BASE_URL.replace(/\/$/, "");
     const wsBase = httpBase.replace(/^http/, "ws");
-    const url = `${wsBase}/view/students/${id}/live?token=${encodeURIComponent(token)}`;
+    const url = `${wsBase}/view/students/${id}/live`;
 
     let ws: WebSocket;
     try {
-      ws = new WebSocket(url);
+      ws = new WebSocket(url, [token]);
     } catch {
       if (mountedRef.current) setError("Failed to create WebSocket connection");
       return;
