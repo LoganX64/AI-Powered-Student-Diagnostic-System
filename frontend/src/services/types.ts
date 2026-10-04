@@ -43,6 +43,10 @@ export type Test = {
   coach_name: string;
   exam_date?: string;
   created_at?: string;
+  /** Set when the test has been soft-deleted. */
+  deleted_at?: string | null;
+  /** How many questions the test has; 0 means it cannot be assigned yet. */
+  question_count?: number;
 };
 
 export type Coach = {

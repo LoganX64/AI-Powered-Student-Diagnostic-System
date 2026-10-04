@@ -59,7 +59,9 @@ function AssignForm({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getTests({ limit: 200 })
+    // has_questions: an empty test must not be assignable — the student would sit a
+// timer with nothing to answer.
+getTests({ limit: 200, has_questions: true })
       .then((res) => setTests(res.data ?? []))
       .catch(() => setTests([]));
   }, []);

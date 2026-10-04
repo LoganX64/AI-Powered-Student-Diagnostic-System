@@ -42,6 +42,36 @@ import { formatDateDDMMYYYY } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
+function DeactivatedToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <Button variant={on ? "default" : "outline"} onClick={onToggle} aria-pressed={on}>
+      {on ? "Showing Deactivated" : "Show Deactivated"}
+    </Button>
+  );
+}
+
+/** Marks soft-deleted rows and tests that have no questions yet. */
+function TestBadges({ test }: { test: Test }) {
+  const isDeactivated = !!test.deleted_at;
+  const isEmpty = test.question_count === 0;
+  if (!isDeactivated && !isEmpty) return null;
+
+  return (
+    <>
+      {isDeactivated && (
+        <Badge variant="outline" className="text-muted-foreground">
+          Deactivated
+        </Badge>
+      )}
+      {isEmpty && (
+        <Badge variant="outline" className="border-destructive/50 text-destructive">
+          0 questions
+        </Badge>
+      )}
+    </>
+  );
+}
+
 export function AllTestsPage() {
   const navigate = useNavigate();
   const role = useRole();
@@ -53,22 +83,31 @@ export function AllTestsPage() {
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [includeDeactivated, setIncludeDeactivated] = useState(false);
 
   const [editingTest, setEditingTest] = useState<Test | null>(null);
 
-  const fetchTests = useCallback(async (off: number, searchTerm: string) => {
-    try {
-      const res = await getTests({ limit: PAGE_SIZE, offset: off, search: searchTerm || undefined });
-      setTests(res.data ?? []);
-      setTotal(res.total);
-    } catch (err) {
-      void err;
-    }
-  }, []);
+  const fetchTests = useCallback(
+    async (off: number, searchTerm: string, deactivated: boolean) => {
+      try {
+        const res = await getTests({
+          limit: PAGE_SIZE,
+          offset: off,
+          search: searchTerm || undefined,
+          include_deactivated: deactivated,
+        });
+        setTests(res.data ?? []);
+        setTotal(res.total);
+      } catch (err) {
+        void err;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    fetchTests(offset, search);
-  }, [offset, search, fetchTests]);
+    fetchTests(offset, search, includeDeactivated);
+  }, [offset, search, includeDeactivated, fetchTests]);
 
   const handleSearch = () => {
     setOffset(0);
@@ -102,6 +141,13 @@ export function AllTestsPage() {
             />
           </div>
           <Button variant="outline" onClick={handleSearch}>Search</Button>
+          <DeactivatedToggle
+            on={includeDeactivated}
+            onToggle={() => {
+              setOffset(0);
+              setIncludeDeactivated((v) => !v);
+            }}
+          />
         </div>
 
         <div className="flex flex-col gap-3">
@@ -112,10 +158,14 @@ export function AllTestsPage() {
 
           {tests.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed">
-              <p className="text-sm text-muted-foreground">No tests created yet.</p>
-              <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
-                Create Your First Test
-              </Button>
+              <p className="text-sm text-muted-foreground">
+                {includeDeactivated ? "No deactivated tests." : "No tests created yet."}
+              </p>
+              {!includeDeactivated && (
+                <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
+                  Create Your First Test
+                </Button>
+              )}
             </div>
           ) : (
             <div className="rounded-lg border overflow-hidden">
@@ -134,13 +184,18 @@ export function AllTestsPage() {
                   {tests.map((test) => (
                     <TableRow
                       key={test.test_id}
-                      className="cursor-pointer hover:bg-muted/50"
+                      className={`cursor-pointer hover:bg-muted/50 ${test.deleted_at ? "opacity-60" : ""}`}
                       onClick={() => navigate(`${prefix}/tests/${test.test_id}/questions`)}
                     >
                       <TableCell className="font-mono text-sm text-muted-foreground">
                         {test.test_id}
                       </TableCell>
-                      <TableCell className="font-medium">{test.title}</TableCell>
+                      <TableCell>
+                        <span className="font-medium">{test.title}</span>
+                        <span className="ml-2 inline-flex gap-1 align-middle">
+                          <TestBadges test={test} />
+                        </span>
+                      </TableCell>
                       <TableCell>{test.subject_name || `#${test.subject_id}`}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {test.exam_date ? formatDateDDMMYYYY(test.exam_date) : "—"}
@@ -207,6 +262,13 @@ export function AllTestsPage() {
           />
         </div>
         <Button variant="outline" onClick={handleSearch}>Search</Button>
+        <DeactivatedToggle
+          on={includeDeactivated}
+          onToggle={() => {
+            setOffset(0);
+            setIncludeDeactivated((v) => !v);
+          }}
+        />
       </div>
 
       <div className="flex flex-col gap-3">
@@ -217,67 +279,78 @@ export function AllTestsPage() {
 
         {tests.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed">
-            <p className="text-sm text-muted-foreground">No tests created yet.</p>
-            <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
-              Create Your First Test
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              {includeDeactivated ? "No deactivated tests." : "No tests created yet."}
+            </p>
+            {!includeDeactivated && (
+              <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
+                Create Your First Test
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {tests.map((test) => (
               <div key={test.test_id} className="rounded-lg border overflow-hidden">
                 <div
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50"
+                  className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50 ${test.deleted_at ? "opacity-60" : ""}`}
                   onClick={() => navigate(`${prefix}/tests/${test.test_id}/questions`)}
                 >
                   <span className="font-medium flex-1">{test.title}</span>
+                  <TestBadges test={test} />
                   {test.exam_date && (
                     <Badge variant="outline" className="hidden sm:inline-flex">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
                   )}
                   <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
                   <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>
                   <span className="text-sm text-muted-foreground">{test.duration}m</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-muted-foreground hover:text-foreground"
-                    aria-label={`Edit ${test.title}`}
-                    onClick={(e) => { e.stopPropagation(); setEditingTest(test); }}
-                  >
-                    <PencilIcon className="size-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
+                  {/* Already deactivated: no delete, and editing a soft-deleted
+                      test is ambiguous, so both actions are withheld. */}
+                  {!test.deleted_at && (
+                    <>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-8 text-muted-foreground hover:text-destructive"
-                        aria-label={`Delete ${test.title}`}
-                        onClick={(e) => e.stopPropagation()}
+                        className="size-8 text-muted-foreground hover:text-foreground"
+                        aria-label={`Edit ${test.title}`}
+                        onClick={(e) => { e.stopPropagation(); setEditingTest(test); }}
                       >
-                        <Trash2Icon className="size-4" />
+                        <PencilIcon className="size-4" />
                       </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Test</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to deactivate{" "}
-                          <span className="font-semibold">{test.title}</span>?
-                          This test will be deactivated. Students who attempted it will keep their data.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={(e) => { e.stopPropagation(); handleDeleteTest(test.test_id, test.title); }}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 text-muted-foreground hover:text-destructive"
+                            aria-label={`Delete ${test.title}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2Icon className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Test</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to deactivate{" "}
+                              <span className="font-semibold">{test.title}</span>?
+                              This test will be deactivated. Students who attempted it will keep their data.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTest(test.test_id, test.title); }}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -313,7 +386,7 @@ export function AllTestsPage() {
         test={editingTest}
         open={editingTest !== null}
         onOpenChange={(open) => { if (!open) setEditingTest(null); }}
-        onUpdated={() => fetchTests(offset, search)}
+        onUpdated={() => fetchTests(offset, search, includeDeactivated)}
       />
     </DashboardLayout>
   );

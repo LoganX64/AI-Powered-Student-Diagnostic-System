@@ -26,6 +26,10 @@ type TestRow struct {
 	SubjectName string  `json:"subject_name"`
 	CoachName   string  `json:"coach_name"`
 	ExamDate    *string `json:"exam_date"`
+	DeletedAt   *string `json:"deleted_at"`
+	// QuestionCount lets the UI show (and the assignment pickers reason about)
+	// tests that have no questions yet.
+	QuestionCount int `json:"question_count"`
 }
 
 type TestDetailRow struct {
@@ -99,16 +103,33 @@ func (r *TestPaperRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool,
 	return exists, err
 }
 
-func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, offset int) ([]TestRow, int, error) {
+// List returns tests for a tenant, optionally including soft-deleted rows and
+// optionally restricting to tests that actually have questions.
+//
+// Both flags feed the shared `where`, so the COUNT query is filtered identically
+// to the data query — otherwise `total` would disagree with the rows returned and
+// pagination would show blank pages.
+func (r *TestPaperRepo) List(tenantID int, coachID *int, includeDeleted, onlyWithQuestions bool, search string, limit, offset int) ([]TestRow, int, error) {
 	var where string
 	var args []interface{}
 
+	deletedClause := "t.deleted_at IS NULL"
+	if includeDeleted {
+		deletedClause = "t.deleted_at IS NOT NULL"
+	}
+
 	if coachID != nil {
-		where = "t.tenant_id=$1 AND t.coach_id=$2 AND t.deleted_at IS NULL"
+		where = "t.tenant_id=$1 AND t.coach_id=$2 AND " + deletedClause
 		args = []interface{}{tenantID, *coachID}
 	} else {
-		where = "t.tenant_id=$1 AND t.deleted_at IS NULL"
+		where = "t.tenant_id=$1 AND " + deletedClause
 		args = []interface{}{tenantID}
+	}
+
+	// An empty test can still be assigned to a student, who then sits a timer with
+	// nothing to answer. Assignment pickers pass onlyWithQuestions to exclude them.
+	if onlyWithQuestions {
+		where += " AND EXISTS (SELECT 1 FROM questions q WHERE q.test_id = t.id)"
 	}
 
 	if search != "" {
@@ -117,7 +138,10 @@ func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, o
 	}
 
 	countQuery := "SELECT COUNT(*) FROM tests t WHERE " + where
-	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(t.subject_name, ''), COALESCE(c.name, ''), t.exam_date FROM tests t LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
+	// Indexed by migration 000019 (questions.test_id).
+	dataQuery := "SELECT t.id, t.title, t.subject_id, t.coach_id, t.duration, COALESCE(t.subject_name, ''), COALESCE(c.name, ''), t.exam_date, t.deleted_at, " +
+		"(SELECT COUNT(*) FROM questions q WHERE q.test_id = t.id) AS question_count" +
+		" FROM tests t LEFT JOIN coaches c ON t.coach_id = c.id WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
@@ -137,7 +161,7 @@ func (r *TestPaperRepo) List(tenantID int, coachID *int, search string, limit, o
 	var tests []TestRow
 	for rows.Next() {
 		var t TestRow
-		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName, &t.ExamDate); err != nil {
+		if err := rows.Scan(&t.TestID, &t.Title, &t.SubjectID, &t.CoachID, &t.Duration, &t.SubjectName, &t.CoachName, &t.ExamDate, &t.DeletedAt, &t.QuestionCount); err != nil {
 			return nil, 0, err
 		}
 		tests = append(tests, t)

@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useBlocker } from "react-router-dom";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
@@ -40,8 +40,63 @@ export function TestsPage() {
   const [createdTestId, setCreatedTestId] = useState<number | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
 
+  // A test exists but has no questions saved yet. Leaving here strands an empty
+  // test paper, so every exit path is gated: the blocker catches in-app navigation
+  // and browser back, beforeunload catches reload/close-tab and the sidebar's
+  // <a href> hard navigations.
+  const hasUnfinishedTest = createdTestId !== null;
+
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      hasUnfinishedTest && currentLocation.pathname !== nextLocation.pathname,
+  );
+
+  // Radix closes an AlertDialog on action click, which fires onOpenChange(false).
+  // Without this flag that would look like a dismissal and call blocker.reset(),
+  // cancelling the navigation we just chose to proceed with.
+  const intentionalCloseRef = useRef(false);
+
+  const openExitDialog = () => {
+    intentionalCloseRef.current = false;
+    setShowExitDialog(true);
+  };
+
+  // Surface the same dialog when the blocker intercepts a navigation.
+  useEffect(() => {
+    if (blocker.state === "blocked") openExitDialog();
+  }, [blocker.state]);
+
+  useEffect(() => {
+    if (!hasUnfinishedTest) return;
+    const warnOnUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnOnUnload);
+    return () => window.removeEventListener("beforeunload", warnOnUnload);
+  }, [hasUnfinishedTest]);
+
+  // Dismissed by Escape or overlay click: drop the interception and stay.
+  const closeExitDialog = () => {
+    intentionalCloseRef.current = false;
+    setShowExitDialog(false);
+    if (blocker.state === "blocked") blocker.reset();
+  };
+
+  const leaveWithoutSaving = () => {
+    intentionalCloseRef.current = true;
+    setShowExitDialog(false);
+    if (blocker.state === "blocked") {
+      blocker.proceed();
+      return;
+    }
+    // Opened from the "Create Another Test" button, which is not a navigation.
+    setCreatedTestId(null);
+  };
+
   const handleDeleteTest = async () => {
     if (createdTestId === null) return;
+    intentionalCloseRef.current = true;
     try {
       const deleteFn = isCoach ? coachDeleteTest : adminDeleteTest;
       await deleteFn(createdTestId);
@@ -51,6 +106,7 @@ export function TestsPage() {
     } finally {
       setCreatedTestId(null);
       setShowExitDialog(false);
+      if (blocker.state === "blocked") blocker.proceed();
     }
   };
 
@@ -87,10 +143,10 @@ export function TestsPage() {
                 <span className="text-sm text-muted-foreground">
                   Test created with ID <span className="font-mono font-semibold text-foreground">{createdTestId}</span>. Now add questions below.
                 </span>
-                <Button
+<Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowExitDialog(true)}
+                  onClick={openExitDialog}
                 >
                   Create Another Test
                 </Button>
@@ -113,7 +169,7 @@ export function TestsPage() {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+      <AlertDialog open={showExitDialog} onOpenChange={(o) => { if (!o && !intentionalCloseRef.current) closeExitDialog(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Test has no questions</AlertDialogTitle>
@@ -122,14 +178,22 @@ export function TestsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={closeExitDialog}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteTest}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete Test
             </AlertDialogAction>
-            <AlertDialogAction onClick={() => setShowExitDialog(false)}>
+            {blocker.state === "blocked" && (
+              <AlertDialogAction
+                className={buttonVariants({ variant: "outline" })}
+                onClick={leaveWithoutSaving}
+              >
+                Leave Anyway
+              </AlertDialogAction>
+            )}
+            <AlertDialogAction onClick={closeExitDialog}>
               Add Questions
             </AlertDialogAction>
           </AlertDialogFooter>

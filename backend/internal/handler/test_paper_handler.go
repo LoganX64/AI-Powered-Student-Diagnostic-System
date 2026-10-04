@@ -182,8 +182,10 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	search := c.Query("search")
+	includeDeleted := c.Query("include_deleted") == "true"
+	onlyWithQuestions := c.Query("has_questions") == "true"
 
-	tests, total, err := h.TestPaperRepo.List(tenantID, coachID, search, limit, offset)
+	tests, total, err := h.TestPaperRepo.List(tenantID, coachID, includeDeleted, onlyWithQuestions, search, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch tests")
 		return

@@ -80,12 +80,14 @@ function buildListQuery(
   params?: PaginationParams & {
     include_deactivated?: boolean;
     batch_id?: number;
+    has_questions?: boolean;
   },
 ): string {
   const query = new URLSearchParams();
   if (params?.limit) query.set("limit", params.limit.toString());
   if (params?.offset) query.set("offset", params.offset.toString());
   if (params?.include_deactivated) query.set("include_deactivated", "true");
+  if (params?.has_questions) query.set("has_questions", "true");
   if (params?.batch_id != null)
     query.set("batch_id", params.batch_id.toString());
   if (params?.search) query.set("search", params.search);
@@ -303,9 +305,16 @@ export const deleteTest = (testId: number) =>
     method: "DELETE",
   });
 
-export const getTests = (params?: PaginationParams) =>
+export const getTests = (
+  params?: PaginationParams & {
+    /** Show soft-deleted tests instead of only active ones. */
+    include_deactivated?: boolean;
+    /** Restrict to tests that have at least one question. */
+    has_questions?: boolean;
+  },
+) =>
   apiFetch<PaginatedResponse<Test>>(
-    `${getPrefix()}/tests${buildQuery(params)}`,
+    `${getPrefix()}/tests${buildListQuery(params)}`,
   );
 
 export const getTest = (testId: number) =>
