@@ -62,10 +62,17 @@ export function useExamTimer(
     storageKeyRef.current = storageKey;
   });
 
+  // Reset the one-shot expiry guard only when an attempt begins, not on every
+  // run of the ticking effect. Clearing it there let a late serverDeadlineMs
+  // wipe the guard after onExpire had already fired, so the timer expired twice
+  // and submitted twice. storageKey is included because started alone does not
+  // change when the same mounted hook moves to a different assignment.
+  useEffect(() => {
+    if (started) expiredRef.current = false;
+  }, [started, storageKey]);
+
   useEffect(() => {
     if (!started && serverDeadlineMs == null) return; // don't tick until exam has started
-
-    expiredRef.current = false;
 
     const expire = () => {
       if (expiredRef.current) return;

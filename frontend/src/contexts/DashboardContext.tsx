@@ -49,6 +49,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Clear the previous role's data before refetching, and re-arm the loading
+    // state. setLoading(true) is otherwise never called after mount, so a role
+    // switch painted the old role's students with no spinner — and because
+    // /admin/dashboard and /coach/dashboard render the same component, React
+    // reconciles rather than unmounting, so that data survives the switch. A
+    // coach would briefly (or, if their own list came back empty, indefinitely)
+    // see the admin's full roster.
+    setLoading(true);
+    setStudentsWithSQI([]);
+    setCoachRows([]);
+
     async function load() {
       try {
         if (!role) return;
@@ -58,15 +70,18 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
         const studentsRes = await getStudents({ limit: 100 });
         const students = studentsRes.data ?? [];
 
+        let sqiResults: StudentWithSQI[] = [];
         if (students.length) {
           const sqiRes = await getStudentSQIBatch(students.map((s) => s.student_id));
           const byId = new Map(sqiRes.data.map((m) => [m.student_id, m]));
-          const sqiResults = students.map((s) => {
+          sqiResults = students.map((s) => {
             const m = byId.get(s.student_id);
             return { ...s, average_sqi: m?.average_sqi ?? 0, total_tests: m?.total_tests ?? 0 };
           });
-          if (!cancelled) setStudentsWithSQI(sqiResults);
         }
+        // Written unconditionally: skipping this when the list is empty is what
+        // left the previous role's students on screen.
+        if (!cancelled) setStudentsWithSQI(sqiResults);
 
         if (role === "admin") {
           const coachesRes = await getCoaches({ limit: 100 });
