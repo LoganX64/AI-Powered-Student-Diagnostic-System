@@ -26,17 +26,19 @@ export function SuperAdminSidebar({ user }: { user: { name: string; email: strin
   const location = useLocation();
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <span className="text-lg font-semibold">Super Admin Panel</span>
+          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden">
+            Super Admin Panel
+          </span>
         </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+              <SidebarMenuButton asChild tooltip={item.title} isActive={location.pathname === item.url}>
                 <Link to={item.url}>
                   {item.icon}
                   <span>{item.title}</span>

@@ -167,7 +167,7 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
   ];
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -177,7 +177,7 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
             >
               <a href={`${prefix}/dashboard`}>
                 <CommandIcon className="size-5!" />
-                <span className="text-base font-semibold">
+                <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
                   {role === "admin" ? "Admin Panel" : "Coach Portal"}
                 </span>
               </a>
