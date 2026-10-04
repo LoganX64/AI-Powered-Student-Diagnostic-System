@@ -84,12 +84,10 @@ function clearExamStorage(assignmentId: number) {
 export function StudentQuizPage() {
   const navigate = useNavigate();
 
-  const studentCode = useMemo(
-    () => localStorage.getItem("student_code") || "",
-    [],
-  );
-
-  const assignmentId = Number(localStorage.getItem("assignment_id") || "0");
+  // Read once at mount. A bare localStorage.getItem in the render body is
+  // non-reactive, and useMemo is not a semantic guarantee that it runs once.
+  const [studentCode] = useState(() => localStorage.getItem("student_code") || "");
+  const [assignmentId] = useState(() => Number(localStorage.getItem("assignment_id") || "0"));
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -689,19 +687,6 @@ export function StudentQuizPage() {
               {currentQuestion.text}
             </p>
           </div>
-
-          {/* Diagram area */}
-          {currentQuestion.imageUrl && (
-            <div className="border-b border-border px-7 py-4">
-              <div className="flex min-h-45 items-center justify-center rounded-xl border border-dashed border-border bg-muted/40">
-                <img
-                  src={currentQuestion.imageUrl}
-                  alt={`Diagram for question ${currentIndex + 1}`}
-                  className="max-h-70 max-w-full rounded-lg object-contain"
-                />
-              </div>
-            </div>
-          )}
 
           {/* Options */}
           <div className="flex-1 px-7 py-5">

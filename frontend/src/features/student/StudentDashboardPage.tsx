@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, BarChart3, Clock, FileText, LogOut, Mail, Phone } from "lucide-react";
 import { Button } from "../../components/ui/button";
@@ -13,10 +13,7 @@ import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 export function StudentDashboardPage() {
   const navigate = useNavigate();
 
-  const studentCode = useMemo(
-    () => localStorage.getItem("student_code") || "",
-    [],
-  );
+  const [studentCode] = useState(() => localStorage.getItem("student_code") || "");
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);

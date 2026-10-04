@@ -73,20 +73,16 @@ export function useAnswerTracker(questionIds: number[], assignmentId: number) {
     recordsRef.current = records;
   }, [records]);
 
-  // Flush the active question's running time segment on unmount
-  useEffect(() => {
+// Tearing down the ticker on unmount. Deliberately does not write the in-flight
+// segment back with setRecords: a state update in an unmount cleanup cannot take
+// effect, so it was dead work. Anything still open is already flushed by
+// stopTracking() on navigation, tab switch and submit.
+useEffect(() => {
     return () => {
-      const id = activeQuestionIdRef.current;
-      if (id !== null && intervalRef.current !== null) {
-        const elapsed = (Date.now() - segmentStartRef.current) / 1000;
-        const total = committedTimeRef.current + elapsed;
-        setRecords((prev) => {
-          const r = prev[id];
-          if (!r) return prev;
-          return { ...prev, [id]: { ...r, time_spent: total } };
-        });
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
 

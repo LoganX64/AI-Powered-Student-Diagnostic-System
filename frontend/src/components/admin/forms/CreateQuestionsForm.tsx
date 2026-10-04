@@ -19,9 +19,15 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { createQuestions as adminCreateQuestions, type CreateQuestionPayload } from "@/services/dashboard.service";
 
-type QuestionDraft = CreateQuestionPayload;
+// uid is a stable per-row identity used as the React key. It never reaches the
+// API: the payload is rebuilt through createQuestionsBatchSchema, and zod's
+// object schema strips unknown keys.
+type QuestionDraft = CreateQuestionPayload & { uid: number };
+
+let uidCounter = 0;
 
 const emptyQuestion = (): QuestionDraft => ({
+  uid: ++uidCounter,
   question_text: "",
   option_a: "",
   option_b: "",
@@ -117,7 +123,7 @@ export function CreateQuestionsForm({ testId: testIdProp, onCreated, onSubmit }:
           {/* Question list */}
           <div className="flex flex-col gap-4">
             {questions.map((q, idx) => (
-              <div key={idx} className="flex flex-col gap-3 rounded-lg border p-3">
+              <div key={q.uid} className="flex flex-col gap-3 rounded-lg border p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-muted-foreground">
                     Question {idx + 1}

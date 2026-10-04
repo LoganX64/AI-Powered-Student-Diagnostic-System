@@ -103,19 +103,20 @@ export function StudentSubmittedPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Only counts down while nothing is pending, and only re-runs on that boolean
-  // rather than on `countdown` so the interval isn't rebuilt every second.
+  // Only counts down while nothing is pending. `countdown` is deliberately NOT a
+  // dependency: including it tore down and rebuilt the interval every second.
+  // The reducer bails at zero instead, and the redirect effect below handles it.
   useEffect(() => {
-    if (hasPendingSubmission || countdown <= 0) {
+    if (hasPendingSubmission) {
       return;
     }
 
     const id = setInterval(() => {
-      setCountdown((prev) => Math.max(0, prev - 1));
+      setCountdown((prev) => (prev <= 0 ? prev : prev - 1));
     }, 1000);
 
     return () => clearInterval(id);
-  }, [hasPendingSubmission, countdown]);
+  }, [hasPendingSubmission]);
 
   // Reached when the countdown hits zero. Kept out of the interval callback so the
   // updater stays pure (StrictMode invokes updaters twice).

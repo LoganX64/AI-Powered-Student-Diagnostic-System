@@ -54,7 +54,7 @@ export function StudentInstructionsPage() {
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
-  const assignmentId = localStorage.getItem("assignment_id");
+  const [assignmentId] = useState(() => localStorage.getItem("assignment_id"));
   const videoProctoring = data?.integrity_policy?.video_proctoring ?? false;
 
   // Fetch assignment data

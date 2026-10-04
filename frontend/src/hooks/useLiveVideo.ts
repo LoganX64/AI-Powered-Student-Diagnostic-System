@@ -47,6 +47,13 @@ export function useLiveVideo(
   }, []);
 
   const closeWs = useCallback(() => {
+    // A pending reconnect must be cancelled whenever the socket is torn down.
+    // Otherwise the 5s status poll can reconnect first and the stale 3s timer
+    // then closes that healthy socket to open a second connection.
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.onclose = null;
       wsRef.current.onerror = null;
@@ -57,17 +64,23 @@ export function useLiveVideo(
     setConnected(false);
   }, []);
 
-  const checkLiveStatus = useCallback(async (id: number): Promise<boolean> => {
+  /**
+   * `true` live, `false` definitely not live, `null` could not determine.
+   * Collapsing every failure into `false` made a 401/403/5xx or a dropped
+   * connection indistinguishable from an idle student, so the panel reported
+   * "not currently live" during an outage.
+   */
+  const checkLiveStatus = useCallback(async (id: number): Promise<boolean | null> => {
     const token = getToken();
-    if (!token) return false;
+    if (!token) return null;
     try {
       const httpBase = BASE_URL.replace(/\/$/, "");
       const res = await fetch(`${httpBase}/view/students/${id}/live/status?token=${encodeURIComponent(token)}`);
-      if (!res.ok) return false;
+      if (!res.ok) return null;
       const data = await res.json();
       return data.live === true;
     } catch {
-      return false;
+      return null;
     }
   }, [getToken]);
 
@@ -140,6 +153,14 @@ export function useLiveVideo(
   const pollAndConnect = useCallback(async (id: number) => {
     const isLive = await checkLiveStatus(id);
     if (!mountedRef.current) return;
+
+    if (isLive === null) {
+      // The check itself failed. Say so — do not report the student as idle.
+      setLive(false);
+      closeWs();
+      setError("Could not determine live status — check your connection.");
+      return;
+    }
 
     setLive(isLive);
     if (isLive) {
