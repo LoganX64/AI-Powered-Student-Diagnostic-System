@@ -1,14 +1,25 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import {
   BarChart3Icon,
+  LayoutDashboardIcon,
 } from "lucide-react";
 import { landingPageText } from "@/types/static/landing";
 import { HoverEffect } from "@/components/ui/card-hover-effect";
 import { SvgIcon } from "@/components/ui/svg-icon";
+import { mostRecentSession, type Session } from "@/lib/token";
+import { dashboardForRole } from "@/config/routes";
 
 const t = landingPageText;
+
+const ROLE_LABEL: Record<Session["role"], string> = {
+  admin: "Admin",
+  coach: "Coach",
+  super_admin: "Super Admin",
+  student: "Student",
+};
 
 const featureIcons = [
   <SvgIcon src="/images/cartoon-person-appraising-performance.svg" className="h-16 w-auto text-primary" />,
@@ -83,6 +94,16 @@ function HeroIllustration() {
 }
 
 export function LandingPage() {
+  // Read on mount rather than during render: localStorage is not reactive, and
+  // a render-time read would leave the CTAs stale after a sign-out elsewhere.
+  const [session, setSession] = useState<Session | null>(null);
+
+  useEffect(() => {
+    setSession(mostRecentSession());
+  }, []);
+
+  const dashboard = session ? dashboardForRole(session.role) : null;
+
   return (
     <motion.div
       className="flex flex-col min-h-screen"
@@ -102,12 +123,28 @@ export function LandingPage() {
             <Link to="/about" className="hover:text-foreground transition-colors">{t.nav.about}</Link>
           </nav>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/student-login">{t.nav.studentLogin}</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/admin-signup">{t.nav.registerNow}</Link>
-            </Button>
+            {session && dashboard ? (
+              <>
+                <span className="hidden text-sm text-muted-foreground sm:inline">
+                  Signed in as {ROLE_LABEL[session.role]}
+                </span>
+                <Button size="sm" asChild>
+                  <Link to={dashboard}>
+                    <LayoutDashboardIcon className="size-4" />
+                    Dashboard
+                  </Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/student-login">{t.nav.studentLogin}</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link to="/admin-signup">{t.nav.registerNow}</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -132,12 +169,28 @@ export function LandingPage() {
             {t.hero.description}
           </p>
           <div className="flex items-center gap-4">
-            <Button size="lg" asChild>
-              <Link to="/admin-signup">{t.hero.ctaPrimary}</Link>
-            </Button>
-            <Button variant="outline" size="lg" asChild>
-              <Link to="/student-login">{t.hero.ctaSecondary}</Link>
-            </Button>
+            {session && dashboard ? (
+              <>
+                <Button size="lg" asChild>
+                  <Link to={dashboard}>
+                    <LayoutDashboardIcon className="size-4" />
+                    Go to dashboard
+                  </Link>
+                </Button>
+                <Button variant="outline" size="lg" asChild>
+                  <a href="#features">Explore features</a>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="lg" asChild>
+                  <Link to="/admin-signup">{t.hero.ctaPrimary}</Link>
+                </Button>
+                <Button variant="outline" size="lg" asChild>
+                  <Link to="/student-login">{t.hero.ctaSecondary}</Link>
+                </Button>
+              </>
+            )}
           </div>
         </motion.div>
         <motion.div
@@ -194,9 +247,18 @@ export function LandingPage() {
             {t.cta.description}
           </p>
           <div className="mt-6 flex items-center justify-center gap-4">
-            <Button size="lg" asChild>
-              <Link to="/admin-signup">{t.cta.buttonText}</Link>
-            </Button>
+            {session && dashboard ? (
+              <Button size="lg" asChild>
+                <Link to={dashboard}>
+                  <LayoutDashboardIcon className="size-4" />
+                  Continue to your dashboard
+                </Link>
+              </Button>
+            ) : (
+              <Button size="lg" asChild>
+                <Link to="/admin-signup">{t.cta.buttonText}</Link>
+              </Button>
+            )}
           </div>
         </div>
       </motion.section>

@@ -28,6 +28,14 @@ export function prefixForRole(role: Role | null): string {
   return "/admin";
 }
 
+/** Landing page for a signed-in role. */
+export function dashboardForRole(role: Role): string {
+  if (role === "coach") return "/coach/dashboard";
+  if (role === "student") return "/dashboard";
+  if (role === "super_admin") return "/super-admin/dashboard";
+  return "/admin/dashboard";
+}
+
 /**
  * Prefix for the role currently browsing, read straight from window.location.
  *
