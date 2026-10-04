@@ -61,19 +61,21 @@ export function StudentDetailPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignFilter, setAssignFilter] = useState<"active" | "all">("active");
+  const [assignFilter, setAssignFilter] = useState<"active" | "submitted" | "all">("all");
   const [assignOffset, setAssignOffset] = useState(0);
 
   const PAGE_SIZE = 50;
 
   const fetchAssignments = useCallback(
-    async (off: number, filter: "active" | "all") => {
+    async (off: number, filter: "active" | "submitted" | "all") => {
       if (studentId == null) return;
       try {
         const res = await getStudentAssignments(studentId, {
           limit: PAGE_SIZE,
           offset: off,
-          status: filter === "active" ? "active" : undefined,
+          // "all" is the absence of a filter; "submitted" must be forwarded verbatim,
+          // or it silently widens to every status.
+          status: filter === "all" ? undefined : filter,
         });
         setAssignments(res.data ?? []);
         setAssignmentTotal(res.total);
@@ -107,7 +109,7 @@ export function StudentDetailPage() {
     getStudentAssignments(studentId, {
       limit: PAGE_SIZE,
       offset: assignOffset,
-      status: assignFilter === "active" ? "active" : undefined,
+      status: assignFilter === "all" ? undefined : assignFilter,
     })
       .then((res) => {
         setAssignments(res.data ?? []);
@@ -245,6 +247,13 @@ export function StudentDetailPage() {
             <div className="flex rounded-md border p-0.5 text-sm">
               <button
                 type="button"
+                onClick={() => { setAssignOffset(0); setAssignFilter("all"); }}
+                className={`rounded px-2.5 py-1 ${assignFilter === "all" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+              >
+                All
+              </button>
+              <button
+                type="button"
                 onClick={() => { setAssignOffset(0); setAssignFilter("active"); }}
                 className={`rounded px-2.5 py-1 ${assignFilter === "active" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
               >
@@ -252,10 +261,10 @@ export function StudentDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setAssignOffset(0); setAssignFilter("all"); }}
-                className={`rounded px-2.5 py-1 ${assignFilter === "all" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+                onClick={() => { setAssignOffset(0); setAssignFilter("submitted"); }}
+                className={`rounded px-2.5 py-1 ${assignFilter === "submitted" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
               >
-                All
+                Submitted
               </button>
             </div>
             <Badge variant="secondary">{assignmentTotal}</Badge>
@@ -269,6 +278,8 @@ export function StudentDetailPage() {
                 <p className="text-sm text-muted-foreground">
                   {assignFilter === "active"
                     ? "No active (unsubmitted) tests assigned to this student."
+                    : assignFilter === "submitted"
+                    ? "No submitted tests assigned to this student."
                     : "No tests assigned to this student."}
                 </p>
               </div>
@@ -414,8 +425,8 @@ export function StudentDetailPage() {
         onOpenChange={setAssignDialogOpen}
         onAssigned={() => {
           setAssignOffset(0);
-          setAssignFilter("active");
-          fetchAssignments(0, "active");
+          setAssignFilter("all");
+          fetchAssignments(0, "all");
         }}
       />
     </DashboardLayout>
