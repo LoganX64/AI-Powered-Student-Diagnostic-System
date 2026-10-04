@@ -16,7 +16,8 @@ createRoot(document.getElementById("root")!).render(
 );
 
 const splash = document.getElementById("splash-loader");
-if (splash) {
+const configError = (window as unknown as { __API_CONFIG_ERROR__?: boolean }).__API_CONFIG_ERROR__;
+if (splash && !configError) {
   splash.classList.add("hidden");
   setTimeout(() => splash.remove(), 500);
 }

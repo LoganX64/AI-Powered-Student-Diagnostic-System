@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { ProtectedRoute } from "../src/components/ProtectedRoute.tsx";
 import { ScrollToTop } from "../src/components/ScrollToTop.tsx";
+import { RouteError } from "../src/components/RouteError.tsx";
 import { LandingPage } from "../src/features/landing/LandingPage.tsx";
 import { AboutPage } from "../src/features/landing/AboutPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
@@ -44,6 +45,7 @@ import { AssignTestPage } from "../src/features/shared/AssignTestPage.tsx";
 const router = createBrowserRouter([
   {
     element: <ScrollToTop />,
+    errorElement: <RouteError />,
     children: [
       // Public pages
       { path: "/", Component: LandingPage },

@@ -48,7 +48,7 @@ import {
   type PaginatedResponse,
 } from "@/services/dashboard.service";
 import { type TestDetail, type TestQuestion } from "@/services/types";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import { createQuestionSchema, zodErrors } from "@/lib/validations";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
@@ -74,13 +74,23 @@ export function QuestionsPage() {
 
   const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
   const [testNotFound, setTestNotFound] = useState(false);
+  const [testError, setTestError] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     if (testId === null) return;
+    setTestError(null);
     apiFetch<TestDetail>(`${apiPrefix}/tests/${testId}`)
       .then(setTest)
-      .catch(() => setTestNotFound(true));
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setTestNotFound(true);
+        } else {
+          setTestError(
+            err instanceof Error ? err.message : "Failed to load test",
+          );
+        }
+      });
   }, [testId, apiPrefix]);
 
   const fetchQuestions = useCallback(async (off: number) => {
@@ -169,6 +179,34 @@ export function QuestionsPage() {
       <DashboardLayout title="Test Not Found">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <p className="text-muted-foreground">This test does not exist or has been deleted.</p>
+          <Button variant="outline" onClick={() => navigate(`${prefix}/all-tests`)}>
+            <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (testError) {
+    return (
+      <DashboardLayout title="Questions">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+          <p role="alert" className="text-sm text-destructive">{testError}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setTestError(null);
+              apiFetch<TestDetail>(`${apiPrefix}/tests/${testId}`)
+                .then(setTest)
+                .catch((err) =>
+                  setTestError(
+                    err instanceof Error ? err.message : "Failed to load test",
+                  ),
+                );
+            }}
+          >
+            Retry
+          </Button>
           <Button variant="outline" onClick={() => navigate(`${prefix}/all-tests`)}>
             <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
           </Button>

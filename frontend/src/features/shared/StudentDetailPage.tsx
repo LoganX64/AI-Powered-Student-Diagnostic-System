@@ -58,6 +58,7 @@ export function StudentDetailPage() {
   const [studentError, setStudentError] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<StudentAssignment[]>([]);
   const [assignmentTotal, setAssignmentTotal] = useState(0);
+  const [assignError, setAssignError] = useState<string | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
@@ -79,8 +80,11 @@ export function StudentDetailPage() {
         });
         setAssignments(res.data ?? []);
         setAssignmentTotal(res.total);
-      } catch {
-        /* keep previous list on refetch error */
+        setAssignError(null);
+      } catch (err) {
+        setAssignError(
+          err instanceof Error ? err.message : "Failed to load assignments",
+        );
       }
     },
     [studentId]
@@ -101,22 +105,16 @@ export function StudentDetailPage() {
   useEffect(() => {
     getBatches()
       .then((res) => setBatches(res.data ?? []))
-      .catch(() => setBatches([]));
+      .catch((err) =>
+        toast.error(
+          err instanceof Error ? err.message : "Failed to load batches",
+        ),
+      );
   }, []);
 
   useEffect(() => {
-    if (studentId == null) return;
-    getStudentAssignments(studentId, {
-      limit: PAGE_SIZE,
-      offset: assignOffset,
-      status: assignFilter === "all" ? undefined : assignFilter,
-    })
-      .then((res) => {
-        setAssignments(res.data ?? []);
-        setAssignmentTotal(res.total);
-      })
-      .catch(() => {});
-  }, [studentId, assignFilter, assignOffset]);
+    fetchAssignments(assignOffset, assignFilter);
+  }, [studentId, assignFilter, assignOffset, fetchAssignments]);
 
   if (studentId === null) {
     return (
@@ -272,6 +270,24 @@ export function StudentDetailPage() {
         </div>
 
         {(() => {
+          if (assignError) {
+            return (
+              <div className="flex h-32 flex-col items-center justify-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10">
+                <p role="alert" className="text-sm text-destructive">
+                  {assignError}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    fetchAssignments(assignOffset, assignFilter)
+                  }
+                >
+                  Retry
+                </Button>
+              </div>
+            );
+          }
           if (assignments.length === 0) {
             return (
               <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">

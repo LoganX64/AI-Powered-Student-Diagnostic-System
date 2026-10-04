@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from "react";
 import { useRole, type Role } from "@/hooks/useRole";
 import {
   getDashboardCounts,
@@ -122,8 +122,13 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     };
   }, [role]);
 
+  const value = useMemo(
+    () => ({ counts, studentsWithSQI, coachRows, loading, role }),
+    [counts, studentsWithSQI, coachRows, loading, role],
+  );
+
   return (
-    <DashboardContext.Provider value={{ counts, studentsWithSQI, coachRows, loading, role }}>
+    <DashboardContext.Provider value={value}>
       {children}
     </DashboardContext.Provider>
   );

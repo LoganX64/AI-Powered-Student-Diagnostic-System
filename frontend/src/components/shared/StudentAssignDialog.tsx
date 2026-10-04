@@ -63,7 +63,11 @@ function AssignForm({
 // timer with nothing to answer.
 getTests({ limit: 200, has_questions: true })
       .then((res) => setTests(res.data ?? []))
-      .catch(() => setTests([]));
+      .catch((err) =>
+        toast.error(
+          err instanceof Error ? err.message : "Failed to load tests",
+        ),
+      );
   }, []);
 
   const selectedTest = tests.find((t) => t.test_id === Number(testId));

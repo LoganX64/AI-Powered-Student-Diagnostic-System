@@ -3,7 +3,19 @@ import { TOKEN_KEYS, type Role } from "@/lib/token";
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 if (!BASE_URL) {
-  throw new Error("VITE_BACKEND_URL is not set in frontend/.env");
+  // No throw at module eval: a throw here would prevent main.tsx from running and
+  // leave the #splash-loader spinner forever. Surface the cause on the splash
+  // instead so the page is blank-free, and fail every request with a clear error.
+  const splash = document.getElementById("splash-loader");
+  if (splash) {
+    splash.innerHTML =
+      '<div style="max-width:34rem;text-align:center;padding:0 1rem">' +
+      '<p style="color:#b91c1c;font-weight:600;margin:0 0 8px">Configuration error</p>' +
+      '<p style="color:#6b7280;font-size:14px;margin:0">VITE_BACKEND_URL is not set in frontend/.env. ' +
+      'Copy frontend/.env.example to frontend/.env and set the backend URL, then restart.</p></div>';
+    splash.classList.remove("hidden");
+  }
+  (window as unknown as { __API_CONFIG_ERROR__?: boolean }).__API_CONFIG_ERROR__ = true;
 }
 
 /**
@@ -72,6 +84,12 @@ export async function apiFetch<T = unknown>(
   options: RequestInit = {},
   tokenKey?: string,
 ): Promise<T> {
+  if (!BASE_URL) {
+    throw new ApiError(
+      "VITE_BACKEND_URL is not set in frontend/.env",
+      0,
+    );
+  }
   const key = tokenKey || resolveTokenKey(url);
   const token = localStorage.getItem(key);
 

@@ -84,7 +84,11 @@ const coachReqRef = useRef(0);
   useEffect(() => {
     getBatches()
       .then((res) => setBatches(res.data ?? []))
-      .catch(() => setBatches([]));
+      .catch((err) =>
+        toast.error(
+          err instanceof Error ? err.message : "Failed to load batches",
+        ),
+      );
   }, []);
 
   // Loads coaches and, on first load in edit mode, prefills the already-assigned coach.
