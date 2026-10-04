@@ -11,6 +11,7 @@ import { NavUser } from "@/components/shared/nav-user";
 import { NavSecondary } from "@/components/shared/nav-secondary";
 import { LayoutDashboard, Building2, CreditCard, Settings2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { isActiveRoute } from "@/config/routes";
 
 const navItems = [
   { title: "Dashboard", url: "/super-admin/dashboard", icon: <LayoutDashboard className="size-4" /> },
@@ -38,7 +39,11 @@ export function SuperAdminSidebar({ user }: { user: { name: string; email: strin
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild tooltip={item.title} isActive={location.pathname === item.url}>
+              <SidebarMenuButton
+                asChild
+                tooltip={item.title}
+                isActive={isActiveRoute(location.pathname, item.url)}
+              >
                 <Link to={item.url}>
                   {item.icon}
                   <span>{item.title}</span>

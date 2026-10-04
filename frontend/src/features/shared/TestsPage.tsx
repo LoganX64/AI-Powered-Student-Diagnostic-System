@@ -42,8 +42,7 @@ export function TestsPage() {
 
   // A test exists but has no questions saved yet. Leaving here strands an empty
   // test paper, so every exit path is gated: the blocker catches in-app navigation
-  // and browser back, beforeunload catches reload/close-tab and the sidebar's
-  // <a href> hard navigations.
+  // and browser back, beforeunload catches reload and close-tab.
   const hasUnfinishedTest = createdTestId !== null;
 
   const blocker = useBlocker(

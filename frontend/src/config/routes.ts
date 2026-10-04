@@ -37,6 +37,21 @@ export function dashboardForRole(role: Role): string {
 }
 
 /**
+ * Whether a sidebar nav item should render as active for the current pathname.
+ *
+ * Prefix match on a path-segment boundary, so a detail route still lights up its
+ * parent item — /admin/students/42 highlights "/admin/students". Exact equality
+ * would leave the sidebar with no active item at all on every detail page.
+ * The boundary check keeps "/admin/tests" from matching "/admin/tests-archive".
+ */
+export function isActiveRoute(pathname: string, target: string): boolean {
+  if (pathname === target) return true;
+  if (!pathname.startsWith(target)) return false;
+  const next = pathname.charAt(target.length);
+  return next === "" || next === "/";
+}
+
+/**
  * Prefix for the role currently browsing, read straight from window.location.
  *
  * For use inside services and hooks, which have no router context. Matches what

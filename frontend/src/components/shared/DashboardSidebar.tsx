@@ -1,5 +1,6 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   LayoutDashboardIcon,
   UsersIcon,
@@ -175,12 +176,12 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <a href={`${prefix}/dashboard`}>
+              <Link to={`${prefix}/dashboard`}>
                 <CommandIcon className="size-5!" />
                 <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
                   {role === "admin" ? "Admin Panel" : "Coach Portal"}
                 </span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
