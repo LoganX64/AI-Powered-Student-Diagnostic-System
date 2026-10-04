@@ -64,52 +64,65 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     async function load() {
       try {
         if (!role) return;
-        const c = await getDashboardCounts();
-        if (!cancelled) setCounts(c);
 
-        const studentsRes = await getStudents({ limit: 100 });
+        // Three independent fetches run together; the SQI and coach-stats batches
+        // only depend on the student/coach lists, so they form a second parallel step.
+        const [c, studentsRes, coachesRes] = await Promise.all([
+          getDashboardCounts(),
+          getStudents({ limit: 100 }),
+          role === "admin"
+            ? getCoaches({ limit: 100 })
+            : Promise.resolve({ data: [] as never[] }),
+        ]);
+        if (cancelled) return;
+        setCounts(c);
+
         const students = studentsRes.data ?? [];
-
         let sqiResults: StudentWithSQI[] = [];
-        if (students.length) {
-          const sqiRes = await getStudentSQIBatch(students.map((s) => s.student_id));
-          const byId = new Map(sqiRes.data.map((m) => [m.student_id, m]));
-          sqiResults = students.map((s) => {
-            const m = byId.get(s.student_id);
-            return { ...s, average_sqi: m?.average_sqi ?? 0, total_tests: m?.total_tests ?? 0 };
-          });
-        }
-        // Written unconditionally: skipping this when the list is empty is what
-        // left the previous role's students on screen.
-        if (!cancelled) setStudentsWithSQI(sqiResults);
+        const sqiPromise = students.length
+          ? getStudentSQIBatch(students.map((s) => s.student_id)).then((res) => {
+              const byId = new Map(res.data.map((m) => [m.student_id, m]));
+              return students.map((s) => {
+                const m = byId.get(s.student_id);
+                return { ...s, average_sqi: m?.average_sqi ?? 0, total_tests: m?.total_tests ?? 0 };
+              });
+            })
+          : Promise.resolve([] as StudentWithSQI[]);
 
+        let coachRowsPromise: Promise<CoachRow[]> = Promise.resolve([]);
         if (role === "admin") {
-          const coachesRes = await getCoaches({ limit: 100 });
           const coaches = coachesRes.data ?? [];
-          let statsById: Map<number, CoachStatMetric> | null = null;
-          if (coaches.length) {
-            try {
-              const statsRes = await getCoachStatsBatch(coaches.map((c) => c.coach_id));
-              statsById = new Map(statsRes.data.map((m) => [m.coach_id, m]));
-            } catch {
-              // stats are optional; keep defaults
+          coachRowsPromise = (async () => {
+            let statsById: Map<number, CoachStatMetric> | null = null;
+            if (coaches.length) {
+              try {
+                const statsRes = await getCoachStatsBatch(coaches.map((c) => c.coach_id));
+                statsById = new Map(statsRes.data.map((m) => [m.coach_id, m]));
+              } catch {
+                // stats are optional; keep defaults
+              }
             }
-          }
-          const rows: CoachRow[] = coaches.map((c: Coach) => {
-            const m = statsById?.get(c.coach_id);
-            return {
-              id: c.coach_id,
-              name: c.name,
-              email: c.email,
-              studentsCount: m?.student_count ?? 0,
-              avgStudentSqi: m?.avg_sqi ?? 0,
-              status: c.deleted_at ? ("Inactive" as const) : ("Active" as const),
-              joinedDate: c.created_at ?? "—",
-              subjects: (c.subjects ?? []).map((s) => s.subject_name).join(", "),
-            };
-          });
-          if (!cancelled) setCoachRows(rows);
+            return coaches.map((c: Coach) => {
+              const m = statsById?.get(c.coach_id);
+              return {
+                id: c.coach_id,
+                name: c.name,
+                email: c.email,
+                studentsCount: m?.student_count ?? 0,
+                avgStudentSqi: m?.avg_sqi ?? 0,
+                status: c.deleted_at ? ("Inactive" as const) : ("Active" as const),
+                joinedDate: c.created_at ?? "—",
+                subjects: (c.subjects ?? []).map((s) => s.subject_name).join(", "),
+              };
+            });
+          })();
         }
+
+        const [sqi, rows] = await Promise.all([sqiPromise, coachRowsPromise]);
+        if (cancelled) return;
+        sqiResults = sqi;
+        setStudentsWithSQI(sqiResults);
+        if (role === "admin") setCoachRows(rows);
       } catch {
         // keep defaults
       } finally {

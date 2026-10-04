@@ -60,7 +60,6 @@ export function useAnswerTracker(questionIds: number[], assignmentId: number) {
   const activeQuestionIdRef = useRef<number | null>(null);
   const segmentStartRef = useRef(0);
   const committedTimeRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordsRef = useRef(records);
 
   // Persist to localStorage on every state change
@@ -77,12 +76,10 @@ export function useAnswerTracker(questionIds: number[], assignmentId: number) {
 // segment back with setRecords: a state update in an unmount cleanup cannot take
 // effect, so it was dead work. Anything still open is already flushed by
 // stopTracking() on navigation, tab switch and submit.
-useEffect(() => {
+  useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      activeQuestionIdRef.current = null;
+      segmentStartRef.current = 0;
     };
   }, []);
 
@@ -180,7 +177,7 @@ useEffect(() => {
   /** Commit the active question's running time segment into its record. */
   const commitActiveSegment = useCallback(() => {
     const id = activeQuestionIdRef.current;
-    if (id === null || intervalRef.current === null) return;
+    if (id === null || segmentStartRef.current === 0) return;
     const elapsed = (Date.now() - segmentStartRef.current) / 1000;
     const total = committedTimeRef.current + elapsed;
     setRecords((prev) => {
@@ -188,19 +185,13 @@ useEffect(() => {
       if (!r) return prev;
       return { ...prev, [id]: { ...r, time_spent: total } };
     });
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
     activeQuestionIdRef.current = null;
+    segmentStartRef.current = 0;
   }, []);
 
   /** Start tracking time for a question (call when navigating to it). */
   const startTracking = useCallback(
     (id: number) => {
-      // Clear any stale interval, then commit the previous question's segment
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
       if (activeQuestionIdRef.current !== null) {
         commitActiveSegment();
       }
@@ -208,25 +199,10 @@ useEffect(() => {
       activeQuestionIdRef.current = id;
       committedTimeRef.current = recordsRef.current[id]?.time_spent ?? 0;
       segmentStartRef.current = Date.now();
-
-      // Tick to persist/refresh. Time is measured from the fixed anchor, so
-      // accuracy is independent of tick cadence (no drift, no lost seconds).
-      intervalRef.current = setInterval(() => {
-        const current = activeQuestionIdRef.current;
-        if (current === null) return;
-        const elapsed = (Date.now() - segmentStartRef.current) / 1000;
-        setRecords((prev) => {
-          const r = prev[current];
-          if (!r) return prev;
-          return {
-            ...prev,
-            [current]: {
-              ...r,
-              time_spent: committedTimeRef.current + elapsed,
-            },
-          };
-        });
-      }, 1000);
+      // No per-second setRecords here: writing the whole records object every 1s
+      // re-rendered the entire quiz (navigator grid, derived filters). Elapsed time
+      // is anchored to segmentStartRef and only committed into state at segment end
+      // (commitActiveSegment), so no seconds are lost.
     },
     [commitActiveSegment],
   );

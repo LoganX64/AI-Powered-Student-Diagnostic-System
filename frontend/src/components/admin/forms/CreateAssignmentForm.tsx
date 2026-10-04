@@ -189,8 +189,8 @@ export function CreateAssignmentForm() {
     (async () => {
       try {
         const [t, s, b] = await Promise.all([
-          getTests({ limit: 10000, has_questions: true }),
-          getStudents({ limit: 10000 }),
+          getTests({ limit: 200, has_questions: true }),
+          getStudents({ limit: 200 }),
           getBatches(),
         ]);
         if (!active) return;
