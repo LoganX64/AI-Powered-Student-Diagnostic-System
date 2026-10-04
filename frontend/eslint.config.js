@@ -26,7 +26,7 @@ export default defineConfig([
       // rather than refactoring every fetch effect.
       "react-hooks/set-state-in-effect": "off",
       // Fast-refresh only matters for HMR ergonomics; exporting small helpers
-      ///constants alongside components is intentional here.
+      // constants alongside components is intentional here.
       "react-refresh/only-export-components": "off",
     },
   },
