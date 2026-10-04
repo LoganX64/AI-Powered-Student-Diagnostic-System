@@ -20,8 +20,15 @@ export function useNotifications(pollInterval = 30000, enabled = true) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const inFlightRef = useRef(false);
 
   const fetchNotifications = useCallback(async () => {
+    // Plain setInterval below fires regardless of whether the last tick has
+    // settled, so a slow response would let ticks stack up and resolve out of
+    // order. Skip rather than overlap.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
     try {
       const prefix = currentPrefix();
       const [notifRes, countRes] = await Promise.all([
@@ -35,6 +42,7 @@ export function useNotifications(pollInterval = 30000, enabled = true) {
     } catch {
       // silently fail on poll
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   }, []);

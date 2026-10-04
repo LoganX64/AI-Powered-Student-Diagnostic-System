@@ -11,9 +11,26 @@ export function SvgIcon({
   const [svg, setSvg] = useState("");
 
   useEffect(() => {
+    // Guard against a superseded src and against unmount.
+    let cancelled = false;
+
     fetch(src)
-      .then((r) => r.text())
-      .then(setSvg);
+      .then((r) => {
+        // fetch only rejects on network failure, so a 404 used to resolve with
+        // the server's HTML error page — which was then injected as markup
+        // below. Anything non-OK is simply "no icon".
+        return r.ok ? r.text() : "";
+      })
+      .then((text) => {
+        if (!cancelled) setSvg(text);
+      })
+      .catch(() => {
+        if (!cancelled) setSvg("");
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [src]);
 
   if (!svg) return null;

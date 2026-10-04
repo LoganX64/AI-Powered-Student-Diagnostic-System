@@ -50,6 +50,7 @@ export function StudentsPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+const studentsReqRef = useRef(0);
 
   // Dialog (create / edit)
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,12 +67,17 @@ export function StudentsPage() {
   }, [searchInput]);
 
   const fetchStudents = useCallback(async (off: number, deactivated: boolean, searchTerm: string) => {
+    // Without this a slow earlier page/search resolves last and overwrites the
+    // current one, so the table briefly shows rows that don't match the footer.
+    const reqId = ++studentsReqRef.current;
     try {
       const res = await getStudents({ limit: PAGE_SIZE, offset: off, include_deactivated: deactivated, search: searchTerm || undefined });
+      if (reqId !== studentsReqRef.current) return;
       setStudents(res.data ?? []);
       setTotal(res.total);
       setFetchError(null);
     } catch (err) {
+      if (reqId !== studentsReqRef.current) return;
       const message = (err as Error).message || "Failed to load students";
       setFetchError(message);
       toast.error(message);
@@ -79,6 +85,7 @@ export function StudentsPage() {
   }, []);
 
   useEffect(() => {
+    studentsReqRef.current++;
     fetchStudents(offset, includeDeactivated, search);
   }, [offset, includeDeactivated, search, fetchStudents]);
 

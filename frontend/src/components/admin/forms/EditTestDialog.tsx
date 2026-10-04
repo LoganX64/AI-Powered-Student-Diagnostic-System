@@ -45,8 +45,10 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
   const coachDropdownRef = useRef<HTMLDivElement>(null);
   const [coachDropdownPos, setCoachDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
-  const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+const subjectReqRef = useRef(0);
+const coachReqRef = useRef(0);
 
   useEffect(() => {
     if (test && open) {
@@ -61,30 +63,42 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
   }, [test, open]);
 
   const fetchSubjects = useCallback(async (search: string) => {
+    // A newer search supersedes this response; a slow earlier request resolving
+    // last would otherwise leave the previous term's results on screen.
+    const reqId = ++subjectReqRef.current;
     try {
       const res = await getSubjects({ search, limit: 10 });
+      if (reqId !== subjectReqRef.current) return;
       setSubjects(res.data ?? []);
     } catch {
+      if (reqId !== subjectReqRef.current) return;
       setSubjects([]);
     }
   }, []);
 
   const fetchCoaches = useCallback(async (search: string) => {
+    const reqId = ++coachReqRef.current;
     try {
       const res = await getCoaches({ search, limit: 10 });
+      if (reqId !== coachReqRef.current) return;
       setCoaches(res.data ?? []);
     } catch {
+      if (reqId !== coachReqRef.current) return;
       setCoaches([]);
     }
   }, []);
 
   useEffect(() => {
+    subjectReqRef.current++;
     if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current);
     subjectDebounceRef.current = setTimeout(() => fetchSubjects(subjectSearch), 300);
-    return () => { if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current); };
+    return () => {
+      if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current);
+    };
   }, [subjectSearch, fetchSubjects]);
 
   useEffect(() => {
+    coachReqRef.current++;
     if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current);
     coachDebounceRef.current = setTimeout(() => fetchCoaches(coachSearch), 300);
     return () => { if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current); };

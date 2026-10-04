@@ -36,34 +36,51 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
 
   const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+const subjectReqRef = useRef(0);
+const coachReqRef = useRef(0);
 
   const fetchSubjects = useCallback(async (search: string) => {
+    // A newer search supersedes this response. Without this a slow earlier
+    // request can resolve last and leave the previous term's results on screen.
+    const reqId = ++subjectReqRef.current;
     try {
       const fn = fetchSubjectsProp ?? adminGetSubjects;
       const res = await fn({ search, limit: 10 });
+      if (reqId !== subjectReqRef.current) return;
       setSubjects(res.data ?? []);
     } catch {
+      if (reqId !== subjectReqRef.current) return;
       setSubjects([]);
     }
   }, [fetchSubjectsProp]);
 
   const fetchCoaches = useCallback(async (search: string) => {
+    const reqId = ++coachReqRef.current;
     try {
       const fn = fetchCoachesProp ?? adminGetCoaches;
       const res = await fn({ search, limit: 10 });
+      if (reqId !== coachReqRef.current) return;
       setCoaches(res.data ?? []);
     } catch {
+      if (reqId !== coachReqRef.current) return;
       setCoaches([]);
     }
   }, [fetchCoachesProp]);
 
   useEffect(() => {
+    // Invalidate any in-flight search for the previous term. Done in the body
+    // rather than the cleanup: it still runs on every dep change, and a response
+    // arriving after unmount is already discarded by React.
+    subjectReqRef.current++;
     if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current);
     subjectDebounceRef.current = setTimeout(() => fetchSubjects(subjectSearch), 300);
-    return () => { if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current); };
+    return () => {
+      if (subjectDebounceRef.current) clearTimeout(subjectDebounceRef.current);
+    };
   }, [subjectSearch, fetchSubjects]);
 
   useEffect(() => {
+    coachReqRef.current++;
     if (!showCoachField) return;
     if (coachDebounceRef.current) clearTimeout(coachDebounceRef.current);
     coachDebounceRef.current = setTimeout(() => fetchCoaches(coachSearch), 300);

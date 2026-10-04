@@ -74,6 +74,7 @@ function StudentFormFields({
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+const coachReqRef = useRef(0);
   const prefilledRef = useRef(false);
 
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -90,11 +91,16 @@ function StudentFormFields({
   const initialCoachId = initial?.coach_id;
   const initialCoachName = initial?.coach_name;
   useEffect(() => {
+    coachReqRef.current++;
     if (!isAdmin) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
+      // A newer search supersedes this response; a slow earlier request resolving
+      // last would otherwise leave the previous term's coaches on screen.
+      const reqId = ++coachReqRef.current;
       try {
         const res = await getCoaches({ search: coachSearch, limit: 200 });
+        if (reqId !== coachReqRef.current) return;
         const list = res.data ?? [];
         setCoaches(list);
         if (mode === "edit" && !prefilledRef.current && initialCoachId) {
@@ -108,6 +114,7 @@ function StudentFormFields({
           prefilledRef.current = true;
         }
       } catch {
+        if (reqId !== coachReqRef.current) return;
         setCoaches([]);
       }
     }, 300);
