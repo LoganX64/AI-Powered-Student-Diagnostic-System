@@ -4,9 +4,7 @@ import { toast } from "sonner";
 import {
   ClipboardListIcon,
   FolderIcon,
-  ServerIcon,
   UsersIcon,
-  VideoIcon,
   CreditCardIcon,
   ChevronDownIcon,
   CheckIcon,
@@ -17,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -46,58 +43,11 @@ import {
   type Batch,
   type IntegrityPolicy,
 } from "@/services/dashboard.service";
-import { computeEstimatedCost, PRICING } from "@/config/pricing";
+import { computeEstimatedCost } from "@/config/pricing";
 import { useCombobox } from "@/hooks/useCombobox";
-
-const EMPTY_POLICY: IntegrityPolicy = {
-  server_timing: false,
-  autosave: false,
-  video_proctoring: false,
-  tab_switch_detect: false,
-};
-
-type ExamPreset = "simple" | "backend" | "video";
-
-function presetPolicy(preset: ExamPreset): IntegrityPolicy {
-  switch (preset) {
-    case "backend":
-      return { server_timing: true, autosave: true, video_proctoring: false, tab_switch_detect: true };
-    case "video":
-      return { server_timing: true, autosave: true, video_proctoring: true, tab_switch_detect: true };
-    default:
-      return { ...EMPTY_POLICY };
-  }
-}
-
-const PRESETS: { key: ExamPreset; title: string; icon: typeof ClipboardListIcon; desc: string }[] = [
-  {
-    key: "simple",
-    title: "Simple",
-    icon: ClipboardListIcon,
-    desc: "Client-only timing. No server sync, autosave, or video.",
-  },
-  {
-    key: "backend",
-    title: "Backend sync",
-    icon: ServerIcon,
-    desc: "Server-authoritative timing + autosave + tab detection.",
-  },
-  {
-    key: "video",
-    title: "Video proctored",
-    icon: VideoIcon,
-    desc: "Everything in Backend sync, plus video recording.",
-  },
-];
-
-function samePolicy(a: IntegrityPolicy, b: IntegrityPolicy): boolean {
-  return (
-    a.server_timing === b.server_timing &&
-    a.autosave === b.autosave &&
-    a.video_proctoring === b.video_proctoring &&
-    a.tab_switch_detect === b.tab_switch_detect
-  );
-}
+import { ExamTypePanel } from "@/components/shared/assignment/ExamTypePanel";
+import { CostSummary } from "@/components/shared/assignment/CostSummary";
+import { EMPTY_POLICY } from "@/components/shared/assignment/exam-presets";
 
 function StudentPicker({
   students,
@@ -292,14 +242,6 @@ export function CreateAssignmentForm() {
     [policy, durationMin, count]
   );
 
-  const base = PRICING.base_rate_per_student * count;
-  const timing = policy.server_timing ? PRICING.timing_flat : 0;
-  const autosave = policy.autosave ? PRICING.autosave_flat : 0;
-  const tab = policy.tab_switch_detect ? PRICING.tab_flat : 0;
-  const video = policy.video_proctoring
-    ? PRICING.video_rate_per_student_min * durationMin * count
-    : 0;
-
   const canProceed = !!selectedTest && count > 0 && !submitting;
 
   const resetAfter = () => {
@@ -480,51 +422,7 @@ export function CreateAssignmentForm() {
         {/* Exam type */}
         <Card className="lg:col-span-2">
           <CardContent className="flex flex-col gap-3 pt-5">
-            <Label>Exam Type &amp; Integrity</Label>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {PRESETS.map((p) => {
-                const active = samePolicy(policy, presetPolicy(p.key));
-                const Icon = p.icon;
-                return (
-                  <button
-                    type="button"
-                    key={p.key}
-                    onClick={() => setPolicy(presetPolicy(p.key))}
-                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      active
-                        ? "border-primary bg-primary/5"
-                        : "hover:bg-accent hover:text-accent-foreground"
-                    }`}
-                  >
-                    <Icon className="size-4 mt-0.5 shrink-0" />
-                    <div>
-                      <span className="text-sm font-medium">{p.title}</span>
-                      <span className="block text-xs text-muted-foreground">{p.desc}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                { label: "Server timing", desc: "Authoritative start/deadline", key: "server_timing" as const },
-                { label: "Autosave", desc: "Server-side answer backups", key: "autosave" as const },
-                { label: "Tab switch detection", desc: "Log visibility changes", key: "tab_switch_detect" as const },
-                { label: "Video proctoring", desc: "Record-only chunks", key: "video_proctoring" as const },
-              ].map((item) => (
-                <div key={item.key} className="flex items-center justify-between rounded-md border px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{item.label}</p>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  </div>
-                  <Switch
-                    checked={policy[item.key]}
-                    onCheckedChange={(v) => setPolicy((p) => ({ ...p, [item.key]: v }))}
-                  />
-                </div>
-              ))}
-            </div>
+            <ExamTypePanel policy={policy} onChange={setPolicy} />
           </CardContent>
         </Card>
 
@@ -532,40 +430,7 @@ export function CreateAssignmentForm() {
         <Card>
           <CardContent className="flex flex-col gap-3 pt-5">
             <Label>Estimated Cost</Label>
-            <div className="rounded-md border text-sm">
-              <div className="flex justify-between px-3 py-1.5">
-                <span className="text-muted-foreground">Base ({count} × ${PRICING.base_rate_per_student})</span>
-                <span>${base.toFixed(2)}</span>
-              </div>
-              {timing > 0 && (
-                <div className="flex justify-between px-3 py-1.5">
-                  <span className="text-muted-foreground">Timing</span>
-                  <span>+${timing.toFixed(2)}</span>
-                </div>
-              )}
-              {autosave > 0 && (
-                <div className="flex justify-between px-3 py-1.5">
-                  <span className="text-muted-foreground">Autosave</span>
-                  <span>+${autosave.toFixed(2)}</span>
-                </div>
-              )}
-              {tab > 0 && (
-                <div className="flex justify-between px-3 py-1.5">
-                  <span className="text-muted-foreground">Tab detect</span>
-                  <span>+${tab.toFixed(2)}</span>
-                </div>
-              )}
-              {video > 0 && (
-                <div className="flex justify-between px-3 py-1.5">
-                  <span className="text-muted-foreground">Video</span>
-                  <span>+${video.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t px-3 py-2 font-semibold">
-                <span>Total</span>
-                <span>${cost.toFixed(2)}</span>
-              </div>
-            </div>
+            <CostSummary policy={policy} durationMin={durationMin} count={count} />
 
             <Button onClick={() => setPayOpen(true)} disabled={!canProceed} className="w-full">
               <CreditCardIcon className="size-4" />

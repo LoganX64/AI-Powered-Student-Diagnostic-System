@@ -122,6 +122,10 @@ export function useCombobox<T>(items: T[], onSelect: (item: T) => void) {
     setOpen,
     openList,
     closeList,
+    /** Selects items[index] and closes the list. Use for row clicks too, so the
+     *  mouse and keyboard paths behave identically — a plain onSelect leaves the
+     *  list open and the input showing the search text instead of the new value. */
+    commit,
     activeIndex,
     setActiveIndex,
     containerRef,

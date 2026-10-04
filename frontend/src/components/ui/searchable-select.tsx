@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDownIcon, CheckIcon, SearchIcon } from "lucide-react";
 import { useCombobox } from "@/hooks/useCombobox";
 import { cn } from "@/lib/utils";
@@ -44,24 +44,17 @@ export function SearchableSelect({
   const totalMatches = filtered.length;
   const displayed = filtered.slice(0, cap);
 
-  const handleSelect = useCallback(
-    (option: SearchableSelectOption) => {
-      onChange(option.value);
-      setSearch("");
-    },
-    [onChange],
-  );
-
   const {
     open,
-    setOpen,
+    openList,
     closeList,
+    commit,
     activeIndex,
     containerRef,
     inputProps,
     listboxProps,
     optionProps,
-  } = useCombobox(displayed, handleSelect);
+  } = useCombobox(displayed, (option) => onChange(option.value));
 
   const displayValue = open ? search : selected?.label ?? "";
 
@@ -87,10 +80,14 @@ export function SearchableSelect({
           value={displayValue}
           onChange={(e) => {
             setSearch(e.target.value);
-            if (!open) setOpen(true);
+            if (!open) openList();
           }}
-          onFocus={() => {
-            setOpen(true);
+          // Deliberately onClick, not onFocus: Radix auto-focuses the first
+          // focusable element when a dialog mounts, so an onFocus handler would
+          // pop the list open — with the first row highlighted — before the user
+          // has done anything. ArrowDown still opens it for keyboard users.
+          onClick={() => {
+            openList();
             setSearch("");
           }}
           className="flex h-9 w-full rounded-md border bg-transparent pl-9 pr-8 py-2 text-sm transition-colors placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -112,7 +109,7 @@ export function SearchableSelect({
                 key={o.value}
                 type="button"
                 tabIndex={-1}
-                onClick={() => handleSelect(o)}
+                onClick={() => commit(i)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground",
                   i === activeIndex && "bg-accent text-accent-foreground",
