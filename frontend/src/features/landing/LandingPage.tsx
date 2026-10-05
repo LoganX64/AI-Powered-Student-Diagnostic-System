@@ -94,8 +94,7 @@ function HeroIllustration() {
 }
 
 export function LandingPage() {
-  // Read on mount rather than during render: localStorage is not reactive, and
-  // a render-time read would leave the CTAs stale after a sign-out elsewhere.
+  // Probe on mount; a render-time async read is not possible.
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
