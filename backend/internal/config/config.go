@@ -31,6 +31,13 @@ type Config struct {
 	RedisURL      string
 	RedisEnabled  bool
 	CloudinaryURL string
+
+	SMTPHost        string
+	SMTPPort        int
+	SMTPUser        string
+	SMTPAppPassword string
+	SMTPFrom        string
+	FrontendURL     string
 }
 
 func LoadConfig() *Config {
@@ -141,6 +148,30 @@ func LoadConfig() *Config {
 		uploadDir = "./uploads"
 	}
 
+	smtpHost := os.Getenv("SMTP_HOST")
+	if smtpHost == "" {
+		smtpHost = "smtp.gmail.com"
+	}
+	smtpPort := 587
+	if p := os.Getenv("SMTP_PORT"); p != "" {
+		if v, err := strconv.Atoi(p); err == nil {
+			smtpPort = v
+		}
+	}
+	smtpUser := os.Getenv("SMTP_USER")
+	smtpPass := os.Getenv("SMTP_APP_PASSWORD")
+	if smtpUser == "" || smtpPass == "" {
+		log.Println("[CONFIG] SMTP_USER/SMTP_APP_PASSWORD not set; password reset emails will be logged only")
+	}
+	smtpFrom := os.Getenv("SMTP_FROM")
+	if smtpFrom == "" && smtpUser != "" {
+		smtpFrom = smtpUser
+	}
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+
 	return &Config{
 		DBURL:             dbURL,
 		JWTSecret:         jwtSecret,
@@ -162,6 +193,13 @@ func LoadConfig() *Config {
 		RedisURL:      redisURL,
 		RedisEnabled:  redisEnabled,
 		CloudinaryURL: cloudinaryURL,
+
+		SMTPHost:        smtpHost,
+		SMTPPort:        smtpPort,
+		SMTPUser:        smtpUser,
+		SMTPAppPassword: smtpPass,
+		SMTPFrom:        smtpFrom,
+		FrontendURL:     frontendURL,
 	}
 }
 
