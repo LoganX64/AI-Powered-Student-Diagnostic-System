@@ -9,7 +9,7 @@ import {
 import { landingPageText } from "@/types/static/landing";
 import { HoverEffect } from "@/components/ui/card-hover-effect";
 import { SvgIcon } from "@/components/ui/svg-icon";
-import { mostRecentSession, type Session } from "@/lib/token";
+import { probeSession, type Session } from "@/lib/token";
 import { dashboardForRole } from "@/config/routes";
 
 const t = landingPageText;
@@ -99,7 +99,7 @@ export function LandingPage() {
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    setSession(mostRecentSession());
+    probeSession().then(setSession);
   }, []);
 
   const dashboard = session ? dashboardForRole(session.role) : null;

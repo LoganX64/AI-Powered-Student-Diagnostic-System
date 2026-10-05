@@ -32,7 +32,6 @@ import type {
 } from "../../services/student.service";
 import { AlertTriangle, ArrowLeft, Flag, RefreshCw, ShieldCheck, Video, Timer } from "lucide-react";
 import { toast } from "sonner";
-import { TOKEN_KEYS } from "../../lib/token";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -475,16 +474,13 @@ export function StudentQuizPage() {
     let canvas: HTMLCanvasElement | null = null;
     let ctx: CanvasRenderingContext2D | null = null;
 
-    const studentToken = localStorage.getItem(TOKEN_KEYS.student);
-    if (!studentToken) return;
-
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsBase = import.meta.env.VITE_BACKEND_URL?.replace(/^http/, "ws") || `${protocol}//${window.location.host}`;
     const wsUrl = `${wsBase}/student/assignments/${assignmentId}/live`;
 
     (async () => {
       try {
-        ws = new WebSocket(wsUrl, [studentToken]);
+        ws = new WebSocket(wsUrl);
         ws.binaryType = "arraybuffer";
 
         ws.onopen = () => {

@@ -137,7 +137,12 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
-	utils.ClearAuthCookies(c)
+	if role := c.GetHeader("X-Role"); role != "" {
+		c.SetSameSite(http.SameSiteLaxMode)
+		c.SetCookie(utils.AuthCookieName(role), "", -1, "/", "", false, true)
+	} else {
+		utils.ClearAuthCookies(c)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 

@@ -106,7 +106,7 @@ export async function getStudentAssignments(): Promise<Assignment[]> {
   const res = await apiFetch<{ total: number; data: Assignment[] }>(
     "/student/assignments",
     {},
-    "student_token"
+    "student"
   );
   return res.data ?? [];
 }
@@ -117,7 +117,7 @@ export async function getAssignmentQuestions(
   return apiFetch<AssignmentQuestionsResponse>(
     `/student/assignments/${assignmentId}/questions`,
     {},
-    "student_token"
+    "student"
   );
 }
 
@@ -131,7 +131,7 @@ export async function submitAnswers(
       method: "POST",
       body: JSON.stringify({ answers }),
     },
-    "student_token"
+    "student"
   );
 }
 
@@ -141,7 +141,7 @@ export async function startExam(
   return apiFetch<StartExamResponse>(
     `/student/assignments/${assignmentId}/start`,
     { method: "POST" },
-    "student_token",
+    "student",
   );
 }
 
@@ -155,7 +155,7 @@ export async function autosaveAnswers(
       method: "POST",
       body: JSON.stringify({ answers }),
     },
-    "student_token",
+    "student",
   );
 }
 
@@ -165,7 +165,7 @@ export async function getExamState(
   return apiFetch<ExamStateResponse>(
     `/student/assignments/${assignmentId}/state`,
     {},
-    "student_token",
+    "student",
   );
 }
 
@@ -180,7 +180,7 @@ export async function uploadVideoChunk(
   return apiFetch<{ received_index: string }>(
     `/student/assignments/${assignmentId}/video-chunk`,
     { method: "POST", body: form },
-    "student_token",
+    "student",
   );
 }
 
@@ -194,6 +194,6 @@ export async function submitExam(
       method: "POST",
       body: JSON.stringify({ answers }),
     },
-    "student_token"
+    "student"
   );
 }

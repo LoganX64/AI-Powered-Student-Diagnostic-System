@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import type { Role } from "@/lib/token";
 import { currentPrefix } from "@/config/routes";
 
 export type Profile = {
@@ -29,11 +30,11 @@ export type NotificationPreference = {
 const getPrefix = currentPrefix;
 
 // /auth/* is shared by every staff role, so the caller names the session it means.
-export const getProfile = (tokenKey: string) =>
-  apiFetch<Profile>("/auth/profile", {}, tokenKey);
+export const getProfile = (role: Role) =>
+  apiFetch<Profile>("/auth/profile", {}, role);
 
 export const updateProfile = (
-  tokenKey: string,
+  role: Role,
   data: { display_name: string; phone: string },
 ) =>
   apiFetch<{ message: string }>(
@@ -42,11 +43,11 @@ export const updateProfile = (
       method: "PUT",
       body: JSON.stringify(data),
     },
-    tokenKey,
+    role,
   );
 
 export const updatePassword = (
-  tokenKey: string,
+  role: Role,
   data: {
     current_password: string;
     new_password: string;
@@ -58,7 +59,7 @@ export const updatePassword = (
       method: "PUT",
       body: JSON.stringify(data),
     },
-    tokenKey,
+    role,
   );
 
 export const getTenantSettings = () =>

@@ -10,7 +10,10 @@ import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
 function clearStudentSession() {
-  localStorage.removeItem("student_token");
+  void fetch(`${import.meta.env.VITE_BACKEND_URL}/student/logout`, {
+    method: "POST",
+    credentials: "include",
+  }).catch(() => {});
   localStorage.removeItem("student_code");
   localStorage.removeItem("assignment_id");
   localStorage.removeItem("exam_started");

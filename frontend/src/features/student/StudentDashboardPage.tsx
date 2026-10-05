@@ -61,7 +61,10 @@ export function StudentDashboardPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("student_token");
+    void fetch(`${import.meta.env.VITE_BACKEND_URL}/student/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
     localStorage.removeItem("student_code");
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);

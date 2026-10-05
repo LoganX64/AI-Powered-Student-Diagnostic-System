@@ -12,7 +12,6 @@ interface RegisterPayload {
 }
 
 interface AuthResponse {
-  token: string;
   role: string;
   tenant_id: number;
 }
@@ -29,7 +28,7 @@ export interface StudentLoginPayload {
 }
 
 interface StudentLoginResponse {
-  token: string;
+  role: string;
 }
 
 export const login = (data: LoginPayload) =>

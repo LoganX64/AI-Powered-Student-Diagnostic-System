@@ -64,17 +64,10 @@ export function LoginPage({
     setLoading(true);
 
     try {
-      const res = await login({
+      await login({
         email: result.data.email.trim(),
         password: result.data.password,
       });
-      if (res.role === "coach") {
-        localStorage.setItem("coach_token", res.token);
-      } else if (res.role === "super_admin") {
-        localStorage.setItem("super_admin_token", res.token);
-      } else {
-        localStorage.setItem("admin_token", res.token);
-      }
       navigate(dashboardPath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";

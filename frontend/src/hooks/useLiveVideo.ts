@@ -12,12 +12,7 @@ interface UseLiveVideoResult {
 
 export function useLiveVideo(
   studentId: number | null,
-  tokenKey: string,
 ): UseLiveVideoResult {
-  const getToken = useCallback(
-    () => localStorage.getItem(tokenKey),
-    [tokenKey],
-  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [connected, setConnected] = useState(false);
   const [live, setLive] = useState(false);
@@ -71,12 +66,10 @@ export function useLiveVideo(
    * "not currently live" during an outage.
    */
   const checkLiveStatus = useCallback(async (id: number): Promise<boolean | null> => {
-    const token = getToken();
-    if (!token) return null;
     try {
       const httpBase = BASE_URL.replace(/\/$/, "");
       const res = await fetch(`${httpBase}/view/students/${id}/live/status`, {
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
       });
       if (!res.ok) return null;
       const data = await res.json();
@@ -84,13 +77,12 @@ export function useLiveVideo(
     } catch {
       return null;
     }
-  }, [getToken]);
+  }, []);
 
   const connectWs = useCallback((id: number) => {
     closeWs();
 
-    const token = getToken();
-    if (!token || !mountedRef.current) return;
+    if (!mountedRef.current) return;
 
     const httpBase = BASE_URL.replace(/\/$/, "");
     const wsBase = httpBase.replace(/^http/, "ws");
@@ -98,7 +90,7 @@ export function useLiveVideo(
 
     let ws: WebSocket;
     try {
-      ws = new WebSocket(url, [token]);
+      ws = new WebSocket(url);
     } catch {
       if (mountedRef.current) setError("Failed to create WebSocket connection");
       return;
@@ -146,7 +138,7 @@ export function useLiveVideo(
         }, 3000);
       }
     };
-  }, [closeWs, getToken]);
+  }, [closeWs]);
 
   useEffect(() => {
     connectWsRef.current = connectWs;

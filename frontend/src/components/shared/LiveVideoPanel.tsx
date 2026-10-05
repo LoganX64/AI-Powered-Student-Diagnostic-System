@@ -1,7 +1,5 @@
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useLiveVideo } from "@/hooks/useLiveVideo";
-import { useRole } from "@/hooks/useRole";
-import { TOKEN_KEYS } from "@/lib/token";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +11,8 @@ export function LiveVideoPanel({
   studentId: number;
   studentName: string;
 }) {
-  const role = useRole();
-  const tokenKey = TOKEN_KEYS[role === "coach" ? "coach" : "admin"];
   const { canvasRef, connected, live, error, reconnect } =
-    useLiveVideo(studentId, tokenKey);
+    useLiveVideo(studentId);
 
   return (
     <Card>

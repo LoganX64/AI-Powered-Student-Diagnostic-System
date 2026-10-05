@@ -29,7 +29,6 @@ import { NavSecondary } from "@/components/shared/nav-secondary";
 import { NavUser } from "@/components/shared/nav-user";
 import { useRole } from "@/hooks/useRole";
 import { getProfile } from "@/services/settings.service";
-import { TOKEN_KEYS } from "@/lib/token";
 
 const adminNavItems = [
   {
@@ -125,7 +124,6 @@ const coachNavItems = [
 export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const role = useRole();
   const prefix = role === "admin" ? "/admin" : "/coach";
-  const tokenKey = TOKEN_KEYS[role === "coach" ? "coach" : "admin"];
 
   const [user, setUser] = useState<{ name: string; email: string; avatar?: string }>({
     name: role === "admin" ? "Admin User" : "Coach Alex",
@@ -137,7 +135,7 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
     let cancelled = false;
     async function load() {
       try {
-        const p = await getProfile(tokenKey);
+        const p = await getProfile(role === "coach" ? "coach" : "admin");
         if (cancelled) return;
         setUser({
           name: p.display_name || p.email,
@@ -152,7 +150,7 @@ export function DashboardSidebar({ ...props }: React.ComponentProps<typeof Sideb
     return () => {
       cancelled = true;
     };
-  }, [role, tokenKey]);
+  }, [role]);
 
   const secondaryNavItems = [
     {

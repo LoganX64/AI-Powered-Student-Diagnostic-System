@@ -1,60 +1,40 @@
 export type Role = "admin" | "coach" | "student" | "super_admin";
 
-interface TokenPayload {
-  user_id: number;
-  role: Role;
-  student_id: number;
-  exp: number;
-  iat: number;
-}
+export type Session = { role: Role };
 
-export const TOKEN_KEYS: Record<Role, string> = {
-  admin: "admin_token",
-  coach: "coach_token",
-  student: "student_token",
-  super_admin: "super_admin_token",
+const BASE_URL = import.meta.env.VITE_BACKEND_URL as string;
+
+const PROBE_URLS: Record<Role, string> = {
+  admin: "/admin/notifications/unread-count",
+  coach: "/coach/notifications/unread-count",
+  super_admin: "/super-admin/stats",
+  student: "/student/assignments",
 };
 
-export function getTokenPayload(token: string): TokenPayload | null {
+/**
+ * True when the browser holds a valid HttpOnly session cookie for `role`.
+ * Uses a cheap GET against a role-gated endpoint; a cookie for a different
+ * role fails the role check server-side rather than being mistaken for one.
+ */
+export async function probeRole(role: Role): Promise<boolean> {
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    if (typeof payload.role !== "string") return null;
-    return payload as TokenPayload;
+    const res = await fetch(`${BASE_URL}${PROBE_URLS[role]}`, {
+      credentials: "include",
+      headers: { "X-Role": role },
+    });
+    return res.ok;
   } catch {
-    return null;
+    return false;
   }
 }
-
-export function isTokenExpired(token: string): boolean {
-  const payload = getTokenPayload(token);
-  if (!payload) return true;
-  return payload.exp * 1000 < Date.now();
-}
-
-export type Session = { role: Role; iat: number };
 
 /**
- * The most recently authenticated valid session, or null when signed out.
- *
- * Ranks by each token's own `iat` rather than by TOKEN_KEYS declaration order.
- * Order-based scanning is the bug Phase 3.2 fixed: with two roles signed in it
- * handed a super-admin the admin JWT. The highest `iat` is the session the user
- * created last, which is the one they mean when they open "/".
+ * First role with a valid session cookie, or null. Replaces the old
+ * mostRecentSession() localStorage scan now that tokens are HttpOnly.
  */
-export function mostRecentSession(): Session | null {
-  let best: Session | null = null;
-
-  for (const role of Object.keys(TOKEN_KEYS) as Role[]) {
-    const token = localStorage.getItem(TOKEN_KEYS[role]);
-    if (!token || isTokenExpired(token)) continue;
-
-    const payload = getTokenPayload(token);
-    // A token stored under the wrong key is not a session for that role.
-    if (!payload || payload.role !== role) continue;
-    if (typeof payload.iat !== "number") continue;
-
-    if (!best || payload.iat > best.iat) best = { role, iat: payload.iat };
+export async function probeSession(): Promise<Session | null> {
+  for (const role of ["admin", "coach", "super_admin", "student"] as Role[]) {
+    if (await probeRole(role)) return { role };
   }
-
-  return best;
+  return null;
 }

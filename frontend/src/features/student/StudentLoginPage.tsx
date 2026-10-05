@@ -12,8 +12,7 @@ export function StudentLoginPage() {
     try {
       setError("");
       setLoading(true);
-      const result = await loginStudent(data);
-      localStorage.setItem("student_token", result.token);
+      await loginStudent(data);
       localStorage.setItem("student_code", data.student_code);
       navigate("/dashboard");
     } catch (err) {

@@ -11,12 +11,10 @@ import {
 } from "lucide-react";
 import { getProfile, type Profile } from "@/services/settings.service";
 import { useRole } from "@/hooks/useRole";
-import { TOKEN_KEYS } from "@/lib/token";
 
 export function AccountsPage() {
   const role = useRole();
   const layoutVariant = role === "super_admin" ? "super-admin" : "admin";
-  const tokenKey = role === "super_admin" ? TOKEN_KEYS.super_admin : TOKEN_KEYS[role ?? "admin"];
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -24,7 +22,7 @@ export function AccountsPage() {
     let active = true;
     (async () => {
       try {
-        const p = await getProfile(tokenKey);
+        const p = await getProfile(role ?? "admin");
         if (active) setProfile(p);
       } catch (err) {
         toast.error((err as Error).message);
@@ -35,7 +33,7 @@ export function AccountsPage() {
     return () => {
       active = false;
     };
-  }, [tokenKey]);
+  }, [role]);
 
   return (
     <DashboardLayout title="Accounts" variant={layoutVariant}>

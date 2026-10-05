@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/sidebar"
 import { useNavigate, useLocation } from "react-router-dom"
 import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
-import { TOKEN_KEYS } from "@/lib/token"
+import { apiFetch } from "@/lib/api"
+import { toast } from "sonner"
 
 export function NavUser({
   user,
@@ -40,15 +41,20 @@ export function NavUser({
       ? "/admin"
       : "/coach"
 
-  // Clears only this role's session. Other roles signed in on the same machine
-  // stay signed in.
-  const handleLogout = () => {
-    if (prefix === "/coach") {
-      localStorage.removeItem(TOKEN_KEYS.coach)
-    } else if (prefix === "/super-admin") {
-      localStorage.removeItem(TOKEN_KEYS.super_admin)
-    } else {
-      localStorage.removeItem(TOKEN_KEYS.admin)
+  // Clears only this role's session cookie. Other roles signed in on the same
+  // machine stay signed in.
+  const handleLogout = async () => {
+    const role =
+      prefix === "/coach" ? "coach" : prefix === "/super-admin" ? "super_admin" : "admin";
+    try {
+      await apiFetch("/auth/logout", { method: "POST" }, role);
+    } catch (err) {
+      // Still navigate away, but tell the user the server session may
+      // not have been cleared rather than failing silently.
+      toast.error(
+        `Sign out failed: ${err instanceof Error ? err.message : "unknown error"}. ` +
+          "The session cookie may still be valid.",
+      );
     }
     navigate(
       prefix === "/admin"

@@ -3,7 +3,6 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { SuperAdminSidebar } from "./SuperAdminSidebar";
 import { DashboardHeader } from "@/components/shared/DashboardHeader";
 import { apiFetch } from "@/lib/api";
-import { TOKEN_KEYS } from "@/lib/token";
 
 interface Profile {
   email: string;
@@ -25,7 +24,7 @@ export function SuperAdminLayout({ title, children }: SuperAdminLayoutProps) {
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch<Profile>("/auth/profile", {}, TOKEN_KEYS.super_admin)
+    apiFetch<Profile>("/auth/profile", {}, "super_admin")
       .then((p) => {
         if (!cancelled) {
           setUser({

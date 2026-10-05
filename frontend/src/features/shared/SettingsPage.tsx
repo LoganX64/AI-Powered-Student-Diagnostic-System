@@ -27,7 +27,6 @@ import {
   type Profile,
 } from "@/services/settings.service";
 import { useRole } from "@/hooks/useRole";
-import { TOKEN_KEYS } from "@/lib/token";
 
 const NOTIFICATION_EVENTS: { event_type: string; label: string; description: string }[] = [
   { event_type: "exam_submitted", label: "Exam Submitted", description: "When a student submits an exam" },
@@ -45,7 +44,6 @@ export function SettingsPage() {
   // Profile + Appearance + Security, plus Notifications for tenant roles and
   // Organization for admins only.
   const tabCount = role === "super_admin" ? 3 : isAdmin ? 5 : 4;
-  const tokenKey = role === "super_admin" ? TOKEN_KEYS.super_admin : TOKEN_KEYS[role ?? "admin"];
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -69,7 +67,7 @@ export function SettingsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const p = await getProfile(tokenKey);
+        const p = await getProfile(role ?? "admin");
         if (cancelled) return;
         setProfile(p);
         setDisplayName(p.display_name ?? "");
@@ -83,7 +81,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [tokenKey]);
+  }, [role]);
 
   useEffect(() => {
     // Preferences are tenant-scoped. A super-admin has no tenant, so this call
@@ -129,7 +127,7 @@ export function SettingsPage() {
 
     setSaving(true);
     try {
-      await updateProfile(tokenKey, {
+      await updateProfile(role ?? "admin", {
         display_name: result.data.name.trim(),
         // The schema treats phone as optional; the backend binds a plain string,
         // so a cleared field is sent as "" rather than dropped from the body.
@@ -165,7 +163,7 @@ export function SettingsPage() {
 
     setSaving(true);
     try {
-      await updatePassword(tokenKey, {
+      await updatePassword(role ?? "admin", {
         current_password: passwords.currentPassword,
         new_password: passwords.newPassword,
       });
