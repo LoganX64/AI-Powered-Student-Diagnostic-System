@@ -1,12 +1,14 @@
 package auth
 
-import (
+	import (
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +20,9 @@ type AuthHandler struct {
 	SubscriptionRepo *repository.SubscriptionRepo
 	// QuotaMW is optional (nil in tests). Guarded before every use.
 	QuotaMW *middleware.QuotaMiddleware
+
+	ResetRepo *repository.PasswordResetRepo
+	Mailer    *services.Mailer
 }
 
 func NewAuthHandler(
@@ -34,6 +39,11 @@ func NewAuthHandler(
 		SubscriptionRepo: subscriptionRepo,
 		QuotaMW:          quotaMW,
 	}
+}
+
+func (h *AuthHandler) SetPasswordReset(mailer *services.Mailer, resetRepo *repository.PasswordResetRepo) {
+	h.Mailer = mailer
+	h.ResetRepo = resetRepo
 }
 
 type LoginRequest struct {
@@ -191,6 +201,86 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 type UpdatePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password" binding:"required"`
+}
+
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required"`
+}
+
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	// Always return the same message regardless of whether the email exists.
+	_, err := h.AuthService.UserRepo.GetByEmailWithCoachCheck(req.Email)
+	if err == nil && h.ResetRepo != nil && h.Mailer != nil {
+		token, err := utils.RandomTokenHex(32)
+		if err != nil {
+			log.Printf("[AUTH] token generation failed: %v", err)
+		} else {
+			hash := utils.HashSHA256Hex(token)
+			if err := h.ResetRepo.Create(req.Email, hash, time.Now().Add(30*time.Minute)); err == nil {
+				if err := h.Mailer.SendPasswordReset(req.Email, token); err != nil {
+					log.Printf("[AUTH] failed to send reset email: %v", err)
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "If that email is registered, a password reset link has been sent."})
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, "invalid payload")
+		return
+	}
+
+	if err := utils.ValidatePassword(req.NewPassword); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	hash := utils.HashSHA256Hex(req.Token)
+	if h.ResetRepo == nil {
+		utils.InternalError(c, fmt.Errorf("reset repo not configured"), "service unavailable")
+		return
+	}
+	email, err := h.ResetRepo.FindValid(hash)
+	if err != nil {
+		utils.BadRequest(c, "invalid or expired token")
+		return
+	}
+
+	user, err := h.AuthService.UserRepo.GetByEmailWithCoachCheck(email)
+	if err != nil {
+		utils.BadRequest(c, "account not found")
+		return
+	}
+
+	newHash, err := utils.HashPassword(req.NewPassword)
+	if err != nil {
+		utils.InternalError(c, err, "hashing failed")
+		return
+	}
+	if err := h.AuthService.UserRepo.UpdatePassword(user.UserID, newHash); err != nil {
+		utils.InternalError(c, err, "update failed")
+		return
+	}
+	if err := h.ResetRepo.MarkUsed(hash); err != nil {
+		log.Printf("[AUTH] failed to mark reset token used: %v", err)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
 }
 
 func (h *AuthHandler) UpdatePassword(c *gin.Context) {

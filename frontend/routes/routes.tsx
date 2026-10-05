@@ -15,6 +15,8 @@ import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
 import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
 import { SuperAdminSigninPage } from "../src/features/super-admin/SuperAdminLoginPage.tsx";
+import { ForgotPasswordPage } from "../src/features/shared/ForgotPasswordPage.tsx";
+import { ResetPasswordPage } from "../src/features/shared/ResetPasswordPage.tsx";
 import { SuperAdminDashboardPage } from "../src/features/super-admin/SuperAdminDashboardPage.tsx";
 import { SuperAdminTenantsPage } from "../src/features/super-admin/SuperAdminTenantsPage.tsx";
 import { SuperAdminTenantDetailPage } from "../src/features/super-admin/SuperAdminTenantDetailPage.tsx";
@@ -61,6 +63,8 @@ const router = createBrowserRouter([
       { path: "admin-signup", Component: AdminSignupPage },
       { path: "coach-signin", Component: CoachSigninPage },
       { path: "super-admin-signin", Component: SuperAdminSigninPage },
+      { path: "forgot-password", Component: ForgotPasswordPage },
+      { path: "reset-password", Component: ResetPasswordPage },
 
       // Protected routes — require authentication
       {

@@ -118,6 +118,9 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	jobQueue := queue.New(cfg)
 
 	authHandler := auth.NewAuthHandler(authService, loginAttemptRepo, planRepo, subscriptionRepo, quotaMW)
+	resetRepo := repository.NewPasswordResetRepo(db)
+	mailer := services.NewMailer(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUser, cfg.SMTPAppPassword, cfg.SMTPFrom, cfg.FrontendURL)
+	authHandler.SetPasswordReset(mailer, resetRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW, notifService)
 	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW, notifService)
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, subscriptionRepo, jobQueue, autosaveBuffer, storageBackend, cfg, quotaMW, notifService)
@@ -141,6 +144,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		authRoute.POST("/login", authHandler.UserLogin)
 		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
 		authRoute.POST("/logout", authHandler.Logout)
+		authRoute.POST("/forgot-password", authHandler.ForgotPassword)
+		authRoute.POST("/reset-password", authHandler.ResetPassword)
 	}
 
 	student := r.Group("/student")
