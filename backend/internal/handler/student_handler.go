@@ -110,7 +110,8 @@ func (h *StudentHandler) StudentLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	utils.SetAuthCookie(c, "student", token)
+	c.JSON(http.StatusOK, gin.H{"role": "student"})
 }
 
 func (h *StudentHandler) ListStudentAssignments(c *gin.Context) {

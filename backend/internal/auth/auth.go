@@ -128,11 +128,17 @@ func (h *AuthHandler) UserLogin(c *gin.Context) {
 		return
 	}
 
+	utils.SetAuthCookie(c, result.Role, token)
+
 	c.JSON(http.StatusOK, gin.H{
-		"token":     token,
 		"role":      result.Role,
 		"tenant_id": result.TenantID,
 	})
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	utils.ClearAuthCookies(c)
+	c.JSON(http.StatusOK, gin.H{"message": "logged out"})
 }
 
 type RegisterCoachRequest struct {

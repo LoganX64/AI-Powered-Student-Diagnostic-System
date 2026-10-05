@@ -32,35 +32,17 @@ func NewStudentWSHandler(hub *Hub, studentRepo *repository.StudentRepo, assignme
 }
 
 func (h *StudentWSHandler) StudentLiveStream(c *gin.Context) {
-	tokenStr := ""
-	if h := c.GetHeader("Authorization"); h != "" {
-		tokenStr = strings.TrimPrefix(h, "Bearer ")
-	}
-	usedSubprotocol := false
-	if tokenStr == "" {
-		if ws := c.GetHeader("Sec-WebSocket-Protocol"); ws != "" {
-			parts := strings.Split(ws, ",")
-			tokenStr = strings.TrimSpace(parts[0])
-			usedSubprotocol = tokenStr != ""
-		}
-	}
-	if tokenStr == "" {
-		utils.Unauthorized(c, "missing token")
+	sid, ok := c.Get("student_id")
+	if !ok {
+		utils.Unauthorized(c, "missing session")
 		return
 	}
-
-	claims, err := utils.ValidateToken(tokenStr)
-	if err != nil {
-		utils.Unauthorized(c, "invalid token")
-		return
-	}
-
-	if claims.Role != "student" {
+	studentID, _ := sid.(int)
+	if role, _ := c.Get("role"); role != "student" {
 		utils.Unauthorized(c, "students only")
 		return
 	}
 
-	studentID := claims.StudentID
 	assignmentID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		utils.BadRequest(c, "invalid assignment_id")
@@ -89,9 +71,6 @@ func (h *StudentWSHandler) StudentLiveStream(c *gin.Context) {
 		return
 	}
 
-	if usedSubprotocol {
-		c.Writer.Header().Set("Sec-WebSocket-Protocol", tokenStr)
-	}
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Printf("[LIVEVIEW] WebSocket upgrade failed: %v", err)

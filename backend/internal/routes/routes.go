@@ -51,7 +51,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 			}
 		}
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, X-Role")
+		c.Header("Access-Control-Allow-Credentials", "true")
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -139,17 +140,19 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	{
 		authRoute.POST("/login", authHandler.UserLogin)
 		authRoute.POST("/register-admin", authHandler.RegisterAdmin)
+		authRoute.POST("/logout", authHandler.Logout)
 	}
 
 	student := r.Group("/student")
 	{
 		student.POST("/login", middleware.NewRateLimiter(redisClient, middleware.LoginLimit), studentHandler.StudentLogin)
+		student.POST("/logout", authHandler.Logout)
 
 		// Shared (Redis) rate limiter when available, else per-instance in-memory.
 		limiter := middleware.NewRateLimiter(redisClient, middleware.DefaultLimit)
 
 		protected := student.Group("")
-		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo))
+		protected.Use(middleware.AuthMiddleware(studentRepo, userRepo, "student"))
 		{
 			protected.POST("/submit/:id", studentHandler.SubmitExam)
 			protected.GET("/assignments", studentHandler.ListStudentAssignments)
@@ -167,7 +170,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	superAdmin := r.Group("/super-admin")
 	superAdmin.Use(
-		middleware.AuthMiddleware(studentRepo, userRepo),
+		middleware.AuthMiddleware(studentRepo, userRepo, "super_admin"),
 		middleware.RoleMiddleware("super_admin"),
 	)
 	{
@@ -190,7 +193,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	}
 
 	profile := r.Group("")
-	profile.Use(middleware.AuthMiddleware(studentRepo, userRepo))
+	profile.Use(middleware.AuthMiddleware(studentRepo, userRepo, "admin", "coach", "super_admin"))
 	{
 		profile.GET("/auth/profile", profileHandler.GetProfile)
 		profile.PUT("/auth/profile", profileHandler.UpdateProfile)
@@ -199,7 +202,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	admin := r.Group("/admin")
 	admin.Use(
-		middleware.AuthMiddleware(studentRepo, userRepo),
+		middleware.AuthMiddleware(studentRepo, userRepo, "admin"),
 		middleware.RoleMiddleware("admin"),
 	)
 	{
@@ -289,7 +292,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	}
 
 	view := r.Group("/view")
-	view.Use(middleware.AuthMiddleware(studentRepo, userRepo))
+	view.Use(middleware.AuthMiddleware(studentRepo, userRepo, "admin", "coach"))
 	{
 		view.GET("/students/:id/live", viewerWSHandler.ViewerLiveStream)
 		view.GET("/students/:id/live/status", viewerWSHandler.LiveStatus)
@@ -297,7 +300,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	coach := r.Group("/coach")
 	coach.Use(
-		middleware.AuthMiddleware(studentRepo, userRepo),
+		middleware.AuthMiddleware(studentRepo, userRepo, "coach"),
 		middleware.RoleMiddleware("coach"),
 	)
 	{
