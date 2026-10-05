@@ -180,9 +180,9 @@ export function LoginPage({
       </Card>
       <FieldDescription className="px-6 text-center">
         By clicking continue, you agree to our{" "}
-        <a href="#" className="underline hover:no-underline">Terms of Service</a>{" "}
+        <Link to="/terms" className="underline hover:no-underline">Terms of Service</Link>{" "}
         and{" "}
-        <a href="#" className="underline hover:no-underline">Privacy Policy</a>.
+        <Link to="/privacy" className="underline hover:no-underline">Privacy Policy</Link>.
       </FieldDescription>
     </motion.div>
   );

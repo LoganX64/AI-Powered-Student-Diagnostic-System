@@ -4,6 +4,8 @@ import { ScrollToTop } from "../src/components/ScrollToTop.tsx";
 import { RouteError } from "../src/components/RouteError.tsx";
 import { LandingPage } from "../src/features/landing/LandingPage.tsx";
 import { AboutPage } from "../src/features/landing/AboutPage.tsx";
+import { TermsPage } from "../src/features/landing/TermsPage.tsx";
+import { PrivacyPage } from "../src/features/landing/PrivacyPage.tsx";
 import { StudentLoginPage } from "../src/features/student/StudentLoginPage.tsx";
 import { StudentDashboardPage } from "../src/features/student/StudentDashboardPage.tsx";
 import { StudentInstructionsPage } from "../src/features/student/StudentInstructionsPage.tsx";
@@ -50,6 +52,8 @@ const router = createBrowserRouter([
       // Public pages
       { path: "/", Component: LandingPage },
       { path: "/about", Component: AboutPage },
+      { path: "/terms", Component: TermsPage },
+      { path: "/privacy", Component: PrivacyPage },
 
       // Auth pages — centered layout
       { path: "student-login", Component: StudentLoginPage },

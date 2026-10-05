@@ -144,8 +144,8 @@ export function AboutPage() {
           <span>{t.footer.copyright}</span>
           <div className="flex gap-4">
             <Link to="/about" className="hover:text-foreground transition-colors">{t.footer.about}</Link>
-            <a href="#" className="hover:text-foreground transition-colors">{t.footer.privacy}</a>
-            <a href="#" className="hover:text-foreground transition-colors">{t.footer.terms}</a>
+            <Link to="/privacy" className="hover:text-foreground transition-colors">{t.footer.privacy}</Link>
+            <Link to="/terms" className="hover:text-foreground transition-colors">{t.footer.terms}</Link>
           </div>
         </div>
       </footer>
