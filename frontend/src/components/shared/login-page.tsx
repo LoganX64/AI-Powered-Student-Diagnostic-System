@@ -165,12 +165,14 @@ export function LoginPage({
                 {footerLinks.map((link, index) => (
                   <FieldDescription key={index} className="text-center">
                     {link.label}{" "}
-                    <Link
-                      to={link.href}
-                      className="underline hover:no-underline"
-                    >
-                      {link.linkText}
-                    </Link>
+                    {link.linkText ? (
+                      <Link
+                        to={link.href}
+                        className="underline hover:no-underline"
+                      >
+                        {link.linkText}
+                      </Link>
+                    ) : null}
                   </FieldDescription>
                 ))}
               </Field>
