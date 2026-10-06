@@ -107,7 +107,13 @@ export async function apiFetch<T = unknown>(
         ? (payload as { error: string }).error
         : `Request failed with status ${res.status}`;
     const err = new ApiError(message, res.status, payload);
-    if (res.status === 401) handleUnauthorized(url);
+    if (res.status === 401) {
+      // Exam-runtime calls (autosave/submit/state/start) must not trigger the global
+      // redirect: a transient 401 would eject the student mid-exam. Surface the error
+      // to the caller instead; only redirect on explicit navigation's non-exam calls.
+      const isExamRuntimeCall = /\/student\/assignments\/\d+\/(autosave|submit|state|start)$/.test(url);
+      if (!isExamRuntimeCall) handleUnauthorized(url);
+    }
     throw err;
   }
 
