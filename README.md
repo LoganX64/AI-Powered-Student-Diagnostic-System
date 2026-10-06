@@ -164,8 +164,7 @@ backend/
 │   └── resetdb/                               # DB reset utility
 ├── internal/                                 # Private application code
 │   ├── auth/
-│   │   ├── auth.go                           # Authentication logic
-│   │   └── google_auth.go                    # Google OAuth token verification
+│   │   └── auth.go                           # Authentication logic
 │   ├── config/
 │   │   └── config.go                         # Config parsing and setup
 │   ├── handler/                              # HTTP request handlers
@@ -197,7 +196,6 @@ backend/
 │   │   ├── assignment_service.go             # Assignment business logic
 │   │   ├── attempt_service.go                # Attempt business logic
 │   │   ├── auth_service.go                   # Authentication business logic
-│   │   ├── google_auth_service.go            # Google OAuth token verification
 │   │   └── sqi_engine_v2.go                  # SQI calculations v2
 │   └── types/
 │       └── diagnostic.go                     # Diagnostic type definitions
@@ -207,12 +205,7 @@ backend/
 │   ├── password.go                           # Password hashing and verification
 │   └── response.go                           # Safe error response handler (env-aware)
 ├── migrations/                               # Database migrations
-│   ├── 000001_init.up.sql                    # Initial schema (10 tables)
-│   ├── 000001_init.down.sql                  # Rollback initial schema
-│   ├── 000002_add_attempt_constraint.*       # Attempt constraint migration
-│   ├── 000003_add_coach_soft_delete.*        # Coach soft-delete migration
-│   ├── 000004_fix_student_code_unique.*      # Student code unique constraint
-│   └── 000006_add_subject_name_to_tests.*    # Subject name in tests
+│   └── migrations/                           # All numbered migrations run on startup
 ├── Ai-student-diagnosis.postman_collection.json  # API documentation
 ├── HANDLER_HELPERS.md                        # Handler helpers documentation
 ├── TEST_PAYLOADS.md                          # Test payloads documentation
@@ -245,6 +238,9 @@ cp .env.example .env
 | `DB_URL`     | `postgres://...`        | PostgreSQL connection string                                 |
 | `JWT_SECRET` | string                  | Secret key for JWT token signing                             |
 | `JWT_EXPIRY` | `4h`                    | Token expiration duration                                    |
+| `VIDEO_TOKEN_SECRET` | string        | Separate secret for video-stream tokens                      |
+| `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins                                |
+| `FRONTEND_URL` | `http://localhost:5173`    | Base URL used in password-reset emails                        |
 
 #### Error Handling by Environment
 
@@ -288,7 +284,6 @@ Contains business logic:
 - `assignment_service.go`: Assignment business logic
 - `attempt_service.go`: Attempt business logic
 - `auth_service.go`: Authentication business logic
-- `google_auth_service.go`: Google OAuth token verification
 - `sqi_engine_v2.go`: Enhanced SQI calculations (v2)
 
 #### 3. **Repository Layer** (`internal/repository/`)
@@ -366,9 +361,9 @@ The system uses SQL migrations for schema management:
 ### Authentication Flow
 
 1. User logs in via signup/login forms
-2. Backend validates credentials and generates JWT token
-3. Frontend stores token and includes in API requests
-4. Authentication middleware validates token for protected routes
+2. Backend validates credentials and issues a JWT in an HttpOnly cookie
+3. Browser sends the cookie on same-site API requests (SameSite=Lax); `X-Role` selects the session on shared `/auth/*` and `/view/*` endpoints
+4. Authentication middleware validates the cookie's JWT for protected routes
 
 ### Authorization
 
@@ -458,7 +453,7 @@ The backend API is documented in the Postman collection:
 
 ### Main API Routes
 
-- **Authentication**: `/auth/*` (login, register-admin, Google OAuth)
+- **Authentication**: `/auth/*` (login, logout, register-admin, forgot/reset-password)
 - **Student**: `/student/*` (login, submit test answers)
 - **Admin**: `/admin/*` (CRUD for tests, questions, students, coaches, subjects, assignments, SQI)
 - **Coach**: `/coach/*` (CRUD for tests, questions, students, subjects, assignments, SQI)
@@ -478,9 +473,9 @@ The backend API is documented in the Postman collection:
 
 ### Implemented
 
-- ✅ User authentication (signup/login, Google OAuth)
+- ✅ User authentication (signup/login, password reset)
 - ✅ Role-based access control (Super Admin, Admin, Coach, Student)
-- ✅ JWT token management
+- ✅ HttpOnly cookie JWT session management
 - ✅ Password security
 - ✅ Multi-tenant architecture with data isolation
 - ✅ Database migrations with auto-migration on startup

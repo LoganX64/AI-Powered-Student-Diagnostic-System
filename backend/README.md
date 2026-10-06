@@ -8,12 +8,12 @@ The backend for the AI-Powered Student Diagnostic System is built with Go, provi
 backend/
 ├── cmd/
 │   ├── api/                # Application entry point (main.go)
-│   ├── createsuperadmin/   # Local command to create a super admin
-│   ├── createadmin/        # Local command to create an admin
+│   ├── createsuperadmin/   # CLI to create the super admin
 │   ├── check_migrations/   # Migration checker utility
-│   └── resetdb/            # Utility to wipe and re-migrate the database
+│   ├── resetdb/            # Utility to wipe and re-migrate the database
+│   └── seed/               # Seed local data
 ├── internal/
-│   ├── auth/               # Authentication logic (JWT, Password, Google Login)
+│   ├── auth/               # Authentication logic (JWT, Password, reset)
 │   ├── config/             # Configuration management
 │   ├── handler/            # HTTP Controllers (Admin, Coach, Student specialized)
 │   ├── helper/             # SQI weight functions (v1 and v2)
@@ -52,7 +52,6 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
 - **Environment Config**: [Godotenv v1.5.1](https://github.com/joho/godotenv) - Loads environment variables from `.env`.
 - **Authentication**: [Golang-JWT v5.3.1](https://github.com/golang-jwt/jwt) - JSON Web Token implementation.
 - **Cryptography**: [Golang.org/x/crypto v0.49.0](https://golang.org/x/crypto) - Secure password hashing and encryption.
-- **Google OAuth**: [Google API v0.276.0](https://github.com/googleapis/google-api-go-client) - Google authentication support.
 
 ## 🚀 Getting Started
 
@@ -70,6 +69,12 @@ This system is built with a **Shared Database, Isolated Schema** approach using 
    DB_URL=postgres://username:password@localhost:5432/db_name?sslmode=disable
    JWT_SECRET=your_secure_secret
    JWT_EXPIRY=24h
+   VIDEO_TOKEN_SECRET=another_secure_secret
+   ALLOWED_ORIGINS=http://localhost:5173
+   FRONTEND_URL=http://localhost:5173
+   SMTP_USER=you@gmail.com
+   SMTP_APP_PASSWORD=your-16-char-app-password
+   SMTP_FROM=you@gmail.com
    ```
 
 2. **Install Dependencies**:
@@ -115,9 +120,11 @@ Notes:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/auth/login` | User login (Admin/Coach) |
+| POST | `/auth/login` | User login (Admin/Coach/Super Admin) |
+| POST | `/auth/logout` | Clear the role's session cookie |
 | POST | `/auth/register-admin` | Public organization/admin registration |
-| POST | `/auth/google` | Google OAuth login |
+| POST | `/auth/forgot-password` | Send a reset link email |
+| POST | `/auth/reset-password` | Reset password with email token |
 
 ### Student Routes (`/student`)
 
@@ -182,7 +189,7 @@ Notes:
 
 ## 🧠 SQI Engine (Student Quotient Index)
 
-The SQI engine (`internal/services/sqi_engine.go`) is the core diagnostic calculation system. It analyzes student performance across multiple dimensions:
+The SQI engine (`internal/services/sqi_engine_v2.go`) is the core diagnostic calculation system. It analyzes student performance across multiple dimensions:
 
 ### Metrics Calculated
 
