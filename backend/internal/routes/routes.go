@@ -169,7 +169,6 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 			protected.POST("/assignments/:id/video-chunk", limiter, studentHandler.VideoChunk)
 			protected.GET("/assignments/:id/live", studentWSHandler.StudentLiveStream)
-			protected.POST("/api/time", studentHandler.ServerTime)
 		}
 	}
 
@@ -356,8 +355,6 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.POST("/sqi/compute", quotaMW.CheckSQIAccess(), coachHandler.ComputeSQI)
 		coach.POST("/sqi/compute-batch", quotaMW.CheckSQIAccess(), coachHandler.ComputeSQIBatch)
 		coach.GET("/jobs/:id", coachHandler.GetJob)
-
-		coach.PUT("/password", authHandler.UpdatePassword)
 
 		coach.GET("/notifications", notifHandler.ListNotifications)
 		coach.GET("/notifications/unread-count", notifHandler.UnreadCount)

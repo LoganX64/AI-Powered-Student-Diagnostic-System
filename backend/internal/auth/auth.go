@@ -198,11 +198,6 @@ func (h *AuthHandler) RegisterCoach(c *gin.Context) {
 	})
 }
 
-type UpdatePasswordRequest struct {
-	CurrentPassword string `json:"current_password" binding:"required"`
-	NewPassword     string `json:"new_password" binding:"required"`
-}
-
 type ForgotPasswordRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
@@ -278,29 +273,6 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	}
 	if err := h.ResetRepo.MarkUsed(hash); err != nil {
 		log.Printf("[AUTH] failed to mark reset token used: %v", err)
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})
-}
-
-func (h *AuthHandler) UpdatePassword(c *gin.Context) {
-	userID := c.GetInt("user_id")
-	role := c.GetString("role")
-
-	var req UpdatePasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.BadRequest(c, "invalid payload")
-		return
-	}
-
-	if err := utils.ValidatePassword(req.NewPassword); err != nil {
-		utils.BadRequest(c, err.Error())
-		return
-	}
-
-	if err := h.AuthService.UpdatePassword(userID, role, req.CurrentPassword, req.NewPassword); err != nil {
-		utils.Unauthorized(c, "invalid credentials")
-		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "password updated successfully"})

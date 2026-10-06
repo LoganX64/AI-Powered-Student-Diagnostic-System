@@ -409,10 +409,6 @@ func (h *StudentHandler) VideoChunk(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"received_index": index, "url": storedURL})
 }
 
-func (h *StudentHandler) ServerTime(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"server_time": time.Now().Format(time.RFC3339)})
-}
-
 func toQueueAnswers(in []services.AnswerInput) []queue.AnswerInput {
 	out := make([]queue.AnswerInput, len(in))
 	for i, a := range in {

@@ -103,29 +103,4 @@ func (s *AuthService) RegisterCoach(adminUserID int, email, hashedPassword, name
 	return userID, coachID, nil
 }
 
-func (s *AuthService) UpdatePassword(userID int, role, currentPassword, newPassword string) error {
-	if role == "coach" {
-		_, err := s.CoachRepo.GetIDFromUser(userID)
-		if err != nil {
-			return err
-		}
-	}
-
-	currentHash, err := s.UserRepo.GetPasswordHash(userID)
-	if err != nil {
-		return err
-	}
-
-	if err := utils.CheckPassword(currentPassword, currentHash); err != nil {
-		return err
-	}
-
-	newHash, err := utils.HashPassword(newPassword)
-	if err != nil {
-		return err
-	}
-
-	return s.UserRepo.UpdatePassword(userID, newHash)
-}
-
 
