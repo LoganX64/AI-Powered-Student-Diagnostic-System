@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { Button } from "@/components/ui/button";
-import { BarChart3Icon } from "lucide-react";
 import { privacyPageText } from "@/types/static/legal";
+import { PublicHeader } from "./PublicHeader";
 
 export function PrivacyPage() {
   return (
@@ -12,22 +11,7 @@ export function PrivacyPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
-      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-2">
-            <BarChart3Icon className="size-6 text-primary" />
-            <span className="text-lg font-bold">EduQuant</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/student-login">Student Login</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/admin-signup">Register Now</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       <main className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8 py-16 space-y-8">
         <div className="space-y-2">

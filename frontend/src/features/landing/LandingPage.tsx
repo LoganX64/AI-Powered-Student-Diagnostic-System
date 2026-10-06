@@ -3,23 +3,16 @@ import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import {
-  BarChart3Icon,
   LayoutDashboardIcon,
 } from "lucide-react";
 import { landingPageText } from "@/types/static/landing";
 import { HoverEffect } from "@/components/ui/card-hover-effect";
 import { SvgIcon } from "@/components/ui/svg-icon";
+import { PublicHeader } from "./PublicHeader";
 import { probeSession, type Session } from "@/lib/token";
 import { dashboardForRole } from "@/config/routes";
 
 const t = landingPageText;
-
-const ROLE_LABEL: Record<Session["role"], string> = {
-  admin: "Admin",
-  coach: "Coach",
-  super_admin: "Super Admin",
-  student: "Student",
-};
 
 const featureIcons = [
   <SvgIcon src="/images/cartoon-person-appraising-performance.svg" className="h-16 w-auto text-primary" />,
@@ -110,43 +103,7 @@ export function LandingPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <BarChart3Icon className="size-6 text-primary" />
-            <span className="text-lg font-bold">{t.brand}</span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">{t.nav.features}</a>
-            <Link to="/about" className="hover:text-foreground transition-colors">{t.nav.about}</Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            {session && dashboard ? (
-              <>
-                <span className="hidden text-sm text-muted-foreground sm:inline">
-                  Signed in as {ROLE_LABEL[session.role]}
-                </span>
-                <Button size="sm" asChild>
-                  <Link to={dashboard}>
-                    <LayoutDashboardIcon className="size-4" />
-                    Dashboard
-                  </Link>
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link to="/student-login">{t.nav.studentLogin}</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link to="/admin-signup">{t.nav.registerNow}</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       {/* Hero */}
       <section className="mx-auto flex w-full max-w-6xl flex-col-reverse items-center gap-12 px-4 py-20 md:flex-row md:py-28">

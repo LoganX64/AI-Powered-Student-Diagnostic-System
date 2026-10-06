@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { Button } from "@/components/ui/button";
-import { BarChart3Icon, MailIcon, MapPinIcon, BuildingIcon } from "lucide-react";
+import { MailIcon, MapPinIcon, BuildingIcon } from "lucide-react";
 import { aboutPageText } from "@/types/static/about";
 import { HoverEffect } from "@/components/ui/card-hover-effect";
 import { SvgIcon } from "@/components/ui/svg-icon";
+import { PublicHeader } from "./PublicHeader";
 
 const t = aboutPageText;
 
@@ -23,23 +23,7 @@ export function AboutPage() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link to="/" className="flex items-center gap-2">
-            <BarChart3Icon className="size-6 text-primary" />
-            <span className="text-lg font-bold">EduQuant</span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/student-login">Student Login</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to="/admin-signup">Register Now</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <PublicHeader />
 
       {/* Content */}
       <main className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-16 space-y-16">
