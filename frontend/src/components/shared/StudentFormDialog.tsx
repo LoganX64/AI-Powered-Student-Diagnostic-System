@@ -75,6 +75,7 @@ function StudentFormFields({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 const coachReqRef = useRef(0);
+  const coachAbortRef = useRef<AbortController | null>(null);
   const prefilledRef = useRef(false);
 
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -102,8 +103,14 @@ const coachReqRef = useRef(0);
       // A newer search supersedes this response; a slow earlier request resolving
       // last would otherwise leave the previous term's coaches on screen.
       const reqId = ++coachReqRef.current;
+      coachAbortRef.current?.abort();
+      const controller = new AbortController();
+      coachAbortRef.current = controller;
       try {
-        const res = await getCoaches({ search: coachSearch, limit: 200 });
+        const res = await getCoaches(
+          { search: coachSearch, limit: 200 },
+          { signal: controller.signal },
+        );
         if (reqId !== coachReqRef.current) return;
         const list = res.data ?? [];
         setCoaches(list);

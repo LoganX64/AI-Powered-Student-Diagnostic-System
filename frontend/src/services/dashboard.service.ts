@@ -128,8 +128,9 @@ export const createCoach = (data: CreateCoachPayload) =>
 
 export const getCoaches = (
   params?: PaginationParams & { include_deactivated?: boolean },
+  init?: RequestInit,
 ) =>
-  apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildListQuery(params)}`);
+  apiFetch<PaginatedResponse<Coach>>(`/admin/coaches${buildListQuery(params)}`, init);
 
 export const getCoachStatsBatch = (coachIds: number[]) =>
   apiFetch<{ data: CoachStatMetric[] }>("/admin/coaches/stats-batch", {
@@ -217,9 +218,11 @@ export const getStudents = (
     include_deactivated?: boolean;
     batch_id?: number;
   },
+  init?: RequestInit,
 ) =>
   apiFetch<PaginatedResponse<Student>>(
     `${getPrefix()}/students${buildListQuery(params)}`,
+    init,
   );
 
 // ─── Batch endpoints (role-aware, tenant-wide) ────────────────────────────────
@@ -281,9 +284,10 @@ export const updateSubject = (subjectId: number, name: string) =>
     body: JSON.stringify({ name }),
   });
 
-export const getSubjects = (params?: PaginationParams) =>
+export const getSubjects = (params?: PaginationParams, init?: RequestInit) =>
   apiFetch<PaginatedResponse<Subject>>(
     `${getPrefix()}/subjects${buildQuery(params)}`,
+    init,
   );
 
 // ─── Test endpoints (role-aware) ──────────────────────────────────────────────

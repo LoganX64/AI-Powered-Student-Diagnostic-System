@@ -50,7 +50,8 @@ export function StudentsPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-const studentsReqRef = useRef(0);
+  const studentsReqRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Dialog (create / edit)
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -70,8 +71,14 @@ const studentsReqRef = useRef(0);
     // Without this a slow earlier page/search resolves last and overwrites the
     // current one, so the table briefly shows rows that don't match the footer.
     const reqId = ++studentsReqRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const res = await getStudents({ limit: PAGE_SIZE, offset: off, include_deactivated: deactivated, search: searchTerm || undefined });
+      const res = await getStudents(
+        { limit: PAGE_SIZE, offset: off, include_deactivated: deactivated, search: searchTerm || undefined },
+        { signal: controller.signal },
+      );
       if (reqId !== studentsReqRef.current) return;
       setStudents(res.data ?? []);
       setTotal(res.total);
@@ -87,6 +94,7 @@ const studentsReqRef = useRef(0);
   useEffect(() => {
     studentsReqRef.current++;
     fetchStudents(offset, includeDeactivated, search);
+    return () => abortRef.current?.abort();
   }, [offset, includeDeactivated, search, fetchStudents]);
 
   const openCreate = () => {

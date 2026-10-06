@@ -333,11 +333,14 @@ export function StudentQuizPage() {
   useEffect(() => {
     if (!policy || begunRef.current) return;
     begunRef.current = true;
+    // Abort the start/restore requests if the page unmounts mid-flight, so a
+    // late response cannot write `exam_ctx_*` or restore records after teardown.
+    const controller = new AbortController();
     (async () => {
       try {
         if (policy.server_timing) {
           try {
-            const res = await startExam(assignmentId);
+            const res = await startExam(assignmentId, controller.signal);
             const now = new Date(res.server_now).getTime();
             const deadline = new Date(res.deadline).getTime();
             const skew = now - Date.now();
@@ -350,7 +353,7 @@ export function StudentQuizPage() {
           } catch {
             // Attempt already exists (e.g. after a refresh) → recover the
             // deadline + answers from the saved exam state instead.
-            const st = await getExamState(assignmentId);
+            const st = await getExamState(assignmentId, controller.signal);
             const deadline = new Date(st.deadline).getTime();
             setServerDeadlineMs(deadline);
             localStorage.setItem(
@@ -362,13 +365,14 @@ export function StudentQuizPage() {
             return;
           }
         }
-        const st = await getExamState(assignmentId);
+        const st = await getExamState(assignmentId, controller.signal);
         const restored = mapStateToRecords(st);
         if (Object.keys(restored).length) restoreRecords(restored);
       } catch {
-        // no saved attempt yet — proceed fresh
+        // no saved attempt yet (or aborted) — proceed fresh
       }
     })();
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [policy, assignmentId]);
 

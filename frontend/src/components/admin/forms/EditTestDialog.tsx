@@ -48,7 +48,9 @@ export function EditTestDialog({ test, open, onOpenChange, onUpdated }: Props) {
 const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 const subjectReqRef = useRef(0);
-const coachReqRef = useRef(0);
+  const coachReqRef = useRef(0);
+  const subjectAbortRef = useRef<AbortController | null>(null);
+  const coachAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (test && open) {
@@ -66,8 +68,11 @@ const coachReqRef = useRef(0);
     // A newer search supersedes this response; a slow earlier request resolving
     // last would otherwise leave the previous term's results on screen.
     const reqId = ++subjectReqRef.current;
+    subjectAbortRef.current?.abort();
+    const controller = new AbortController();
+    subjectAbortRef.current = controller;
     try {
-      const res = await getSubjects({ search, limit: 10 });
+      const res = await getSubjects({ search, limit: 10 }, { signal: controller.signal });
       if (reqId !== subjectReqRef.current) return;
       setSubjects(res.data ?? []);
     } catch {
@@ -78,8 +83,11 @@ const coachReqRef = useRef(0);
 
   const fetchCoaches = useCallback(async (search: string) => {
     const reqId = ++coachReqRef.current;
+    coachAbortRef.current?.abort();
+    const controller = new AbortController();
+    coachAbortRef.current = controller;
     try {
-      const res = await getCoaches({ search, limit: 10 });
+      const res = await getCoaches({ search, limit: 10 }, { signal: controller.signal });
       if (reqId !== coachReqRef.current) return;
       setCoaches(res.data ?? []);
     } catch {

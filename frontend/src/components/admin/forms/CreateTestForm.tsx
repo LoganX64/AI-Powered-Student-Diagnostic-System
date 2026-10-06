@@ -36,16 +36,22 @@ export function CreateTestForm({ onCreated, onSubmit, showCoachField = true, fet
 
   const subjectDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const coachDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-const subjectReqRef = useRef(0);
-const coachReqRef = useRef(0);
+  const subjectReqRef = useRef(0);
+  const coachReqRef = useRef(0);
+  const subjectAbortRef = useRef<AbortController | null>(null);
+  const coachAbortRef = useRef<AbortController | null>(null);
 
   const fetchSubjects = useCallback(async (search: string) => {
     // A newer search supersedes this response. Without this a slow earlier
     // request can resolve last and leave the previous term's results on screen.
     const reqId = ++subjectReqRef.current;
+    subjectAbortRef.current?.abort();
+    const controller = new AbortController();
+    subjectAbortRef.current = controller;
     try {
-      const fn = fetchSubjectsProp ?? adminGetSubjects;
-      const res = await fn({ search, limit: 10 });
+      const res = fetchSubjectsProp
+        ? await fetchSubjectsProp({ search, limit: 10 })
+        : await adminGetSubjects({ search, limit: 10 }, { signal: controller.signal });
       if (reqId !== subjectReqRef.current) return;
       setSubjects(res.data ?? []);
     } catch {
@@ -56,9 +62,13 @@ const coachReqRef = useRef(0);
 
   const fetchCoaches = useCallback(async (search: string) => {
     const reqId = ++coachReqRef.current;
+    coachAbortRef.current?.abort();
+    const controller = new AbortController();
+    coachAbortRef.current = controller;
     try {
-      const fn = fetchCoachesProp ?? adminGetCoaches;
-      const res = await fn({ search, limit: 10 });
+      const res = fetchCoachesProp
+        ? await fetchCoachesProp({ search, limit: 10 })
+        : await adminGetCoaches({ search, limit: 10 }, { signal: controller.signal });
       if (reqId !== coachReqRef.current) return;
       setCoaches(res.data ?? []);
     } catch {

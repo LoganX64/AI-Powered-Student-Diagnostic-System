@@ -12,9 +12,9 @@ export function SvgIcon({
 
   useEffect(() => {
     // Guard against a superseded src and against unmount.
-    let cancelled = false;
+    const controller = new AbortController();
 
-    fetch(src)
+    fetch(src, { signal: controller.signal })
       .then((r) => {
         // fetch only rejects on network failure, so a 404 used to resolve with
         // the server's HTML error page — which was then injected as markup
@@ -22,14 +22,14 @@ export function SvgIcon({
         return r.ok ? r.text() : "";
       })
       .then((text) => {
-        if (!cancelled) setSvg(text);
+        setSvg(text);
       })
       .catch(() => {
-        if (!cancelled) setSvg("");
+        // Aborted (src changed / unmounted) or network failure — no icon.
       });
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [src]);
 

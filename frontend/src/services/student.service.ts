@@ -137,10 +137,11 @@ export async function submitAnswers(
 
 export async function startExam(
   assignmentId: number,
+  signal?: AbortSignal,
 ): Promise<StartExamResponse> {
   return apiFetch<StartExamResponse>(
     `/student/assignments/${assignmentId}/start`,
-    { method: "POST" },
+    { method: "POST", signal },
     "student",
   );
 }
@@ -161,10 +162,11 @@ export async function autosaveAnswers(
 
 export async function getExamState(
   assignmentId: number,
+  signal?: AbortSignal,
 ): Promise<ExamStateResponse> {
   return apiFetch<ExamStateResponse>(
     `/student/assignments/${assignmentId}/state`,
-    {},
+    signal ? { signal } : {},
     "student",
   );
 }
