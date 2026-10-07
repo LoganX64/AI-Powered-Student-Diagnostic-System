@@ -218,6 +218,25 @@ Refer to [TEST_PAYLOADS.md](./TEST_PAYLOADS.md) for comprehensive API testing ex
 - Student answer submissions with different payload formats
 - Score calculation examples (high, medium, low SQI)
 
+## Test Suite Setup
+
+A `testutil` package (`internal/testutil`) centralizes shared helpers:
+`OpenTestDB(t)` opens a Postgres pool from `DB_URL` (falling back to
+`../../.env`) and fails loudly when `REQUIRE_DB=1` is set but `DB_URL` is
+missing, instead of silently skipping. `IsContractTest(t)` skips a test unless
+`CONTRACT_TESTS=1`, keeping contract/integration rows out of default unit runs.
+
+### Conventions
+
+- **Table-driven tests**: prefer `[]struct{ name, input, want }` tables over
+  one top-level test func per case.
+- **`isContract` markers**: rows inside a table-driven test that need live
+  Postgres set `isContract: true` and call `testutil.IsContractTest(t)` before
+  touching the DB driver.
+- **Snapshot/restore**: tests that mutate shared dev tables (e.g.
+  `tenant_subscriptions.plan_id`) must read the original value, restore it in a
+  `defer` (or `t.Cleanup`), and never assume the DB starts in a known state.
+
 ## 🗄️ Database Migrations
 
 This project uses `golang-migrate` to manage the Postgres schema.

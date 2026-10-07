@@ -1,44 +1,14 @@
 package repository
 
 import (
-	"database/sql"
-	"os"
+	"ai-student-diagnostic/backend/internal/testutil"
 	"testing"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
-// requireDB handles a missing DB_URL. It always skips so a DB-less run stays
-// usable locally, but REQUIRE_DB=1 turns the skip into a hard failure so CI
-// cannot report green while silently exercising nothing.
-func requireDB(t *testing.T) {
-	if os.Getenv("REQUIRE_DB") == "1" {
-		t.Fatalf("DB_URL not set and REQUIRE_DB=1: DB-backed tests must run")
-	}
-	t.Skip("DB_URL not set (set DB_URL, or REQUIRE_DB=1 to fail loudly)")
-}
-
-func testDB(t *testing.T) *sql.DB {
-	_ = godotenv.Load()
-	_ = godotenv.Load("../../.env")
-	url := os.Getenv("DB_URL")
-	if url == "" {
-		requireDB(t)
-	}
-	db, err := sql.Open("postgres", url)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping db: %v", err)
-	}
-	return db
-}
-
 func TestPlanRepoCRUD(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	pr := NewPlanRepo(db)
 
 	plans, err := pr.List()

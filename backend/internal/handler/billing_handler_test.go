@@ -6,43 +6,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/repository"
-	"github.com/joho/godotenv"
+	"ai-student-diagnostic/backend/internal/testutil"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 )
-
-// requireDB handles a missing DB_URL. It always skips so a DB-less run stays
-// usable locally, but REQUIRE_DB=1 turns the skip into a hard failure so CI
-// cannot report green while silently exercising nothing.
-func requireDB(t *testing.T) {
-	if os.Getenv("REQUIRE_DB") == "1" {
-		t.Fatalf("DB_URL not set and REQUIRE_DB=1: DB-backed tests must run")
-	}
-	t.Skip("DB_URL not set (set DB_URL, or REQUIRE_DB=1 to fail loudly)")
-}
-
-func btestDB(t *testing.T) *sql.DB {
-	_ = godotenv.Load()
-	_ = godotenv.Load("../../.env")
-	url := os.Getenv("DB_URL")
-	if url == "" {
-		requireDB(t)
-	}
-	db, err := sql.Open("postgres", url)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping db: %v", err)
-	}
-	return db
-}
 
 func newBillingHandler(db *sql.DB) *BillingHandler {
 	return NewBillingHandler(
@@ -54,8 +26,7 @@ func newBillingHandler(db *sql.DB) *BillingHandler {
 }
 
 func TestBillingListPlans(t *testing.T) {
-	db := btestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	h := newBillingHandler(db)
 
 	w := httptest.NewRecorder()
@@ -67,8 +38,7 @@ func TestBillingListPlans(t *testing.T) {
 }
 
 func TestBillingGetSubscription(t *testing.T) {
-	db := btestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	h := newBillingHandler(db)
 
 	var tid int
@@ -86,8 +56,7 @@ func TestBillingGetSubscription(t *testing.T) {
 }
 
 func TestBillingAssignPlan(t *testing.T) {
-	db := btestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	h := newBillingHandler(db)
 
 	var tid int
@@ -117,8 +86,7 @@ func TestBillingAssignPlan(t *testing.T) {
 }
 
 func TestCancelRevertsToFree(t *testing.T) {
-	db := btestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	h := newBillingHandler(db)
 
 	var tid int

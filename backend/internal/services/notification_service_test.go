@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/testutil"
 )
 
 // setupNotifTenant creates an isolated tenant with an admin (enabled), an admin
@@ -35,8 +36,7 @@ func setupNotifTenant(t *testing.T, db *sql.DB) (tid int, a, b, c int) {
 
 // Test 3.11: notification created on exam submission (fan-out), respects disabled pref
 func TestNotifyExamSubmittedFanout(t *testing.T) {
-	db := svcTestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid, a, b, c := setupNotifTenant(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
@@ -79,8 +79,7 @@ func TestNotifyExamSubmittedFanout(t *testing.T) {
 
 // Test 3.11 (supplementary): per-event priority for student-exam-logout is warning
 func TestNotifyStudentExamLogoutPriority(t *testing.T) {
-	db := svcTestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid, a, _, _ := setupNotifTenant(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 

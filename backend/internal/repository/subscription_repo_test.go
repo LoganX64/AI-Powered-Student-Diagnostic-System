@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"ai-student-diagnostic/backend/internal/testutil"
 	_ "github.com/lib/pq"
 )
 
@@ -55,8 +56,7 @@ func ensureAssignmentRow(t *testing.T, db *sql.DB, tenantID int) int {
 // Each tenant is checked against its own joined plan, so the assertion holds
 // for Free, paid, and future plans alike.
 func TestGetStorageLimitBytes(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	sub := NewSubscriptionRepo(db)
 
 	rows, err := db.Query(`
@@ -97,8 +97,7 @@ func TestGetStorageLimitBytes(t *testing.T) {
 // subscription_repo.go:124 -- a tenant with no subscription row must get the
 // Free plan's cap, never an unlimited 0.
 func TestGetStorageLimitBytesDefaultsToFree(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := missingTenantID(t, db)
 
 	free, err := NewPlanRepo(db).GetBySlug("free")
@@ -118,8 +117,7 @@ func TestGetStorageLimitBytesDefaultsToFree(t *testing.T) {
 // TestIncrementStorageUsageIdempotent verifies the same (assignment, chunk) is
 // metered exactly once, and that overage is recomputed past the cap.
 func TestIncrementStorageUsageIdempotent(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := ensureTenant(t, db)
 	assignmentID := ensureAssignmentRow(t, db, tid)
 
@@ -152,8 +150,7 @@ func TestIncrementStorageUsageIdempotent(t *testing.T) {
 
 // TestReleaseStorageForAssignment verifies metered bytes are returned on release.
 func TestReleaseStorageForAssignment(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := ensureTenant(t, db)
 	assignmentID := ensureAssignmentRow(t, db, tid)
 
@@ -194,8 +191,7 @@ func TestReleaseStorageForAssignment(t *testing.T) {
 // TestOverageComputedPastCap verifies overage_bytes becomes > 0 once used_bytes
 // exceeds the plan's storage_limit_bytes.
 func TestOverageComputedPastCap(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := ensureTenant(t, db)
 	assignmentID := ensureAssignmentRow(t, db, tid)
 

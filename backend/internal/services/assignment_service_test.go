@@ -1,48 +1,18 @@
 package services
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
-	"os"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/repository"
-	"github.com/joho/godotenv"
+	"ai-student-diagnostic/backend/internal/testutil"
 
 	_ "github.com/lib/pq"
 )
 
-// requireDB handles a missing DB_URL. It always skips so a DB-less run stays
-// usable locally, but REQUIRE_DB=1 turns the skip into a hard failure so CI
-// cannot report green while silently exercising nothing.
-func requireDB(t *testing.T) {
-	if os.Getenv("REQUIRE_DB") == "1" {
-		t.Fatalf("DB_URL not set and REQUIRE_DB=1: DB-backed tests must run")
-	}
-	t.Skip("DB_URL not set (set DB_URL, or REQUIRE_DB=1 to fail loudly)")
-}
-
-func svcTestDB(t *testing.T) *sql.DB {
-	_ = godotenv.Load()
-	_ = godotenv.Load("../../.env")
-	url := os.Getenv("DB_URL")
-	if url == "" {
-		requireDB(t)
-	}
-	db, err := sql.Open("postgres", url)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping db: %v", err)
-	}
-	return db
-}
-
 func TestGuardStorageNoProctoringPlan(t *testing.T) {
-	db := svcTestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 
 	var tid int
 	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
@@ -65,8 +35,7 @@ func TestGuardStorageNoProctoringPlan(t *testing.T) {
 }
 
 func TestGuardStorageProctoringOverLimit(t *testing.T) {
-	db := svcTestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 
 	var tid int
 	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
@@ -106,8 +75,7 @@ func TestGuardStorageProctoringOverLimit(t *testing.T) {
 }
 
 func TestGuardStorageProctoringWithinLimit(t *testing.T) {
-	db := svcTestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 
 	var tid int
 	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {

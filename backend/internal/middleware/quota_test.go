@@ -4,42 +4,14 @@ import (
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/repository"
-	"github.com/joho/godotenv"
+	"ai-student-diagnostic/backend/internal/testutil"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 )
-
-// requireDB handles a missing DB_URL. It always skips so a DB-less run stays
-// usable locally, but REQUIRE_DB=1 turns the skip into a hard failure so CI
-// cannot report green while silently exercising nothing.
-func requireDB(t *testing.T) {
-	if os.Getenv("REQUIRE_DB") == "1" {
-		t.Fatalf("DB_URL not set and REQUIRE_DB=1: DB-backed tests must run")
-	}
-	t.Skip("DB_URL not set (set DB_URL, or REQUIRE_DB=1 to fail loudly)")
-}
-
-func qtestDB(t *testing.T) *sql.DB {
-	_ = godotenv.Load()
-	_ = godotenv.Load("../../.env")
-	url := os.Getenv("DB_URL")
-	if url == "" {
-		requireDB(t)
-	}
-	db, err := sql.Open("postgres", url)
-	if err != nil {
-		t.Fatalf("open db: %v", err)
-	}
-	if err := db.Ping(); err != nil {
-		t.Fatalf("ping db: %v", err)
-	}
-	return db
-}
 
 // freeTenant returns a tenant currently on the Free plan (sqi_access=false,
 // video_proctoring_included=false) so we can assert blocking behavior.
@@ -73,8 +45,7 @@ func runQuota(tid int, mw gin.HandlerFunc) int {
 }
 
 func TestQuotaFreeTierBlocksSQI(t *testing.T) {
-	db := qtestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := freeTenant(t, db)
 	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
 
@@ -85,8 +56,7 @@ func TestQuotaFreeTierBlocksSQI(t *testing.T) {
 }
 
 func TestQuotaFreeTierBlocksVideoProctoring(t *testing.T) {
-	db := qtestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := freeTenant(t, db)
 	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
 
@@ -97,8 +67,7 @@ func TestQuotaFreeTierBlocksVideoProctoring(t *testing.T) {
 }
 
 func TestQuotaWithinStudentLimitAllows(t *testing.T) {
-	db := qtestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := freeTenant(t, db)
 	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
 
@@ -109,8 +78,7 @@ func TestQuotaWithinStudentLimitAllows(t *testing.T) {
 }
 
 func TestQuotaWithinTestLimitAllows(t *testing.T) {
-	db := qtestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := freeTenant(t, db)
 	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
 
@@ -121,8 +89,7 @@ func TestQuotaWithinTestLimitAllows(t *testing.T) {
 }
 
 func TestQuotaMissingSubscriptionDefaultsToFree(t *testing.T) {
-	db := qtestDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	qm := NewQuotaMiddleware(repository.NewSubscriptionRepo(db), repository.NewPlanRepo(db))
 
 	missingTenant := 99999999

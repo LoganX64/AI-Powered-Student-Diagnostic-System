@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+
+	"ai-student-diagnostic/backend/internal/testutil"
 )
 
 // notifSetup creates an isolated tenant and returns its id. Tests should defer
@@ -18,8 +20,7 @@ func notifSetup(t *testing.T, db *sql.DB) int {
 
 // Test 3.14: unread count accuracy (per-user + NULL rows + cross-tenant isolation)
 func TestNotificationUnreadCount(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := notifSetup(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
@@ -95,8 +96,7 @@ func TestNotificationUnreadCount(t *testing.T) {
 
 // Test 3.13: mark read / mark all read / delete
 func TestNotificationMarkReadAndDelete(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := notifSetup(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
@@ -150,8 +150,7 @@ func TestNotificationMarkReadAndDelete(t *testing.T) {
 
 // Test 3.12: preferences respected
 func TestNotificationPreferences(t *testing.T) {
-	db := testDB(t)
-	defer db.Close()
+	db := testutil.OpenTestDB(t)
 	tid := notifSetup(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
