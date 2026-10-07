@@ -45,26 +45,6 @@ func TestListVideoChunksRejectsForeignTenantAssignment(t *testing.T) {
 	}
 }
 
-func TestListVideoChunksRejectsForeignCoach(t *testing.T) {
-	h, f := newVideoHandlerFixture(t)
-	// Our tenant, but a coach who does not own the student. The fixture's own
-	// coach owns the primary student, so point the request at a coach from the
-	// foreign tenant while staying in our tenant's context.
-	c, w := f.ctxAsCoach(t)
-	withParam(c, "id", strconv.Itoa(f.AssignmentID))
-
-	// Sanity: our own coach is allowed through the ownership check, so the
-	// rejection case below is meaningful.
-	c2, w2 := f.ctx(t, "admin")
-	withParam(c2, "id", strconv.Itoa(f.AssignmentID))
-	h.ListVideoChunks(c2)
-	if w2.Code == http.StatusForbidden {
-		t.Fatalf("own admin must not be rejected: %s", w2.Body.String())
-	}
-	_ = c
-	_ = w
-}
-
 func TestListVideoChunksInvalidAssignmentID(t *testing.T) {
 	h, f := newVideoHandlerFixture(t)
 	c, w := f.ctx(t, "admin")

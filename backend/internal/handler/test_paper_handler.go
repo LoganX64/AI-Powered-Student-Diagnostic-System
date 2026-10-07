@@ -100,7 +100,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 	}
 
 	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "test access verification failed")
+		utils.SafeErrorResponse(c, http.StatusForbidden, err, "test access verification failed")
 		return
 	}
 
@@ -143,7 +143,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 	}
 
 	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "test access verification failed")
+		utils.SafeErrorResponse(c, http.StatusForbidden, err, "test access verification failed")
 		return
 	}
 
@@ -345,7 +345,7 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 	}
 
 	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "test access verification failed")
+		utils.SafeErrorResponse(c, http.StatusForbidden, err, "test access verification failed")
 		return
 	}
 
@@ -384,7 +384,7 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 	}
 
 	if err := verifyTestAccess(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "test access verification failed")
+		utils.SafeErrorResponse(c, http.StatusForbidden, err, "test access verification failed")
 		return
 	}
 

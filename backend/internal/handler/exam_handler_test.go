@@ -131,8 +131,8 @@ func TestGetAssignmentQuestionsForeignAssignment(t *testing.T) {
 	f := newHandlerFixture(t)
 	c, w := examCtx(t, f, f.StudentID, strconv.Itoa(f.OtherAssignmentID))
 	f.Student.GetAssignmentQuestions(c)
-	if w.Code == http.StatusOK {
-		t.Fatalf("must not serve questions for another student's assignment: %s", w.Body.String())
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("code=%d, want 403 (body=%s)", w.Code, w.Body.String())
 	}
 }
 

@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -197,5 +196,4 @@ func TestLocalPutPathTraversal(t *testing.T) {
 // TestLocalStorageSatisfiesInterface keeps the contract compile-checked.
 func TestLocalStorageSatisfiesInterface(t *testing.T) {
 	var _ Storage = NewLocal(t.TempDir())
-	_ = bytes.MinRead
 }

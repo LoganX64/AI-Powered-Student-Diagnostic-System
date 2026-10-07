@@ -92,6 +92,10 @@ func (h *CoachHandler) GetStudentSQI(c *gin.Context) {
 		Compute:         compute,
 	})
 	if err != nil {
+		if errors.Is(err, services.ErrStudentNotFound) {
+			utils.Forbidden(c, "student not found")
+			return
+		}
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch student SQI")
 		return
 	}

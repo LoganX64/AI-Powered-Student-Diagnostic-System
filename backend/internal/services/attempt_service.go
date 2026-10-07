@@ -13,6 +13,12 @@ import (
 	"github.com/lib/pq"
 )
 
+// ErrStudentNotFound is returned when the student does not exist within the
+// requesting tenant. It is a sentinel so handlers can map this specific
+// authorization condition to 403 instead of treating it as an internal fault
+// (which would surface a 500 and, under DEBUG=true, leak the repo error).
+var ErrStudentNotFound = errors.New("student not found")
+
 type AttemptService struct {
 	AttemptRepo    *repository.AttemptRepo
 	AssignmentRepo *repository.AssignmentRepo
@@ -179,7 +185,7 @@ type StudentSQIResponse struct {
 func (s *AttemptService) GetStudentSQI(input GetStudentSQIInput) (*StudentSQIResponse, error) {
 	name, err := s.StudentRepo.GetName(input.StudentID, input.TenantID)
 	if err != nil {
-		return nil, errors.New("student not found")
+		return nil, ErrStudentNotFound
 	}
 
 	if input.Compute {

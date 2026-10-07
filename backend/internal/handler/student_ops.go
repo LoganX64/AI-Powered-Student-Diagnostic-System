@@ -4,6 +4,7 @@ import (
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/utils"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -55,10 +56,14 @@ func updateStudentHelper(c *gin.Context, req UpdateStudentRequest, tenantID, coa
 
 	if req.StudentCode != "" {
 		dup, err := studentRepo.StudentCodeExists(tenantID, req.StudentCode, studentID)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to verify student code")
+	if err != nil {
+		if errors.Is(err, services.ErrStudentNotFound) {
+			utils.Forbidden(c, "student not found")
 			return
 		}
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch student SQI")
+		return
+	}
 		if dup {
 			utils.BadRequest(c, "student code already in use")
 			return

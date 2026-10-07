@@ -4,17 +4,10 @@ import (
 	"testing"
 )
 
-// TestRequireRedisResolves guards the Redis gate itself: with a reachable Redis
-// (the compose stack) RequireRedis must return a usable URL rather than skipping.
-func TestRequireRedisResolves(t *testing.T) {
-	url := RequireRedis(t)
-	if url == "" {
-		t.Fatal("RequireRedis returned an empty URL")
-	}
-}
-
 // TestOpenRedisClientRoundTrip proves the helper hands back a working client, so
-// every Redis-backed test built on it is not silently vacuous.
+// every Redis-backed test built on it is not silently vacuous. It also exercises
+// the Redis gate: RequireRedis skips when Redis is unreachable, so this test
+// either runs against a live Redis or skips with the reason.
 func TestOpenRedisClientRoundTrip(t *testing.T) {
 	c := OpenRedisClient(t)
 

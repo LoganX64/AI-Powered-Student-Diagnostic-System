@@ -77,8 +77,12 @@ func TestAdminDeleteTestCrossTenant(t *testing.T) {
 	f := newHandlerFixture(t)
 	w, c := adminCtxWithID(t, f, f.OtherTestID)
 	f.Admin.DeleteTest(c)
-	if w.Code == http.StatusOK {
-		t.Fatalf("must not delete another tenant's test: %s", w.Body.String())
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("code=%d, want 403 (body=%s)", w.Code, w.Body.String())
+	}
+	// The foreign test must be untouched — this is what a 500 crash would hide.
+	if ok, _ := f.TestPaperRepo.Exists(f.OtherTestID, f.OtherTenantID); !ok {
+		t.Fatal("foreign test was soft-deleted")
 	}
 }
 
@@ -171,20 +175,28 @@ func TestCoachGetStudentSQIForeignStudent(t *testing.T) {
 	withParam(c, "id", strconv.Itoa(f.OtherStudentID))
 
 	f.Coach.GetStudentSQI(c)
-	if w.Code == http.StatusOK {
-		t.Fatalf("must not return SQI for another tenant's student: %s", w.Body.String())
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("code=%d, want 403 (body=%s)", w.Code, w.Body.String())
 	}
 }
 
 func TestCoachListCoachesScoped(t *testing.T) {
 	f := newHandlerFixture(t)
+	// A coach listing returns coach rows (id/user_id/name/email), so assert on
+	// the foreign coach's email rather than a subject name, which can never
+	// appear in this payload.
+	var foreignEmail string
+	if err := f.DB.QueryRow(`SELECT email FROM users WHERE id = $1`, f.OtherCoachUserID).Scan(&foreignEmail); err != nil {
+		t.Fatalf("read foreign coach email: %v", err)
+	}
+
 	c, w := f.ctxAsCoach(t)
 	f.Coach.ListCoaches(c)
 	if w.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
 	}
-	if strings.Contains(w.Body.String(), "Foreign Subject") {
-		t.Fatalf("coach listing leaked another tenant's data: %s", w.Body.String())
+	if foreignEmail != "" && strings.Contains(w.Body.String(), foreignEmail) {
+		t.Fatalf("coach listing leaked another tenant's coach (%s): %s", foreignEmail, w.Body.String())
 	}
 }
 
@@ -196,11 +208,17 @@ func TestCoachGetAssignmentResultsForeignAssignment(t *testing.T) {
 	c.Set("tenant_id", f.TenantID)
 	c.Set("user_id", f.CoachUserID)
 	c.Set("role", "coach")
-	withParam(c, "id", strconv.Itoa(f.OtherAssignmentID))
+	// This route takes both a student id and an assignment id; the student is
+	// the foreign one, so ExistsActive rejects it before the assignment matters.
+	// Both params must be set in one slice — withParam replaces c.Params.
+	c.Params = gin.Params{
+		{Key: "id", Value: strconv.Itoa(f.OtherStudentID)},
+		{Key: "assignmentId", Value: strconv.Itoa(f.OtherAssignmentID)},
+	}
 
 	f.Coach.GetAssignmentResults(c)
-	if w.Code == http.StatusOK {
-		t.Fatalf("must not return results for another tenant's assignment: %s", w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 (body=%s)", w.Code, w.Body.String())
 	}
 }
 
@@ -229,7 +247,18 @@ func TestAdminDeleteSubjectCrossTenant(t *testing.T) {
 	f := newHandlerFixture(t)
 	w, c := adminCtxWithID(t, f, f.OtherSubjectID)
 	f.Admin.DeleteSubject(c)
-	if w.Code == http.StatusOK {
-		t.Fatalf("must not soft-delete another tenant's subject: %s", w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 (body=%s)", w.Code, w.Body.String())
 	}
+	// The foreign subject must still be active in its own tenant.
+	subs, _, err := f.TestPaperRepo.ListSubjects(f.OtherTenantID, "", 10, 0)
+	if err != nil {
+		t.Fatalf("ListSubjects: %v", err)
+	}
+	for _, s := range subs {
+		if s.SubjectID == f.OtherSubjectID {
+			return // survived
+		}
+	}
+	t.Fatalf("foreign subject was soft-deleted; subjects=%+v", subs)
 }

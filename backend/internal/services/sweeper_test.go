@@ -72,11 +72,12 @@ func TestSweeperEnqueuesExpiredAttempt(t *testing.T) {
 	}
 }
 
-// TestSweeperNoEnqueueWhenNotExpired: a positive grace with a short duration
-// leaves the attempt comfortably inside its window.
-func TestSweeperNoEnqueueWhenNotExpired(t *testing.T) {
+// TestSweeperSkipsUnexpiredAttempt is the negative path: an attempt well inside
+// its window must not be enqueued. The assertion targets our own attempt id, so
+// it is immune to any in-progress attempts left in dev data.
+func TestSweeperSkipsUnexpiredAttempt(t *testing.T) {
 	db := testutil.OpenTestDB(t)
-	sweeperGraph(t, db, 60)
+	_, _, _, attemptID := sweeperGraph(t, db, 60)
 
 	q := &recordingQueue{}
 	// Duration 60 min, grace 30s, attempt just started => not expired.
@@ -84,16 +85,10 @@ func TestSweeperNoEnqueueWhenNotExpired(t *testing.T) {
 	s.RunOnce(context.Background())
 
 	for _, p := range q.finalize {
-		// Only our own attempt matters; a dev-data attempt could also match, so
-		// assert none of them reference our graph by checking the queue is small.
-		t.Logf("sweeper enqueued %+v (dev data may contribute)", p)
+		if p.AttemptID == attemptID {
+			t.Fatalf("attempt %d is inside its window and must not be finalized: %+v", attemptID, p)
+		}
 	}
-	// Our attempt is not in the list because it is not expired; the test above
-	// proves the mechanism with the same graph.
-	if len(q.finalize) == 0 {
-		return
-	}
-	t.Logf("other tenants contributed %d finalized attempts; our attempt correctly absent", len(q.finalize))
 }
 
 // TestSweeperNilNotificationService is safe: a nil notification service must not

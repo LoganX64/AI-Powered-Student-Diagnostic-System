@@ -12,7 +12,9 @@ import (
 
 const studentCodeChars = "0123456789abcdefghijklmnopqrstuvwxyz"
 
-func generateStudentCode(tenantID int) string {
+// generateStudentCode is a package-level var so tests can force a collision and
+// exercise ensureStudentCode's 23505 retry path. Production never reassigns it.
+var generateStudentCode = func(tenantID int) string {
 	b := make([]byte, 6)
 	for i := range b {
 		b[i] = studentCodeChars[rand.Intn(len(studentCodeChars))]

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -62,35 +63,53 @@ func TestEnsureStudentCodeAutoGenerates(t *testing.T) {
 	if !strings.HasPrefix(code, "T") {
 		t.Fatalf("auto code %q must be prefixed with the tenant id", code)
 	}
-	if len(code) < 2 || !strings.Contains(code, "T") {
-		t.Fatalf("auto code %q looks malformed", code)
-	}
 	if id == 0 {
 		t.Fatal("no student id returned")
 	}
 }
 
+// TestEnsureStudentCodeRetriesOnDuplicate forces the generator to return an
+// already-taken code first, so ensureStudentCode hits the 23505 unique
+// violation, clears the code, and retries with a fresh one instead of surfacing
+// the database error.
 func TestEnsureStudentCodeRetriesOnDuplicate(t *testing.T) {
 	f := newHandlerFixture(t)
-	// Force the first generated code to collide by pre-seeding it, then call
-	// with an empty provided code: the 23505 path must clear the code and retry
-	// with a fresh one rather than surfacing the unique-violation error.
-	seeded := testutil.UniqueCode(t, "dup")
-	testutil.CreateStudent(t, f.DB, f.TenantID, f.CoachID, seeded, "Seed")
 
-	// Creating a student with the same code directly must fail with 23505,
-	// which is the error ensureStudentCode branches on.
-	_, err := f.StudentRepo.Create(f.TenantID, "Clash", seeded, f.CoachID)
-	if err == nil {
-		t.Fatal("expected unique violation when reusing a student code")
+	taken := testutil.UniqueCode(t, "taken")
+	testutil.CreateStudent(t, db(t, f), f.TenantID, f.CoachID, taken, "Seed")
+
+	calls := 0
+	orig := generateStudentCode
+	t.Cleanup(func() { generateStudentCode = orig })
+	generateStudentCode = func(tenantID int) string {
+		calls++
+		if calls == 1 {
+			return taken // collide on the first attempt
+		}
+		return testutil.UniqueCode(t, "fresh")
 	}
 
-	// ensureStudentCode with an empty code must succeed by generating one.
 	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Retry", "", f.CoachID)
 	if err != nil {
-		t.Fatalf("ensureStudentCode retry path: %v", err)
+		t.Fatalf("ensureStudentCode must retry past the collision, got %v", err)
 	}
-	if code == "" || id == 0 {
-		t.Fatalf("id=%d code=%q", id, code)
+	if id == 0 {
+		t.Fatal("no student id returned")
 	}
+	if calls < 2 {
+		t.Fatalf("generator called %d time(s); the 23505 retry path was not exercised", calls)
+	}
+	if code == taken {
+		t.Fatalf("returned the colliding code %q", code)
+	}
+	// The retry must have persisted a student under the fresh code.
+	if _, _, err := f.StudentRepo.GetNameCode(id, f.TenantID); err != nil {
+		t.Fatalf("retry did not persist the student: %v", err)
+	}
+}
+
+// db exposes the fixture's pool for helpers that need raw SQL.
+func db(t *testing.T, f *handlerFixture) *sql.DB {
+	t.Helper()
+	return f.DB
 }
