@@ -42,7 +42,7 @@ func TestBillingGetSubscription(t *testing.T) {
 	h := newBillingHandler(db)
 
 	var tid int
-	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+	if err := db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
 
@@ -60,7 +60,7 @@ func TestBillingAssignPlan(t *testing.T) {
 	h := newBillingHandler(db)
 
 	var tid int
-	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+	if err := db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
 	var origPlan int
@@ -90,7 +90,7 @@ func TestCancelRevertsToFree(t *testing.T) {
 	h := newBillingHandler(db)
 
 	var tid int
-	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+	if err := db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
 	var origPlan int

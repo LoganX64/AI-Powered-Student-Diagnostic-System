@@ -15,7 +15,7 @@ func TestGuardStorageNoProctoringPlan(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 
 	var tid int
-	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+	if err := db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
 	var testID int
@@ -38,7 +38,7 @@ func TestGuardStorageProctoringOverLimit(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 
 	var tid int
-	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+	if err := db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
 	var testID int
@@ -78,7 +78,7 @@ func TestGuardStorageProctoringWithinLimit(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 
 	var tid int
-	if err := db.QueryRow(`SELECT id FROM tenants LIMIT 1`).Scan(&tid); err != nil {
+	if err := db.QueryRow(`SELECT id FROM tenants ORDER BY id LIMIT 1`).Scan(&tid); err != nil {
 		t.Skip("no tenant:", err)
 	}
 	var testID int
