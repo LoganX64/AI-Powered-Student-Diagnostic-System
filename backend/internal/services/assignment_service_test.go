@@ -13,12 +13,22 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// requireDB handles a missing DB_URL. It always skips so a DB-less run stays
+// usable locally, but REQUIRE_DB=1 turns the skip into a hard failure so CI
+// cannot report green while silently exercising nothing.
+func requireDB(t *testing.T) {
+	if os.Getenv("REQUIRE_DB") == "1" {
+		t.Fatalf("DB_URL not set and REQUIRE_DB=1: DB-backed tests must run")
+	}
+	t.Skip("DB_URL not set (set DB_URL, or REQUIRE_DB=1 to fail loudly)")
+}
+
 func svcTestDB(t *testing.T) *sql.DB {
 	_ = godotenv.Load()
 	_ = godotenv.Load("../../.env")
 	url := os.Getenv("DB_URL")
 	if url == "" {
-		t.Skip("DB_URL not set")
+		requireDB(t)
 	}
 	db, err := sql.Open("postgres", url)
 	if err != nil {

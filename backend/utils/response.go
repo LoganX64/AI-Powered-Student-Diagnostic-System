@@ -23,10 +23,12 @@ func errorBody(msg string, extra ...gin.H) gin.H {
 // SafeErrorResponse logs the real error and returns a safe response.
 // In DEBUG mode: returns raw error for frontend debugging.
 // Otherwise: returns generic message.
+// err may be nil (e.g. quota rejections that pass no underlying error); in that
+// case the generic message is always used, since there is no error to expose.
 func SafeErrorResponse(c *gin.Context, status int, err error, message string, extra ...gin.H) {
 	log.Printf("[ERROR] %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 
-	if os.Getenv("DEBUG") == "true" {
+	if err != nil && os.Getenv("DEBUG") == "true" {
 		c.JSON(status, errorBody(err.Error(), extra...))
 	} else {
 		c.JSON(status, errorBody(message, extra...))
@@ -58,10 +60,11 @@ func Conflict(c *gin.Context, msg string, extra ...gin.H) {
 	c.JSON(http.StatusConflict, errorBody(msg, extra...))
 }
 
+// InternalError mirrors SafeErrorResponse at HTTP 500 and is likewise nil-safe.
 func InternalError(c *gin.Context, err error, msg string, extra ...gin.H) {
 	log.Printf("[500] %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 
-	if os.Getenv("DEBUG") == "true" {
+	if err != nil && os.Getenv("DEBUG") == "true" {
 		c.JSON(http.StatusInternalServerError, errorBody(err.Error(), extra...))
 	} else {
 		c.JSON(http.StatusInternalServerError, errorBody(msg, extra...))

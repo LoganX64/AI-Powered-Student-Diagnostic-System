@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"ai-student-diagnostic/backend/internal/repository"
