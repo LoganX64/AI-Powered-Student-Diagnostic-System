@@ -59,7 +59,7 @@ func (r *StudentRepo) Exists(studentID, tenantID int) (bool, error) {
 func (r *StudentRepo) ExistsActive(studentID, tenantID, coachID int) (bool, error) {
 	var exists bool
 	err := r.DB.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM students WHERE id=$1 AND tenant_id=$2 AND coach_id=$3)",
+		"SELECT EXISTS(SELECT 1 FROM students WHERE id=$1 AND tenant_id=$2 AND coach_id=$3 AND deleted_at IS NULL)",
 		studentID, tenantID, coachID,
 	).Scan(&exists)
 	return exists, err

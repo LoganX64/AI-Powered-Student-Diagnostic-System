@@ -445,9 +445,6 @@ func (r *TestPaperRepo) UpdateSubject(subjectID, tenantID int, name string) (boo
 	if err != nil {
 		return false, err
 	}
-	if strings.Contains(err.Error(), "duplicate") {
-		return false, err
-	}
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		return false, err
