@@ -146,19 +146,16 @@ func CreateAssignment(t *testing.T, db *sql.DB, studentID, testID, coachID int) 
 }
 
 // CreateQuestion inserts a minimal valid question row for the given test.
+//
 // importance/difficulty/type use the values the current schema constrains
 // (000007 widened importance to high/medium/low and type to mcq/multi/integer).
+// expected_time and concept_tag are nullable in the schema but are scanned into
+// plain non-nullable types by TestPaperRepo.ListQuestions, which the SQI
+// computation path uses — so the fixture must populate them or any test that
+// computes an attempt's SQI fails with a NULL conversion error.
 func CreateQuestion(t *testing.T, db *sql.DB, testID int) int {
 	t.Helper()
-	var id int
-	err := db.QueryRow(`INSERT INTO questions (test_id, question_text, option_a, option_b, option_c, option_d,
-		correct_answer, marks, neg_marks, importance, difficulty, type, concept_tag)
-		VALUES ($1, 'Q?', 'a', 'b', 'c', 'd', 'A', 4, 1, 'medium', 'M', 'mcq', 'concept-x') RETURNING id`,
-		testID).Scan(&id)
-	if err != nil {
-		t.Fatalf("create question: %v", err)
-	}
-	return id
+	return CreateQuestionWithAnswer(t, db, testID, "A")
 }
 
 // CreateQuestionWithAnswer inserts a question with a chosen correct answer.
@@ -166,8 +163,8 @@ func CreateQuestionWithAnswer(t *testing.T, db *sql.DB, testID int, correct stri
 	t.Helper()
 	var id int
 	err := db.QueryRow(`INSERT INTO questions (test_id, question_text, option_a, option_b, option_c, option_d,
-		correct_answer, marks, neg_marks, importance, difficulty, type, concept_tag)
-		VALUES ($1, 'Q?', 'a', 'b', 'c', 'd', $2, 4, 1, 'medium', 'M', 'mcq', 'concept-x') RETURNING id`,
+		correct_answer, marks, neg_marks, importance, difficulty, type, concept_tag, expected_time)
+		VALUES ($1, 'Q?', 'a', 'b', 'c', 'd', $2, 4, 1, 'medium', 'M', 'mcq', 'concept-x', 60) RETURNING id`,
 		testID, correct).Scan(&id)
 	if err != nil {
 		t.Fatalf("create question: %v", err)

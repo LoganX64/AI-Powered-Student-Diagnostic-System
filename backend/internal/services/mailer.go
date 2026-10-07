@@ -20,10 +20,23 @@ func NewMailer(host string, port int, user, appPass, from, frontend string) *Mai
 	return &Mailer{Host: host, Port: port, User: user, AppPass: appPass, From: from, Frontend: frontend}
 }
 
+// resetLink builds the password-reset URL. Kept separate from the SMTP call so
+// the link construction (notably the trailing-slash trim) is testable without a
+// mail server.
+func (m *Mailer) resetLink(token string) string {
+	return fmt.Sprintf("%s/reset-password?token=%s", strings.TrimRight(m.Frontend, "/"), token)
+}
+
+// compose builds the subject and body of the reset email.
+func (m *Mailer) compose(token string) (subject, body string) {
+	subject = "EduQuant password reset"
+	body = fmt.Sprintf("Hello,\n\nA password reset was requested for your account. Click the link below (valid for 30 minutes):\n\n%s\n\nIf you did not request this, you can ignore this email.\n\n- EduQuant", m.resetLink(token))
+	return subject, body
+}
+
 func (m *Mailer) SendPasswordReset(to, token string) error {
-	link := fmt.Sprintf("%s/reset-password?token=%s", strings.TrimRight(m.Frontend, "/"), token)
-	subject := "EduQuant password reset"
-	body := fmt.Sprintf("Hello,\n\nA password reset was requested for your account. Click the link below (valid for 30 minutes):\n\n%s\n\nIf you did not request this, you can ignore this email.\n\n- EduQuant", link)
+	link := m.resetLink(token)
+	subject, body := m.compose(token)
 
 	if m.AppPass == "" || m.User == "" {
 		log.Printf("[MAIL] SMTP not configured; password-reset link for %s: %s", to, link)

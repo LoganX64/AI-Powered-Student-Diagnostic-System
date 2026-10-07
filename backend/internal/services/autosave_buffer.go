@@ -166,6 +166,27 @@ func (b *AutosaveBuffer) flushAll() {
 	}
 }
 
+// normalizeAnswer applies the unseen-answer rule: an answer the student never
+// reached must not contribute time or interaction signals. `seen` reports
+// whether the answer counts as seen, which is a.SelectedAnswer != "" unless an
+// explicit Seen pointer overrides it. When unseen, every behavioural field is
+// zeroed so a skipped question cannot skew the SQI analysis.
+func normalizeAnswer(a AnswerInput) (AnswerInput, bool) {
+	seen := a.SelectedAnswer != ""
+	if a.Seen != nil {
+		seen = *a.Seen
+	}
+	if !seen {
+		a.TimeSpent = 0
+		a.SelectedAnswer = ""
+		a.MarkedForReview = false
+		a.Revisited = false
+		a.ChangedAnswer = false
+		a.WasInitiallyWrong = false
+	}
+	return a, seen
+}
+
 func (b *AutosaveBuffer) flushBatch(ctx context.Context, key string, items []string) {
 	for _, it := range items {
 		var ba bufferedAnswer
@@ -173,19 +194,7 @@ func (b *AutosaveBuffer) flushBatch(ctx context.Context, key string, items []str
 			log.Printf("[AUTOSAVE] dropping corrupt buffered item: %v (raw=%q)", err, it)
 			continue
 		}
-		a := ba.Answer
-		answerSeen := a.SelectedAnswer != ""
-		if a.Seen != nil {
-			answerSeen = *a.Seen
-		}
-		if !answerSeen {
-			a.TimeSpent = 0
-			a.SelectedAnswer = ""
-			a.MarkedForReview = false
-			a.Revisited = false
-			a.ChangedAnswer = false
-			a.WasInitiallyWrong = false
-		}
+		a, answerSeen := normalizeAnswer(ba.Answer)
 		if err := b.attemptRepo.UpsertAnswer(
 			ba.AttemptID, a.QuestionID, a.SelectedAnswer, false, a.TimeSpent,
 			a.MarkedForReview, a.Revisited, a.ChangedAnswer, a.WasInitiallyWrong, answerSeen,

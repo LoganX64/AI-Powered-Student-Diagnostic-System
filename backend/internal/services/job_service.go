@@ -22,6 +22,27 @@ type computeJobPayload struct {
 	AttemptIDs []int `json:"attempt_ids"`
 }
 
+// chunkSize returns the configured chunk size, falling back to 100 when unset.
+func (s *JobService) chunkSize() int {
+	if s.ChunkSize <= 0 {
+		return 100
+	}
+	return s.ChunkSize
+}
+
+// terminalStatus maps final progress counters onto a terminal job status.
+// No failures means completed; no successes means failed; a mix is partial.
+func terminalStatus(done, failed int) string {
+	switch {
+	case failed == 0:
+		return "completed"
+	case done == 0:
+		return "failed"
+	default:
+		return "partial"
+	}
+}
+
 // Process runs a single job (currently only compute_sqi). It streams progress
 // into the jobs table so clients can poll done/total. A job never aborts on a
 // single attempt failure — failures are counted and the run continues.
@@ -62,10 +83,7 @@ func (s *JobService) Process(jobID, tenantID int) error {
 		return nil
 	}
 
-	chunk := s.ChunkSize
-	if chunk <= 0 {
-		chunk = 100
-	}
+	chunk := s.chunkSize()
 
 	done := 0
 	failed := 0
@@ -97,8 +115,8 @@ func (s *JobService) Process(jobID, tenantID int) error {
 		}
 	}
 
-	switch {
-	case failed == 0:
+	switch terminalStatus(done, failed) {
+	case "completed":
 		if err := s.JobRepo.SetStatus(jobID, tenantID, "completed"); err != nil {
 			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
 		}
@@ -107,7 +125,7 @@ func (s *JobService) Process(jobID, tenantID int) error {
 				log.Printf("[JOB] notify SQI complete failed for job %d: %v", jobID, err)
 			}
 		}
-	case done == 0:
+	case "failed":
 		if err := s.JobRepo.SetStatus(jobID, tenantID, "failed"); err != nil {
 			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
 		}
