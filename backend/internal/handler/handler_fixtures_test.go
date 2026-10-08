@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 	"net/http/httptest"
+	neturl "net/url"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/config"
@@ -229,3 +230,7 @@ func withJSONBody(c *gin.Context, method, body string) {
 func withParam(c *gin.Context, name, value string) {
 	c.Params = gin.Params{{Key: name, Value: value}}
 }
+
+// urlEscape percent-encodes a value for use in a query string, so a test can
+// pass a raw payload through the URL the way a client would.
+func urlEscape(s string) string { return neturl.QueryEscape(s) }
