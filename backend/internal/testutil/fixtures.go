@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // Fixtures for the tenant-scoped object graph that the repository and handler
@@ -168,6 +169,69 @@ func CreateQuestionWithAnswer(t *testing.T, db *sql.DB, testID int, correct stri
 		testID, correct).Scan(&id)
 	if err != nil {
 		t.Fatalf("create question: %v", err)
+	}
+	return id
+}
+
+// LinkCoachSubject adds a coach_subjects row (migration 000013).
+//
+// CreateCoach deliberately links no subjects, so any test that asserts on the
+// link set — UpdateCoach replaces it wholesale via
+// DeleteCoachSubjects + CreateCoachSubjectsInTx, and an empty subject_ids list
+// is supposed to clear it — has to establish the "before" state itself.
+func LinkCoachSubject(t *testing.T, db *sql.DB, coachID, subjectID int) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO coach_subjects (coach_id, subject_id) VALUES ($1, $2)
+		ON CONFLICT DO NOTHING`, coachID, subjectID); err != nil {
+		t.Fatalf("link coach %d to subject %d: %v", coachID, subjectID, err)
+	}
+}
+
+// CoachSubjectIDs returns a coach's linked subject ids, sorted, for assertions.
+func CoachSubjectIDs(t *testing.T, db *sql.DB, coachID int) []int {
+	t.Helper()
+	rows, err := db.Query(`SELECT subject_id FROM coach_subjects WHERE coach_id = $1 ORDER BY subject_id`, coachID)
+	if err != nil {
+		t.Fatalf("read coach %d subjects: %v", coachID, err)
+	}
+	defer rows.Close()
+	out := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan coach subject: %v", err)
+		}
+		out = append(out, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate coach %d subjects: %v", coachID, err)
+	}
+	return out
+}
+
+// CreateNotification inserts a notification row for the handler tests.
+//
+// userID nil produces a broadcast row, which is a real case rather than an
+// edge: NotificationRepo.List and UnreadCount both select
+// `user_id = $n OR user_id IS NULL`, so tenants do carry org-wide notifications
+// alongside per-user ones.
+//
+// No cleanup is registered here. notifications.user_id and .tenant_id are both
+// `ON DELETE CASCADE` (migration 000016), so deleting the throwaway tenant
+// removes these rows exactly like every other fixture in this file.
+func CreateNotification(t *testing.T, db *sql.DB, tenantID int, userID *int, eventType, title string, read bool) int {
+	t.Helper()
+	var readAt *string
+	if read {
+		ts := time.Now().UTC().Format(time.RFC3339)
+		readAt = &ts
+	}
+	var id int
+	err := db.QueryRow(`INSERT INTO notifications (tenant_id, user_id, event_type, title, message, priority, read_at)
+		VALUES ($1, $2, $3, $4, 'fixture message', 'info', $5) RETURNING id`,
+		tenantID, userID, eventType, title, readAt).Scan(&id)
+	if err != nil {
+		t.Fatalf("create notification: %v", err)
 	}
 	return id
 }

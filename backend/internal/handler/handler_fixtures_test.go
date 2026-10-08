@@ -37,6 +37,12 @@ type handlerFixture struct {
 	Coach   *CoachHandler
 	Student *StudentHandler
 
+	// Handlers that are not methods on the three above. NotificationHandler and
+	// SuperAdminHandler own their own files and would otherwise need a second
+	// fixture, which is why they are built here too.
+	Notifications *NotificationHandler
+	SuperAdmin    *SuperAdminHandler
+
 	// Repos, for the few tests that assert persistence directly.
 	UserRepo         *repository.UserRepo
 	StudentRepo      *repository.StudentRepo
@@ -48,6 +54,8 @@ type handlerFixture struct {
 	SubscriptionRepo *repository.SubscriptionRepo
 	ProfileRepo      *repository.ProfileRepo
 	TenantRepo       *repository.TenantRepo
+	BatchRepo        *repository.BatchRepo
+	JobRepo          *repository.JobRepo
 
 	Storage storage.Storage
 
@@ -89,8 +97,8 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 	f.SubscriptionRepo = repository.NewSubscriptionRepo(db)
 	f.ProfileRepo = repository.NewProfileRepo(db)
 	f.TenantRepo = repository.NewTenantRepo(db)
-	batchRepo := repository.NewBatchRepo(db)
-	jobRepo := repository.NewJobRepo(db)
+	f.BatchRepo = repository.NewBatchRepo(db)
+	f.JobRepo = repository.NewJobRepo(db)
 	loginAttemptRepo := repository.NewLoginAttemptRepo(db)
 
 	// Infrastructure stand-ins: no Redis, no object store.
@@ -103,24 +111,29 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 	attemptService := services.NewAttemptService(f.AttemptRepo, f.AssignmentRepo, f.StudentRepo, f.TestPaperRepo)
 	assignmentService := services.NewAssignmentService(f.AssignmentRepo, f.StudentRepo, f.TestPaperRepo, f.CoachRepo, f.UserRepo, f.SubscriptionRepo, false)
 	notifService := services.NewNotificationService(f.NotificationRepo, f.UserRepo)
-	jobService := services.NewJobService(jobRepo, attemptService, 100, notifService)
+	jobService := services.NewJobService(f.JobRepo, attemptService, 100, notifService)
 	// QuotaMW stays nil here; quota behaviour is a middleware concern and the
 	// handlers document the field as optional.
 	var quotaMW *middleware.QuotaMiddleware
 
+	authService := services.NewAuthService(f.UserRepo, f.CoachRepo)
+
 	f.Admin = NewAdminHandler(f.UserRepo, f.StudentRepo, f.CoachRepo, f.TestPaperRepo,
-		f.AssignmentRepo, f.AttemptRepo, batchRepo, jobRepo,
+		f.AssignmentRepo, f.AttemptRepo, f.BatchRepo, f.JobRepo,
 		attemptService, assignmentService, jobService, f.SubscriptionRepo,
 		q, cfg, quotaMW, notifService)
 
 	f.Coach = NewCoachHandler(f.StudentRepo, f.CoachRepo, f.TestPaperRepo, f.AssignmentRepo,
-		f.AttemptRepo, batchRepo, jobRepo,
+		f.AttemptRepo, f.BatchRepo, f.JobRepo,
 		attemptService, assignmentService, jobService, f.SubscriptionRepo,
 		q, cfg, quotaMW, notifService)
 
 	f.Student = NewStudentHandler(f.StudentRepo, f.AssignmentRepo, f.AttemptRepo, f.TestPaperRepo,
 		attemptService, loginAttemptRepo, f.SubscriptionRepo,
 		q, autosave, st, cfg, quotaMW, notifService)
+
+	f.Notifications = NewNotificationHandler(notifService, f.NotificationRepo)
+	f.SuperAdmin = NewSuperAdminHandler(f.TenantRepo, f.ProfileRepo, authService)
 
 	// Primary tenant.
 	f.TenantID = testutil.CreateTenant(t, db)
@@ -178,6 +191,38 @@ func (f *handlerFixture) ctxAsCoach(t *testing.T) (*gin.Context, *httptest.Respo
 	c.Set("user_id", f.CoachUserID)
 	c.Set("role", "coach")
 	return c, w
+}
+
+// ctxSuperAdmin seeds a super_admin identity. Super-admin routes are the only
+// ones mounted without a per-tenant scope (routes.go:175), and several admin
+// handlers branch on this role to refuse the request outright —
+// GetStudentSQI, GetStudentSQIBatch and GetCoachStatsBatch all return 403 — so
+// those guards are only reachable from here.
+func (f *handlerFixture) ctxSuperAdmin(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+	c.Set("tenant_id", f.TenantID)
+	c.Set("user_id", f.AdminUserID)
+	c.Set("role", "super_admin")
+	return c, w
+}
+
+// withJSONBody attaches a JSON body to an existing context, preserving whatever
+// identity the ctx* helpers seeded.
+//
+// Deliberately distinct from postJSON (profile_handler_test.go), which builds a
+// bare context and recorder from scratch. Handlers read identity from c and bind
+// their payload from c.Request, so the admin/coach CRUD tests need both on the
+// same context — postJSON cannot supply that.
+//
+// It returns nothing on purpose: the recorder is already bound to the context,
+// so callers keep asserting against the one their ctx* helper handed them.
+// Returning a second recorder would silently swallow every write.
+func withJSONBody(c *gin.Context, method, body string) {
+	c.Request = httptest.NewRequest(method, "/x", postBody(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 }
 
 // withParam sets a single path param (e.g. "id") on the context.
