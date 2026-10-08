@@ -156,20 +156,18 @@ func TestNotificationMarkReadBadID(t *testing.T) {
 	t.Logf("unknown notification id returns %d (repo reports no not-found)", wUnknown.Code)
 }
 
-// DEFECT PINNED: MarkRead scopes on tenant_id only, never user_id, so one user
-// in a tenant can mark another's notification read. The 200 below is the bug —
-// authorization passes because nothing checks it.
-func TestNotificationMarkReadAcrossUsers(t *testing.T) {
+// A different user in the SAME tenant must be refused. Before the fix MarkRead
+// filtered on id AND tenant_id only, so this user could mark the owner's row
+// read and still received 200.
+func TestNotificationMarkReadRefusesOtherUsers(t *testing.T) {
 	f := newHandlerFixture(t)
 	owner := f.AdminUserID
 	id := testutil.CreateNotification(t, f.DB, f.TenantID, &owner, "system_alert", "Owner's", false)
-
-	// A different user in the SAME tenant.
 	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "admin")
 
 	_, code := notifMarkRead(t, f, other, id)
-	if code != http.StatusOK {
-		t.Fatalf("code=%d", code)
+	if code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 when another user targets the notification", code)
 	}
 
 	var readAt sql.NullString
@@ -177,7 +175,38 @@ func TestNotificationMarkReadAcrossUsers(t *testing.T) {
 		t.Fatalf("read read_at: %v", err)
 	}
 	if readAt.Valid {
-		t.Logf("SECURITY: user %d marked user %d's notification read — MarkRead has no user_id filter", other, owner)
+		t.Fatal("SECURITY: another user's notification was marked read")
+	}
+}
+
+// A broadcast row (user_id NULL) is org-wide and read_at is a single column, so
+// one user marking it read would hide it from everyone. It must be refused.
+func TestNotificationMarkReadRefusesBroadcast(t *testing.T) {
+	f := newHandlerFixture(t)
+	id := testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
+
+	_, code := notifMarkRead(t, f, f.AdminUserID, id)
+	if code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 for a broadcast row", code)
+	}
+
+	var readAt sql.NullString
+	if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, id).Scan(&readAt); err != nil {
+		t.Fatalf("read read_at: %v", err)
+	}
+	if readAt.Valid {
+		t.Fatal("a broadcast notification was marked read by one user")
+	}
+}
+
+// An unknown id is a 404, not a silent 200: the repo now reports whether a row
+// was actually touched.
+func TestNotificationMarkReadUnknownIsNotFound(t *testing.T) {
+	f := newHandlerFixture(t)
+
+	_, code := notifMarkRead(t, f, f.AdminUserID, 99999999)
+	if code != http.StatusNotFound {
+		t.Fatalf("unknown id code=%d, want 404", code)
 	}
 }
 
@@ -260,24 +289,52 @@ func TestNotificationDelete(t *testing.T) {
 	}
 }
 
-// DEFECT PINNED: Delete scopes on tenant_id only, so a same-tenant user can
-// delete another's notification.
-func TestNotificationDeleteAcrossUsers(t *testing.T) {
+// Another user's notification must be refused rather than deleted.
+func TestNotificationDeleteRefusesOtherUsers(t *testing.T) {
 	f := newHandlerFixture(t)
 	owner := f.AdminUserID
 	id := testutil.CreateNotification(t, f.DB, f.TenantID, &owner, "system_alert", "Owner's", false)
 	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "admin")
 
 	_, code := notifDeleteAs(t, f, other, id)
-	if code != http.StatusOK {
-		t.Fatalf("code=%d", code)
+	if code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 when another user targets the notification", code)
 	}
+
 	var left int
 	if err := f.DB.QueryRow(`SELECT COUNT(*) FROM notifications WHERE id = $1`, id).Scan(&left); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if left == 0 {
-		t.Logf("SECURITY: user %d deleted user %d's notification %d — Delete has no user_id filter", other, owner, id)
+		t.Fatal("SECURITY: another user's notification was deleted")
+	}
+}
+
+// A broadcast row is org-wide, so one user must not be able to delete it.
+func TestNotificationDeleteRefusesBroadcast(t *testing.T) {
+	f := newHandlerFixture(t)
+	id := testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
+
+	_, code := notifDeleteAs(t, f, f.AdminUserID, id)
+	if code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 for a broadcast row", code)
+	}
+
+	var left int
+	if err := f.DB.QueryRow(`SELECT COUNT(*) FROM notifications WHERE id = $1`, id).Scan(&left); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if left == 0 {
+		t.Fatal("a broadcast notification was deleted by one user")
+	}
+}
+
+func TestNotificationDeleteUnknownIsNotFound(t *testing.T) {
+	f := newHandlerFixture(t)
+
+	_, code := notifDeleteAs(t, f, f.AdminUserID, 99999999)
+	if code != http.StatusNotFound {
+		t.Fatalf("unknown id code=%d, want 404", code)
 	}
 }
 

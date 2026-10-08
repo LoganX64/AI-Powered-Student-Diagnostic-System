@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -72,6 +73,10 @@ func (h *SuperAdminHandler) CreateTenant(c *gin.Context) {
 
 	tenantID, userID, err := h.AuthService.RegisterAdmin(req.AdminEmail, hashed, req.Name)
 	if err != nil {
+		if errors.Is(err, repository.ErrDuplicateEmail) {
+			utils.BadRequest(c, "email already in use")
+			return
+		}
 		utils.InternalError(c, err, "failed to create tenant")
 		return
 	}
@@ -114,6 +119,10 @@ func (h *SuperAdminHandler) UpdateTenant(c *gin.Context) {
 		return
 	}
 	if err := h.TenantRepo.Update(tenantID, req.Name); err != nil {
+		if errors.Is(err, repository.ErrTenantNotFound) {
+			utils.NotFound(c, "tenant not found")
+			return
+		}
 		utils.InternalError(c, err, "failed to update tenant")
 		return
 	}
@@ -128,6 +137,10 @@ func (h *SuperAdminHandler) SuspendTenant(c *gin.Context) {
 		return
 	}
 	if err := h.TenantRepo.Suspend(tenantID); err != nil {
+		if errors.Is(err, repository.ErrTenantNotFound) {
+			utils.NotFound(c, "tenant not found")
+			return
+		}
 		utils.InternalError(c, err, "failed to suspend tenant")
 		return
 	}
@@ -142,6 +155,10 @@ func (h *SuperAdminHandler) ReactivateTenant(c *gin.Context) {
 		return
 	}
 	if err := h.TenantRepo.Reactivate(tenantID); err != nil {
+		if errors.Is(err, repository.ErrTenantNotFound) {
+			utils.NotFound(c, "tenant not found")
+			return
+		}
 		utils.InternalError(c, err, "failed to reactivate tenant")
 		return
 	}
@@ -196,7 +213,15 @@ func (h *SuperAdminHandler) CreateTenantAdmin(c *gin.Context) {
 
 	userID, err := h.AuthService.CreateAdminForTenant(tenantID, req.Email, hashed, req.Name)
 	if err != nil {
-		utils.BadRequest(c, err.Error())
+		// Do not echo err.Error(): CreateAdminForTenant wraps raw database
+		// errors, and a bad tenant id would return the verbatim Postgres
+		// foreign-key message, disclosing schema details to any super admin.
+		// A duplicate email is a client mistake, so it keeps its 400.
+		if errors.Is(err, repository.ErrDuplicateEmail) {
+			utils.BadRequest(c, "email already in use")
+			return
+		}
+		utils.InternalError(c, err, "failed to create admin")
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"user_id": userID})

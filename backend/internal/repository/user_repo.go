@@ -2,12 +2,29 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 type UserRepo struct {
 	DB *sql.DB
+}
+
+// ErrDuplicateEmail reports a clash on the unique users_email_key index. Callers
+// need it as a sentinel because the raw driver error is a 500-shaped value: a
+// duplicate email is a client mistake and belongs in a 4xx.
+var ErrDuplicateEmail = errors.New("email already exists")
+
+// IsDuplicateEmail reports whether err is (or wraps) a unique-violation on
+// users_email_key. Used by paths that discover the clash at INSERT time rather
+// than by pre-checking, such as AuthService.RegisterAdmin.
+func IsDuplicateEmail(err error) bool {
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && pqErr.Code == "23505" &&
+		strings.Contains(pqErr.Constraint, "users_email_key")
 }
 
 func NewUserRepo(db *sql.DB) *UserRepo {
@@ -57,6 +74,16 @@ func (r *UserRepo) GetByEmailWithCoachCheck(email string) (*UserLoginRow, error)
 func (r *UserRepo) CreateTenant(name string) (int, error) {
 	var id int
 	err := r.DB.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", name).Scan(&id)
+	return id, err
+}
+
+// CreateTenantInTx is the transactional form, for callers that must not leave a
+// tenant behind if the user insert that follows fails. Used by
+// AuthService.RegisterAdmin, which previously committed the tenant first and
+// then failed on a duplicate email, orphaning it.
+func (r *UserRepo) CreateTenantInTx(tx *sql.Tx, name string) (int, error) {
+	var id int
+	err := tx.QueryRow("INSERT INTO tenants (name) VALUES ($1) RETURNING id", name).Scan(&id)
 	return id, err
 }
 

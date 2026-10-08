@@ -136,9 +136,23 @@ func (r *NotificationRepo) Create(n NotificationRow) (int, error) {
 	return id, nil
 }
 
-func (r *NotificationRepo) MarkRead(id, tenantID int) error {
-	_, err := r.DB.Exec(`UPDATE notifications SET read_at = NOW() WHERE id = $1 AND tenant_id = $2`, id, tenantID)
-	return err
+// MarkRead marks one of the caller's own notifications read.
+//
+// The user_id predicate is load-bearing. Without it any user in a tenant could
+// mark anyone's notification read, and because the method reported no
+// not-found the handler answered 200 either way. Broadcast rows (user_id IS
+// NULL) are deliberately excluded: read_at is a single column, so one user
+// marking an org-wide notification read would hide it for every other user.
+//
+// Returns whether a row was updated, so the handler can distinguish "done" from
+// "not yours or not there" instead of reporting success for a no-op.
+func (r *NotificationRepo) MarkRead(id, tenantID, userID int) (bool, error) {
+	res, err := r.DB.Exec(`UPDATE notifications SET read_at = NOW()
+		WHERE id = $1 AND tenant_id = $2 AND user_id = $3`, id, tenantID, userID)
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected(res)
 }
 
 func (r *NotificationRepo) MarkAllRead(tenantID int, userID *int) error {
@@ -150,9 +164,27 @@ func (r *NotificationRepo) MarkAllRead(tenantID int, userID *int) error {
 	return err
 }
 
-func (r *NotificationRepo) Delete(id, tenantID int) error {
-	_, err := r.DB.Exec(`DELETE FROM notifications WHERE id = $1 AND tenant_id = $2`, id, tenantID)
-	return err
+// Delete removes one of the caller's own notifications. Same ownership rule as
+// MarkRead: without the user_id predicate any user in a tenant could delete
+// anyone else's, and a tenant-wide broadcast row would be deletable by one
+// member. Returns whether a row was removed.
+func (r *NotificationRepo) Delete(id, tenantID, userID int) (bool, error) {
+	res, err := r.DB.Exec(`DELETE FROM notifications WHERE id = $1 AND tenant_id = $2 AND user_id = $3`, id, tenantID, userID)
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected(res)
+}
+
+// rowsAffected reports whether an Exec actually touched a row, so callers can
+// turn a silent no-op into a not-found. Postgres returns 0 rather than an error
+// when a filtered UPDATE/DELETE matches nothing.
+func rowsAffected(res sql.Result) (bool, error) {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (r *NotificationRepo) UnreadCount(tenantID int, userID *int) (int, error) {

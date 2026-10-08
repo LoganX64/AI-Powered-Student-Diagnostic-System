@@ -13,7 +13,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// resolveTenantID returns the tenant the authenticated caller belongs to.
+//
+// It used to return a nil error unconditionally, which made the `if err != nil`
+// branch dead at all 43 call sites and let a context with no tenant_id through as
+// tenant 0 — a silent unscoped query rather than a refusal. It now fails closed.
+//
+// The key's presence is checked, not its value: a super_admin legitimately carries
+// tenant_id 0 (users.tenant_id is nullable and every super_admin has NULL), and
+// AuthMiddleware still sets the key, so treating 0 as missing would refuse every
+// super-admin route.
 func resolveTenantID(c *gin.Context) (int, error) {
+	if _, exists := c.Get("tenant_id"); !exists {
+		return 0, fmt.Errorf("tenant_id missing from context")
+	}
 	return c.GetInt("tenant_id"), nil
 }
 

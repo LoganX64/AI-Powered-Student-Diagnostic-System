@@ -38,17 +38,35 @@ func (s *AuthService) UserLogin(email, password string) (*LoginResult, error) {
 	return &LoginResult{UserID: u.UserID, Role: u.Role, TenantID: u.TenantID.Int32}, nil
 }
 
+// RegisterAdmin creates a tenant and its first admin.
+//
+// Both inserts share one transaction. They used to be committed separately, so a
+// duplicate email failed *after* the tenant row was written and left an orphan
+// behind — 13 of them accumulated in dev data before it was caught. The rollback
+// path is exercised by TestRegisterAdminRollsBackOnDuplicateEmail.
 func (s *AuthService) RegisterAdmin(email, hashedPassword, orgName string) (int, int, error) {
-	tenantID, err := s.UserRepo.CreateTenant(orgName)
+	tx, err := s.UserRepo.DB.Begin()
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	tenantID, err := s.UserRepo.CreateTenantInTx(tx, orgName)
+	if err != nil {
+		return 0, 0, fmt.Errorf("create tenant: %w", err)
 	}
 
-	userID, err := s.UserRepo.Create(tenantID, email, hashedPassword, "admin")
+	userID, err := s.UserRepo.CreateInTx(tx, tenantID, email, hashedPassword, "admin")
 	if err != nil {
-		return 0, 0, err
+		if repository.IsDuplicateEmail(err) {
+			return 0, 0, fmt.Errorf("%w: %s", repository.ErrDuplicateEmail, email)
+		}
+		return 0, 0, fmt.Errorf("create admin: %w", err)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return 0, 0, fmt.Errorf("commit: %w", err)
+	}
 	return tenantID, userID, nil
 }
 
@@ -58,7 +76,7 @@ func (s *AuthService) CreateAdminForTenant(tenantID int, email, hashedPassword, 
 		return 0, fmt.Errorf("check email: %w", err)
 	}
 	if exists {
-		return 0, fmt.Errorf("email %s already exists", email)
+		return 0, fmt.Errorf("%w: %s", repository.ErrDuplicateEmail, email)
 	}
 
 	userID, err := s.UserRepo.Create(tenantID, email, hashedPassword, "admin")

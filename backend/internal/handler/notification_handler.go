@@ -59,13 +59,21 @@ func (h *NotificationHandler) UnreadCount(c *gin.Context) {
 // PUT /admin/notifications/:id/read
 func (h *NotificationHandler) MarkRead(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
+	userID := c.GetInt("user_id")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		utils.BadRequest(c, "invalid notification id")
 		return
 	}
-	if err := h.NotificationRepo.MarkRead(id, tenantID); err != nil {
+	// Scoped to the caller, so another user's notification is a 404 here rather
+	// than a silent 200.
+	found, err := h.NotificationRepo.MarkRead(id, tenantID, userID)
+	if err != nil {
 		utils.InternalError(c, err, "failed to mark as read")
+		return
+	}
+	if !found {
+		utils.NotFound(c, "notification not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "marked as read"})
@@ -85,13 +93,19 @@ func (h *NotificationHandler) MarkAllRead(c *gin.Context) {
 // DELETE /admin/notifications/:id
 func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
+	userID := c.GetInt("user_id")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		utils.BadRequest(c, "invalid notification id")
 		return
 	}
-	if err := h.NotificationRepo.Delete(id, tenantID); err != nil {
+	found, err := h.NotificationRepo.Delete(id, tenantID, userID)
+	if err != nil {
 		utils.InternalError(c, err, "failed to delete notification")
+		return
+	}
+	if !found {
+		utils.NotFound(c, "notification not found")
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "notification deleted"})

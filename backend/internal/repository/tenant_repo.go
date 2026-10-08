@@ -3,8 +3,16 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
+
+// ErrTenantNotFound distinguishes "no such tenant" from a real database failure.
+//
+// Update, Suspend and Reactivate report a missing row by returning an error, so
+// without a sentinel the caller cannot tell a client mistake from an outage and
+// maps both to 500. Wrapping it lets the handler answer 404.
+var ErrTenantNotFound = errors.New("tenant not found")
 
 type TenantRepo struct {
 	DB *sql.DB
@@ -156,7 +164,7 @@ func (r *TenantRepo) Update(tenantID int, name string) error {
 	if n, err := res.RowsAffected(); err != nil {
 		return fmt.Errorf("update tenant rows affected: %w", err)
 	} else if n == 0 {
-		return fmt.Errorf("tenant %d not found", tenantID)
+		return fmt.Errorf("%w: tenant %d", ErrTenantNotFound, tenantID)
 	}
 	return nil
 }
@@ -169,7 +177,7 @@ func (r *TenantRepo) Suspend(tenantID int) error {
 	if n, err := res.RowsAffected(); err != nil {
 		return fmt.Errorf("suspend tenant rows affected: %w", err)
 	} else if n == 0 {
-		return fmt.Errorf("tenant %d not found", tenantID)
+		return fmt.Errorf("%w: tenant %d", ErrTenantNotFound, tenantID)
 	}
 	return nil
 }
@@ -182,7 +190,7 @@ func (r *TenantRepo) Reactivate(tenantID int) error {
 	if n, err := res.RowsAffected(); err != nil {
 		return fmt.Errorf("reactivate tenant rows affected: %w", err)
 	} else if n == 0 {
-		return fmt.Errorf("tenant %d not found", tenantID)
+		return fmt.Errorf("%w: tenant %d", ErrTenantNotFound, tenantID)
 	}
 	return nil
 }

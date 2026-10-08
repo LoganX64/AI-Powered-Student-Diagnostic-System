@@ -54,6 +54,12 @@ func TestNotificationUnreadCount(t *testing.T) {
 	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: nil, EventType: "system_alert", Title: "t", Message: "m", Priority: "warning", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
+	// A second user in the SAME tenant, to prove MarkRead/Delete are scoped to
+	// the owner rather than just the tenant.
+	uidB, err := ur.Create(tid, "notif_a2@test.local", "x", "admin")
+	if err != nil {
+		t.Fatalf("create second user: %v", err)
+	}
 	// 1 unread for the other tenant (must NOT be counted for uidA)
 	if _, err := nr.Create(NotificationRow{TenantID: otherTid, UserID: &otherUID, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
@@ -75,8 +81,47 @@ func TestNotificationUnreadCount(t *testing.T) {
 	if len(rows) == 0 {
 		t.Fatalf("expected rows for uidA")
 	}
-	if err := nr.MarkRead(rows[0].ID, tid); err != nil {
+	// List also returns broadcast rows (user_id IS NULL), ordered by created_at
+	// DESC, so rows[0] is not necessarily one of uidA's. Pick a row uidA owns —
+	// MarkRead refuses broadcast rows by design.
+	var uidARow int
+	for _, r := range rows {
+		if r.UserID != nil && *r.UserID == uidA {
+			uidARow = r.ID
+			break
+		}
+	}
+	if uidARow == 0 {
+		t.Fatalf("no row owned by uidA in the listing")
+	}
+	marked, err := nr.MarkRead(uidARow, tid, uidA)
+	if err != nil {
 		t.Fatalf("MarkRead: %v", err)
+	}
+	if !marked {
+		t.Fatalf("MarkRead reported no row updated for uidA's own notification")
+	}
+	// Another user in the same tenant must not be able to touch it.
+	if marked, err := nr.MarkRead(uidARow, tid, uidB); err != nil {
+		t.Fatalf("MarkRead as uidB: %v", err)
+	} else if marked {
+		t.Fatalf("MarkRead let uidB mark uidA's notification read")
+	}
+	// A broadcast row must be refused outright: read_at is one column, so one
+	// user marking an org-wide notification read would hide it for everyone.
+	var broadcastRow int
+	for _, r := range rows {
+		if r.UserID == nil {
+			broadcastRow = r.ID
+			break
+		}
+	}
+	if broadcastRow != 0 {
+		if marked, err := nr.MarkRead(broadcastRow, tid, uidA); err != nil {
+			t.Fatalf("MarkRead on broadcast: %v", err)
+		} else if marked {
+			t.Fatalf("MarkRead let a single user mark a broadcast notification read")
+		}
 	}
 	count, _ = nr.UnreadCount(tid, &uidA)
 	if count != 2 {
@@ -117,8 +162,12 @@ func TestNotificationMarkReadAndDelete(t *testing.T) {
 	}
 
 	// MarkRead single
-	if err := nr.MarkRead(id1, tid); err != nil {
+	marked, err := nr.MarkRead(id1, tid, uid)
+	if err != nil {
 		t.Fatalf("MarkRead: %v", err)
+	}
+	if !marked {
+		t.Fatalf("MarkRead reported no row updated for the owner")
 	}
 	row, err := nr.GetByID(id1, tid)
 	if err != nil || row == nil {
@@ -138,12 +187,22 @@ func TestNotificationMarkReadAndDelete(t *testing.T) {
 	}
 
 	// Delete
-	if err := nr.Delete(id1, tid); err != nil {
+	deleted, err := nr.Delete(id1, tid, uid)
+	if err != nil {
 		t.Fatalf("Delete: %v", err)
+	}
+	if !deleted {
+		t.Fatalf("Delete reported no row removed for the owner")
 	}
 	row, _ = nr.GetByID(id1, tid)
 	if row != nil {
 		t.Fatalf("expected nil after delete")
+	}
+	// A second delete must report nothing removed rather than claiming success.
+	if again, err := nr.Delete(id1, tid, uid); err != nil {
+		t.Fatalf("second Delete: %v", err)
+	} else if again {
+		t.Fatalf("second Delete reported a row removed")
 	}
 	_ = id2
 }

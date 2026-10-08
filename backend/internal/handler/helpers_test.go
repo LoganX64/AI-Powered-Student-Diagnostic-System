@@ -195,3 +195,64 @@ func TestResolveTenantIDAndCoachHelpers(t *testing.T) {
 		t.Fatalf("resolveCoachAndTenant=(%d,%d,%v)", gotCoach, gotTenant, err)
 	}
 }
+
+// resolveTenantID must fail when the key is absent. It used to return
+// (0, nil), which made the `if err != nil` branch dead at all 43 call sites and
+// turned a missing tenant into an unscoped query against tenant 0.
+func TestResolveTenantIDFailsClosed(t *testing.T) {
+	newHandlerFixture(t)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+
+	tid, err := resolveTenantID(c)
+	if err == nil {
+		t.Fatalf("resolveTenantID on a bare context returned (%d, nil); it must refuse", tid)
+	}
+	if tid != 0 {
+		t.Fatalf("on failure resolveTenantID returned %d, want 0", tid)
+	}
+}
+
+// A present-but-zero tenant_id is legitimate, not a failure: users.tenant_id is
+// nullable and every super_admin has NULL, so AuthMiddleware sets tenant_id to 0
+// for them. An implementation that treated 0 as "missing" would refuse every
+// super-admin route.
+func TestResolveTenantIDAllowsPresentZero(t *testing.T) {
+	newHandlerFixture(t)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+	c.Set("tenant_id", 0)
+
+	tid, err := resolveTenantID(c)
+	if err != nil {
+		t.Fatalf("resolveTenantID rejected a super-admin's tenant_id of 0: %v", err)
+	}
+	if tid != 0 {
+		t.Fatalf("tid=%d want 0", tid)
+	}
+}
+
+// The 43 call sites all map the error to InternalError, so a context with no
+// tenant now produces a 500 instead of silently querying tenant 0. Before the
+// fix the same request would have run and returned data. Assert the refusal
+// happens; the 500-vs-401 choice is recorded as an open decision.
+func TestHandlerWithMissingTenantIsRefused(t *testing.T) {
+	f := newHandlerFixture(t)
+
+	// ListCoaches calls resolveTenantID first and returns InternalError on error.
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/admin/coaches", nil)
+	c.Set("user_id", f.AdminUserID)
+	c.Set("role", "admin")
+	// no tenant_id
+
+	f.Admin.ListCoaches(c)
+
+	if w.Code == http.StatusOK {
+		t.Fatalf("ListCoaches succeeded with no tenant in context; body=%s", w.Body.String())
+	}
+	t.Logf("missing tenant now returns %d (recorded: 401 would be the better code)", w.Code)
+}

@@ -379,19 +379,19 @@ func TestSuperAdminCreateTenantDuplicateEmail(t *testing.T) {
 	withJSONBody(c, http.MethodPost, `{"name":"`+secondName+`","admin_email":"`+email+`","admin_password":"longenoughpw","admin_name":"Ada"}`)
 	f.SuperAdmin.CreateTenant(c)
 
-	if w.Code == http.StatusCreated {
-		t.Fatalf("duplicate email created a second tenant: %s", w.Body.String())
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("duplicate email code=%d, want 400 (body=%s)", w.Code, w.Body.String())
 	}
-	t.Logf("duplicate email returns %d (pinned; 400 would match CreateTenantAdmin)", w.Code)
 
-	// RegisterAdmin commits the tenant before attempting the user insert, so the
-	// rejected second create leaves an empty tenant behind. Pinned because it is
-	// the mechanism that polluted dev data before orphanTenants was added.
+	// RegisterAdmin is transactional, so the rejected create must leave no
+	// tenant behind. It used to commit the tenant first and orphan it.
 	var orphans int
 	if err := f.DB.QueryRow(`SELECT COUNT(*) FROM tenants WHERE name = $1`, secondName).Scan(&orphans); err != nil {
 		t.Fatalf("count orphans: %v", err)
 	}
-	t.Logf("rejected create left %d orphaned tenant(s) behind (RegisterAdmin has no transaction)", orphans)
+	if orphans != 0 {
+		t.Fatalf("rejected create left %d orphaned tenant(s); RegisterAdmin must roll back", orphans)
+	}
 }
 
 func TestSuperAdminGetTenant(t *testing.T) {
@@ -466,8 +466,8 @@ func TestSuperAdminUpdateTenant(t *testing.T) {
 	}
 }
 
-// DEFECT PINNED: TenantRepo.Update returns an error for an unknown tenant, which
-// the handler maps to 500. GetTenant in the same file returns 404.
+// An unknown tenant is a client mistake, so it must be a 404 rather than the 500
+// it used to return.
 func TestSuperAdminUpdateTenantNotFound(t *testing.T) {
 	f := newHandlerFixture(t)
 
@@ -476,10 +476,9 @@ func TestSuperAdminUpdateTenantNotFound(t *testing.T) {
 	withJSONBody(c, http.MethodPut, `{"name":"Nope"}`)
 	f.SuperAdmin.UpdateTenant(c)
 
-	if w.Code == http.StatusOK {
-		t.Fatalf("unknown tenant reported success: %s", w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 (body=%s)", w.Code, w.Body.String())
 	}
-	t.Logf("update of an unknown tenant returns %d (pinned; 404 would match GetTenant)", w.Code)
 }
 
 func TestSuperAdminSuspendReactivateTenantRoundTrip(t *testing.T) {
@@ -514,7 +513,6 @@ func TestSuperAdminSuspendReactivateTenantRoundTrip(t *testing.T) {
 	}
 }
 
-// DEFECT PINNED: Suspend returns an error for an unknown tenant, mapped to 500.
 func TestSuperAdminSuspendTenantNotFound(t *testing.T) {
 	f := newHandlerFixture(t)
 
@@ -522,13 +520,12 @@ func TestSuperAdminSuspendTenantNotFound(t *testing.T) {
 	withParam(c, "id", "99999999")
 	f.SuperAdmin.SuspendTenant(c)
 
-	if w.Code == http.StatusOK {
-		t.Fatalf("unknown tenant reported success: %s", w.Body.String())
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 (body=%s)", w.Code, w.Body.String())
 	}
-	t.Logf("suspend of an unknown tenant returns %d (pinned; 404 would match GetTenant)", w.Code)
 }
 
-// DEFECT PINNED: Reactivate returns an error for an unknown tenant, mapped to 500.
+// Reactivate of an unknown tenant is a 404, matching Suspend and GetTenant.
 func TestSuperAdminReactivateTenantNotFound(t *testing.T) {
 	f := newHandlerFixture(t)
 
@@ -536,10 +533,64 @@ func TestSuperAdminReactivateTenantNotFound(t *testing.T) {
 	withParam(c, "id", "99999999")
 	f.SuperAdmin.ReactivateTenant(c)
 
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// In the posture a deployed environment uses (DEBUG unset), a bad tenant id must
+// not leak the raw Postgres foreign-key error, which discloses schema details.
+//
+// This handler used to call utils.BadRequest(c, err.Error()), returning that text
+// unconditionally. It now maps only the known client error to 400 and routes the
+// rest through InternalError, which hides the error unless DEBUG=true.
+func TestSuperAdminCreateTenantAdminDoesNotLeakDBErrors(t *testing.T) {
+	f := newHandlerFixture(t)
+	t.Setenv("DEBUG", "false") // production posture; .env sets this to true locally
+
+	c, w := f.ctxSuperAdmin(t)
+	withParam(c, "id", "99999999")
+	withJSONBody(c, http.MethodPost, `{"email":"`+testutil.UniqueEmail(t, "leak")+`","password":"longenoughpw","name":"X"}`)
+	f.SuperAdmin.CreateTenantAdmin(c)
+
 	if w.Code == http.StatusOK {
 		t.Fatalf("unknown tenant reported success: %s", w.Body.String())
 	}
-	t.Logf("reactivate of an unknown tenant returns %d (pinned; 404 would match GetTenant)", w.Code)
+	assertNoDBInternals(t, w.Body.String())
+}
+
+// DEBUG=true is a deliberate developer affordance in utils.InternalError and
+// SafeErrorResponse: it returns err.Error() so the frontend can surface details.
+// The consequence is that every one of the ~205 InternalError/SafeErrorResponse
+// call sites returns raw database text in that mode, and .env ships DEBUG=true,
+// which godotenv.Load copies into the process env.
+//
+// Pinned so the tradeoff is explicit: this is expected behaviour, not a bug, and
+// the real risk is DEBUG=true reaching a deployed environment.
+func TestSuperAdminCreateTenantAdminLeaksUnderDebugByDesign(t *testing.T) {
+	f := newHandlerFixture(t)
+	t.Setenv("DEBUG", "true")
+
+	c, w := f.ctxSuperAdmin(t)
+	withParam(c, "id", "99999999")
+	withJSONBody(c, http.MethodPost, `{"email":"`+testutil.UniqueEmail(t, "dbg")+`","password":"longenoughpw","name":"X"}`)
+	f.SuperAdmin.CreateTenantAdmin(c)
+
+	if !strings.Contains(strings.ToLower(w.Body.String()), "foreign key") {
+		t.Logf("DEBUG=true did not leak here (status %d, body %s)", w.Code, w.Body.String())
+	}
+	t.Logf("DEBUG=true returns %d with body %s — expected, but DEBUG must never be true in a deployed environment", w.Code, w.Body.String())
+}
+
+// assertNoDBInternals fails if a response carries database text a client should
+// never see.
+func assertNoDBInternals(t *testing.T, body string) {
+	t.Helper()
+	for _, leak := range []string{"foreign key", "violates", "postgres", "pgcode", "sqlstate", "pq:"} {
+		if strings.Contains(strings.ToLower(body), leak) {
+			t.Fatalf("response leaks database internals (%q): %s", leak, body)
+		}
+	}
 }
 
 func TestSuperAdminListTenantAdmins(t *testing.T) {
