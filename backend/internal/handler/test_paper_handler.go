@@ -32,7 +32,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *AdminHandler) UpdateTest(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -138,7 +138,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -165,7 +165,7 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 func (h *AdminHandler) ListTests(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -201,7 +201,7 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 func (h *AdminHandler) GetTest(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -222,7 +222,7 @@ func (h *AdminHandler) GetTest(c *gin.Context) {
 func (h *AdminHandler) GetTestQuestions(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -273,7 +273,7 @@ func (h *AdminHandler) CreateQuestion(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -340,7 +340,7 @@ func (h *AdminHandler) UpdateQuestion(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -379,7 +379,7 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 

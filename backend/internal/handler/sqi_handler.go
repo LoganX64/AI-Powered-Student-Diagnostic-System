@@ -44,7 +44,7 @@ func enqueueComputeJob(c *gin.Context, tenantID int, attemptIDs []int, jobRepo *
 func (h *AdminHandler) ComputeSQI(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	var req struct {
@@ -69,7 +69,7 @@ func (h *AdminHandler) ComputeSQI(c *gin.Context) {
 func (h *AdminHandler) ComputeSQIBatch(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	var req struct {
@@ -107,7 +107,7 @@ func (h *AdminHandler) ComputeSQIBatch(c *gin.Context) {
 func (h *AdminHandler) GetJob(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	jobID, err := parseIDParam(c, "id")

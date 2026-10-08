@@ -144,7 +144,7 @@ func transferStudentBatchHelper(c *gin.Context, tenantID int, studentRepo *repos
 func (h *AdminHandler) CreateBatch(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	createBatchHelper(c, tenantID, h.BatchRepo)
@@ -153,7 +153,7 @@ func (h *AdminHandler) CreateBatch(c *gin.Context) {
 func (h *AdminHandler) ListBatches(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	listBatchesHelper(c, tenantID, h.BatchRepo)
@@ -162,7 +162,7 @@ func (h *AdminHandler) ListBatches(c *gin.Context) {
 func (h *AdminHandler) DeleteBatch(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	deleteBatchHelper(c, tenantID, h.BatchRepo)
@@ -171,7 +171,7 @@ func (h *AdminHandler) DeleteBatch(c *gin.Context) {
 func (h *AdminHandler) UpdateBatch(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	updateBatchHelper(c, tenantID, h.BatchRepo)
@@ -180,7 +180,7 @@ func (h *AdminHandler) UpdateBatch(c *gin.Context) {
 func (h *AdminHandler) TransferStudentBatch(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 	transferStudentBatchHelper(c, tenantID, h.StudentRepo, h.BatchRepo)

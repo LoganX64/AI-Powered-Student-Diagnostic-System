@@ -106,7 +106,7 @@ func (h *AdminHandler) GetStudentSQI(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -174,7 +174,7 @@ func (h *AdminHandler) GetStudentSQIBatch(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -215,7 +215,7 @@ func (h *AdminHandler) GetAssignmentResults(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -265,7 +265,7 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -336,7 +336,7 @@ func (h *AdminHandler) UpdateStudent(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -376,7 +376,7 @@ func (h *AdminHandler) UpdateStudent(c *gin.Context) {
 func (h *AdminHandler) ListStudents(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -424,7 +424,7 @@ func (h *AdminHandler) GetStudent(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -457,7 +457,7 @@ func (h *AdminHandler) ListStudentAssignments(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -517,7 +517,7 @@ func (h *AdminHandler) DeleteStudent(c *gin.Context) {
 	userID := c.GetInt("user_id")
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -554,7 +554,7 @@ func (h *AdminHandler) ReactivateStudent(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 

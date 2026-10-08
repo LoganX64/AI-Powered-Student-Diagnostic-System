@@ -234,14 +234,12 @@ func TestResolveTenantIDAllowsPresentZero(t *testing.T) {
 	}
 }
 
-// The 43 call sites all map the error to InternalError, so a context with no
-// tenant now produces a 500 instead of silently querying tenant 0. Before the
-// fix the same request would have run and returned data. Assert the refusal
-// happens; the 500-vs-401 choice is recorded as an open decision.
+// The 42 call sites all map the error to Unauthorized, so a context with no
+// tenant produces a 401 instead of a 500 or silently querying tenant 0.
 func TestHandlerWithMissingTenantIsRefused(t *testing.T) {
 	f := newHandlerFixture(t)
 
-	// ListCoaches calls resolveTenantID first and returns InternalError on error.
+	// ListCoaches calls resolveTenantID first and returns Unauthorized on error.
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/admin/coaches", nil)
@@ -251,8 +249,8 @@ func TestHandlerWithMissingTenantIsRefused(t *testing.T) {
 
 	f.Admin.ListCoaches(c)
 
-	if w.Code == http.StatusOK {
-		t.Fatalf("ListCoaches succeeded with no tenant in context; body=%s", w.Body.String())
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("ListCoaches code=%d want 401 Unauthorized; body=%s", w.Code, w.Body.String())
 	}
-	t.Logf("missing tenant now returns %d (recorded: 401 would be the better code)", w.Code)
 }
+

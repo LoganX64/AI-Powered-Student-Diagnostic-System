@@ -170,7 +170,7 @@ func (h *CoachHandler) CreateBatchAssignment(c *gin.Context) {
 func (h *AdminHandler) ListAssignments(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -224,7 +224,7 @@ func (h *AdminHandler) DeleteAssignment(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 

@@ -28,7 +28,7 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -50,7 +50,7 @@ func (h *AdminHandler) CreateSubject(c *gin.Context) {
 func (h *AdminHandler) ListSubjects(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *AdminHandler) UpdateSubject(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *AdminHandler) DeleteSubject(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *AdminHandler) ReactivateSubject(c *gin.Context) {
 
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
-		utils.InternalError(c, err, "failed to fetch tenant info")
+		utils.Unauthorized(c, "unauthorized")
 		return
 	}
 
