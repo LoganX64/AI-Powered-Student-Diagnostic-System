@@ -28,20 +28,42 @@ type TenantRow struct {
 func (r *TenantRepo) List(search string, planFilter string, limit, offset int) ([]TenantRow, int, error) {
 	baseJoin := " LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id"
 	where := " WHERE ($1 = '' OR t.name ILIKE '%' || $1 || '%')"
+
+	// args tracks the placeholders already consumed by `where`, so LIMIT/OFFSET
+	// can be numbered correctly whichever branch added a parameter.
+	//
+	// planFilter is a raw query-string value and must never be concatenated into
+	// SQL. It used to be, which let
+	//   ?plan=x' OR slug='professional' OR slug='x
+	// rewrite the subquery and return tenants that no literal slug matched. The
+	// free/paid shortcuts keep their literals because 'free' is a Go constant
+	// here, not caller input.
+	//
+	// A fixed placeholder for the slug is not an option: Postgres rejects a bind
+	// message that supplies more parameters than the statement references, so
+	// reserving $2 unconditionally would break the unfiltered planFilter == ""
+	// path.
+	args := []interface{}{search}
+	limitParam, offsetParam := "$2", "$3"
+
 	if planFilter != "" {
 		switch planFilter {
 		case "free":
 			where += " AND (ts.plan_id IS NULL OR ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = 'free'))"
 		case "paid":
+			// Was "...slug = 'free'))" — one paren too many, so ?plan=paid always
+			// failed with a Postgres syntax error (500) before this was caught.
 			where += " AND ts.plan_id IS NOT NULL AND ts.plan_id != (SELECT id FROM subscription_plans WHERE slug = 'free')"
 		default:
-			where += " AND ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = '" + planFilter + "')"
+			args = append(args, planFilter)
+			where += " AND ts.plan_id = (SELECT id FROM subscription_plans WHERE slug = $2)"
+			limitParam, offsetParam = "$3", "$4"
 		}
 	}
 
 	var total int
 	if err := r.DB.QueryRow(
-		"SELECT COUNT(*) FROM tenants t"+baseJoin+where, search,
+		"SELECT COUNT(*) FROM tenants t"+baseJoin+where, args...,
 	).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count tenants: %w", err)
 	}
@@ -54,9 +76,9 @@ func (r *TenantRepo) List(search string, planFilter string, limit, offset int) (
 			(SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id)
 		FROM tenants t` + baseJoin + where + `
 		ORDER BY t.id DESC
-		LIMIT $2 OFFSET $3`
+		LIMIT ` + limitParam + ` OFFSET ` + offsetParam
 
-	rows, err := r.DB.Query(query, search, limit, offset)
+	rows, err := r.DB.Query(query, append(args, limit, offset)...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list tenants: %w", err)
 	}
