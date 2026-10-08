@@ -263,3 +263,14 @@ func CreateGraph(t *testing.T, db *sql.DB) *Graph {
 	g.AssignmentID = CreateAssignment(t, db, g.StudentID, g.TestID, g.CoachID)
 	return g
 }
+
+func CreateBatch(t *testing.T, db *sql.DB, tenantID int, name string) int {
+	t.Helper()
+	var id int
+	err := db.QueryRow(`INSERT INTO batches (tenant_id, name) VALUES ($1, $2) RETURNING id`, tenantID, name).Scan(&id)
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+	return id
+}
+
