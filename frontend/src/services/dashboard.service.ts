@@ -312,6 +312,12 @@ export const deleteTest = (testId: number) =>
     method: "DELETE",
   });
 
+export const reactivateTest = (testId: number) =>
+  apiFetch<{ message: string }>(
+    `${getPrefix()}/tests/${testId}/reactivate`,
+    { method: "PUT" },
+  );
+
 export const getTests = (
   params?: PaginationParams & {
     /** Show soft-deleted tests instead of only active ones. */

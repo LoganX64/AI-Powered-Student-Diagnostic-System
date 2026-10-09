@@ -221,6 +221,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 		admin.PUT("/tests/:id", adminHandler.UpdateTest)
 		admin.PUT("/tests/:id/questions/:qid", adminHandler.UpdateQuestion)
+		admin.PUT("/tests/:id/reactivate", adminHandler.ReactivateTest)
 
 		admin.DELETE("/tests/:id", adminHandler.DeleteTest)
 		admin.DELETE("/tests/:id/questions/:qid", adminHandler.DeleteQuestion)
@@ -320,6 +321,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 		coach.PUT("/tests/:id", adminHandler.UpdateTest)
 		coach.PUT("/tests/:id/questions/:qid", adminHandler.UpdateQuestion)
+		coach.PUT("/tests/:id/reactivate", adminHandler.ReactivateTest)
 
 		coach.DELETE("/tests/:id", adminHandler.DeleteTest)
 		coach.DELETE("/tests/:id/questions/:qid", adminHandler.DeleteQuestion)

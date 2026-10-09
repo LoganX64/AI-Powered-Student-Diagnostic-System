@@ -5,6 +5,7 @@ import {
   Trash2Icon,
   PencilIcon,
   EyeIcon,
+  RotateCcwIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
@@ -35,6 +36,7 @@ import {
 import {
   getTests,
   deleteTest,
+  reactivateTest,
   type Test,
 } from "@/services/dashboard.service";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
@@ -42,11 +44,41 @@ import { formatDateDDMMYYYY } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
-function DeactivatedToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+/** Which list the table is showing. The backend has no "both" mode. */
+type TestView = "active" | "deactivated";
+
+/**
+ * Two mutually exclusive filters rather than one toggle, so the currently
+ * selected list is always visible on the button itself. Only one is ever
+ * active: the backend flips to deactivated-only when include_deactivated=true,
+ * so these are a switch, not independent filters.
+ */
+function StatusFilter({
+  view,
+  onChange,
+}: {
+  view: TestView;
+  onChange: (next: TestView) => void;
+}) {
   return (
-    <Button variant={on ? "default" : "outline"} onClick={onToggle} aria-pressed={on}>
-      {on ? "Showing Deactivated" : "Show Deactivated"}
-    </Button>
+    <div className="flex items-center gap-2" role="group" aria-label="Filter tests by status">
+      <Button
+        variant={view === "active" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onChange("active")}
+        aria-pressed={view === "active"}
+      >
+        Show Active
+      </Button>
+      <Button
+        variant={view === "deactivated" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onChange("deactivated")}
+        aria-pressed={view === "deactivated"}
+      >
+        Show Deactivated
+      </Button>
+    </div>
   );
 }
 
@@ -83,7 +115,8 @@ export function AllTestsPage() {
   const [offset, setOffset] = useState(0);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [includeDeactivated, setIncludeDeactivated] = useState(false);
+  const [view, setView] = useState<TestView>("active");
+  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
 
   const [editingTest, setEditingTest] = useState<Test | null>(null);
 
@@ -106,8 +139,16 @@ export function AllTestsPage() {
   );
 
   useEffect(() => {
-    fetchTests(offset, search, includeDeactivated);
-  }, [offset, search, includeDeactivated, fetchTests]);
+    fetchTests(offset, search, view === "deactivated");
+  }, [offset, search, view, fetchTests]);
+
+  // Reset paging on a view change: the two lists have independent totals, so
+  // page 3 of the deactivated list may not exist in the active one.
+  const handleViewChange = (next: TestView) => {
+    if (next === view) return;
+    setView(next);
+    setOffset(0);
+  };
 
   const handleSearch = () => {
     setOffset(0);
@@ -122,6 +163,20 @@ export function AllTestsPage() {
       setTotal((prev) => prev - 1);
     } catch (err) {
       toast.error((err as Error).message);
+    }
+  };
+
+  const handleReactivateTest = async (testId: number, testTitle: string) => {
+    try {
+      setReactivatingId(testId);
+      await reactivateTest(testId);
+      toast.success(`Test "${testTitle}" reactivated`);
+      setTests((prev) => prev.filter((t) => t.test_id !== testId));
+      setTotal((prev) => prev - 1);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setReactivatingId(null);
     }
   };
 
@@ -141,13 +196,7 @@ export function AllTestsPage() {
             />
           </div>
           <Button variant="outline" onClick={handleSearch}>Search</Button>
-          <DeactivatedToggle
-            on={includeDeactivated}
-            onToggle={() => {
-              setOffset(0);
-              setIncludeDeactivated((v) => !v);
-            }}
-          />
+          <StatusFilter view={view} onChange={handleViewChange} />
         </div>
 
         <div className="flex flex-col gap-3">
@@ -159,9 +208,9 @@ export function AllTestsPage() {
           {tests.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed">
               <p className="text-sm text-muted-foreground">
-                {includeDeactivated ? "No deactivated tests." : "No tests created yet."}
+                {view === "deactivated" ? "No deactivated tests." : "No tests created yet."}
               </p>
-              {!includeDeactivated && (
+              {view === "active" && (
                 <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
                   Create Your First Test
                 </Button>
@@ -202,15 +251,53 @@ export function AllTestsPage() {
                       </TableCell>
                       <TableCell className="text-sm">{test.duration}m</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-foreground"
-                          aria-label={`View ${test.title}`}
-                          onClick={(e) => { e.stopPropagation(); navigate(`${prefix}/tests/${test.test_id}/questions`); }}
-                        >
-                          <EyeIcon className="size-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          {test.deleted_at ? (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-muted-foreground hover:text-green-600"
+                                  disabled={reactivatingId === test.test_id}
+                                  aria-label={`Reactivate ${test.title}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <RotateCcwIcon className="size-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Reactivate Test</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to reactivate{" "}
+                                    <span className="font-semibold">{test.title}</span>?
+                                    Students who already attempted it will keep their data.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={(e) => { e.stopPropagation(); handleReactivateTest(test.test_id, test.title); }}
+                                    className="bg-green-600 text-white hover:bg-green-700"
+                                  >
+                                    Reactivate
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-muted-foreground hover:text-foreground"
+                              aria-label={`View ${test.title}`}
+                              onClick={(e) => { e.stopPropagation(); navigate(`${prefix}/tests/${test.test_id}/questions`); }}
+                            >
+                              <EyeIcon className="size-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -262,13 +349,7 @@ export function AllTestsPage() {
           />
         </div>
         <Button variant="outline" onClick={handleSearch}>Search</Button>
-        <DeactivatedToggle
-          on={includeDeactivated}
-          onToggle={() => {
-            setOffset(0);
-            setIncludeDeactivated((v) => !v);
-          }}
-        />
+        <StatusFilter view={view} onChange={handleViewChange} />
       </div>
 
       <div className="flex flex-col gap-3">
@@ -280,9 +361,9 @@ export function AllTestsPage() {
         {tests.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed">
             <p className="text-sm text-muted-foreground">
-              {includeDeactivated ? "No deactivated tests." : "No tests created yet."}
+              {view === "deactivated" ? "No deactivated tests." : "No tests created yet."}
             </p>
-            {!includeDeactivated && (
+            {view === "active" && (
               <Button variant="outline" size="sm" onClick={() => navigate(`${prefix}/tests`)}>
                 Create Your First Test
               </Button>
@@ -304,9 +385,43 @@ export function AllTestsPage() {
                   <Badge variant="secondary" className="hidden sm:inline-flex">{test.subject_name || `#${test.subject_id}`}</Badge>
                   <Badge variant="outline" className="hidden sm:inline-flex">{test.coach_name || `#${test.coach_id}`}</Badge>
                   <span className="text-sm text-muted-foreground">{test.duration}m</span>
-                  {/* Already deactivated: no delete, and editing a soft-deleted
-                      test is ambiguous, so both actions are withheld. */}
-                  {!test.deleted_at && (
+                  {/* A deactivated test offers only Reactivate — editing a
+                      soft-deleted test is ambiguous, so Edit is withheld. */}
+                  {test.deleted_at ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground hover:text-green-600"
+                          disabled={reactivatingId === test.test_id}
+                          aria-label={`Reactivate ${test.title}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <RotateCcwIcon className="size-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Reactivate Test</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to reactivate{" "}
+                            <span className="font-semibold">{test.title}</span>?
+                            Students who already attempted it will keep their data.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={(e) => { e.stopPropagation(); handleReactivateTest(test.test_id, test.title); }}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                          >
+                            Reactivate
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : (
                     <>
                       <Button
                         variant="ghost"
@@ -386,7 +501,7 @@ export function AllTestsPage() {
         test={editingTest}
         open={editingTest !== null}
         onOpenChange={(open) => { if (!open) setEditingTest(null); }}
-        onUpdated={() => fetchTests(offset, search, includeDeactivated)}
+        onUpdated={() => fetchTests(offset, search, view === "deactivated")}
       />
     </DashboardLayout>
   );

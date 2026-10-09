@@ -104,6 +104,22 @@ func (r *TestPaperRepo) ExistsOwnedByCoach(testID, coachID, tenantID int) (bool,
 	return exists, err
 }
 
+// ExistsIncludingDeleted and ExistsOwnedByCoachIncludingDeleted are the ownership
+// checks used when restoring a soft-deleted test: the plain Exists* variants
+// filter `deleted_at IS NULL`, so a deactivated row would fail its own access
+// check and could never be reactivated.
+func (r *TestPaperRepo) ExistsIncludingDeleted(testID, tenantID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND tenant_id=$2)", testID, tenantID).Scan(&exists)
+	return exists, err
+}
+
+func (r *TestPaperRepo) ExistsOwnedByCoachIncludingDeleted(testID, coachID, tenantID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM tests WHERE id=$1 AND coach_id=$2 AND tenant_id=$3)", testID, coachID, tenantID).Scan(&exists)
+	return exists, err
+}
+
 // List returns tests for a tenant, optionally including soft-deleted rows and
 // optionally restricting to tests that actually have questions.
 //
@@ -296,6 +312,24 @@ func (r *TestPaperRepo) Update(testID, tenantID int, title string, subjectID, co
 
 func (r *TestPaperRepo) Delete(testID, tenantID, deletedBy int) (bool, error) {
 	result, err := r.DB.Exec("UPDATE tests SET deleted_at=NOW(), deleted_by=$3 WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NULL", testID, tenantID, deletedBy)
+	if err != nil {
+		return false, err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected > 0, nil
+}
+
+// Reactivate reverses a soft delete. The `deleted_at IS NOT NULL` guard makes a
+// second call a no-op returning false, so an already-active test reports
+// "not found" rather than silently succeeding.
+func (r *TestPaperRepo) Reactivate(testID, tenantID int) (bool, error) {
+	result, err := r.DB.Exec(
+		"UPDATE tests SET deleted_at=NULL, deleted_by=NULL WHERE id=$1 AND tenant_id=$2 AND deleted_at IS NOT NULL",
+		testID, tenantID,
+	)
 	if err != nil {
 		return false, err
 	}

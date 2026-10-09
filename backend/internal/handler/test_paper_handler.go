@@ -162,6 +162,39 @@ func (h *AdminHandler) DeleteTest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "test deactivated"})
 }
 
+func (h *AdminHandler) ReactivateTest(c *gin.Context) {
+	testID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid test id")
+		return
+	}
+
+	role := c.GetString("role")
+
+	tenantID, err := resolveTenantID(c)
+	if err != nil {
+		utils.Unauthorized(c, "unauthorized")
+		return
+	}
+
+	if err := verifyTestAccessIncludingDeleted(c, testID, role, h.UserRepo, h.CoachRepo, h.TestPaperRepo, tenantID); err != nil {
+		utils.SafeErrorResponse(c, http.StatusForbidden, err, "test access verification failed")
+		return
+	}
+
+	found, err := h.TestPaperRepo.Reactivate(testID, tenantID)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to reactivate test")
+		return
+	}
+	if !found {
+		utils.NotFound(c, "test not found or already active")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "test reactivated"})
+}
+
 func (h *AdminHandler) ListTests(c *gin.Context) {
 	tenantID, err := resolveTenantID(c)
 	if err != nil {
@@ -182,7 +215,9 @@ func (h *AdminHandler) ListTests(c *gin.Context) {
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	search := c.Query("search")
-	includeDeleted := c.Query("include_deleted") == "true"
+	// Name matches buildListQuery in the frontend and the include_deactivated
+	// param used by the student/coach listings.
+	includeDeleted := c.Query("include_deactivated") == "true"
 	onlyWithQuestions := c.Query("has_questions") == "true"
 
 	tests, total, err := h.TestPaperRepo.List(tenantID, coachID, includeDeleted, onlyWithQuestions, search, limit, offset)

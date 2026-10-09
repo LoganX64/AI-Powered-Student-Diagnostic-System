@@ -111,6 +111,37 @@ func verifyTestAccess(c *gin.Context, testID int, role string, userRepo *reposit
 	return nil
 }
 
+// verifyTestAccessIncludingDeleted is verifyTestAccess for rows that are already
+// soft-deleted — used by ReactivateTest, where the target row is by definition
+// `deleted_at IS NOT NULL` and would fail the active-only checks above.
+func verifyTestAccessIncludingDeleted(c *gin.Context, testID int, role string, userRepo *repository.UserRepo, coachRepo *repository.CoachRepo, testPaperRepo *repository.TestPaperRepo, tenantID int) error {
+	if role == "coach" {
+		userID := c.GetInt("user_id")
+		coachID, err := coachRepo.GetIDFromUser(userID)
+		if err != nil {
+			return fmt.Errorf("coach not found")
+		}
+		exists, err := testPaperRepo.ExistsOwnedByCoachIncludingDeleted(testID, coachID, tenantID)
+		if err != nil {
+			return fmt.Errorf("failed to verify test ownership: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("test not found or not owned by you")
+		}
+	} else if role == "admin" {
+		exists, err := testPaperRepo.ExistsIncludingDeleted(testID, tenantID)
+		if err != nil {
+			return fmt.Errorf("failed to verify test: %w", err)
+		}
+		if !exists {
+			return fmt.Errorf("invalid test_id for your organization")
+		}
+	} else {
+		return fmt.Errorf("unauthorized role")
+	}
+	return nil
+}
+
 func buildAssignmentResultsResponse(
 	attemptRepo *repository.AttemptRepo,
 	studentID, assignmentID int,
