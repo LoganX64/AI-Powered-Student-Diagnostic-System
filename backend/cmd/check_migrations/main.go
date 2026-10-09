@@ -46,6 +46,12 @@ func main() {
 		fmt.Printf("version=%s, dirty=%s\n", v, d)
 	}
 
+	// Without this a connection error mid-iteration exits the loop silently, and
+	// the tool would print partial state (or "(no rows)") as if it succeeded.
+	if err := rows.Err(); err != nil {
+		log.Fatalf("rows iteration failed: %v", err)
+	}
+
 	if !found {
 		fmt.Println("(no rows)")
 	}
