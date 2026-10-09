@@ -1,6 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, PencilIcon, SaveIcon, PlusIcon, Trash2Icon, BarChartIcon, CalculatorIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  PencilIcon,
+  SaveIcon,
+  PlusIcon,
+  Trash2Icon,
+  BarChartIcon,
+  CalculatorIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
@@ -52,7 +60,13 @@ import {
 } from "@/components/admin/forms/QuestionFormFields";
 import { QuestionCard } from "@/components/admin/QuestionCard";
 import { EditTestDialog } from "@/components/admin/forms/EditTestDialog";
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { createQuestionSchema, zodErrors } from "@/lib/validations";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 
@@ -88,8 +102,11 @@ export function TestDetailPage() {
     }
   };
 
-  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null);
-  const [questionForm, setQuestionForm] = useState<QuestionDraft>(emptyQuestion());
+  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(
+    null,
+  );
+  const [questionForm, setQuestionForm] =
+    useState<QuestionDraft>(emptyQuestion());
   const [savingQuestion, setSavingQuestion] = useState(false);
 
   const fetchTest = useCallback(() => {
@@ -97,7 +114,9 @@ export function TestDetailPage() {
     setTestError(null);
     getTest(testId)
       .then(setTest)
-      .catch((err) => setTestError((err as Error).message || "Failed to load test"));
+      .catch((err) =>
+        setTestError((err as Error).message || "Failed to load test"),
+      );
   }, [testId]);
 
   useEffect(() => {
@@ -107,27 +126,40 @@ export function TestDetailPage() {
     }
   }, [fetchTest, isAdmin]);
 
-  const fetchAssignments = useCallback(async (off: number) => {
-    if (testId === null) return;
-    try {
-      const res = await getAssignments({ limit: PAGE_SIZE, offset: off, test_id: testId });
-      setAssignments(res.data ?? []);
-      setAssignmentTotal(res.total);
-    } catch {
-      // silently ignore
-    }
-  }, [testId]);
+  const fetchAssignments = useCallback(
+    async (off: number) => {
+      if (testId === null) return;
+      try {
+        const res = await getAssignments({
+          limit: PAGE_SIZE,
+          offset: off,
+          test_id: testId,
+        });
+        setAssignments(res.data ?? []);
+        setAssignmentTotal(res.total);
+      } catch {
+        // silently ignore
+      }
+    },
+    [testId],
+  );
 
-  const fetchQuestions = useCallback(async (off: number) => {
-    if (testId === null) return;
-    try {
-      const res = await getTestQuestions(testId, { limit: PAGE_SIZE, offset: off });
-      setQuestions(res.data ?? []);
-      setQuestionTotal(res.total);
-    } catch {
-      // silently ignore
-    }
-  }, [testId]);
+  const fetchQuestions = useCallback(
+    async (off: number) => {
+      if (testId === null) return;
+      try {
+        const res = await getTestQuestions(testId, {
+          limit: PAGE_SIZE,
+          offset: off,
+        });
+        setQuestions(res.data ?? []);
+        setQuestionTotal(res.total);
+      } catch {
+        // silently ignore
+      }
+    },
+    [testId],
+  );
 
   useEffect(() => {
     fetchAssignments(assignmentOffset);
@@ -201,8 +233,12 @@ export function TestDetailPage() {
     return (
       <DashboardLayout title="Test Detail">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-          <p role="alert" className="text-sm text-destructive">{testError}</p>
-          <Button variant="outline" onClick={fetchTest}>Try Again</Button>
+          <p role="alert" className="text-sm text-destructive">
+            {testError}
+          </p>
+          <Button variant="outline" onClick={fetchTest}>
+            Try Again
+          </Button>
         </div>
       </DashboardLayout>
     );
@@ -236,12 +272,18 @@ export function TestDetailPage() {
             <h2 className="text-lg font-semibold">{test.title}</h2>
             <Badge variant="outline">ID: {test.test_id}</Badge>
             <Badge variant="secondary">Duration: {test.duration} min</Badge>
-            <Badge variant="secondary">Subject: {test.subject_name || `#${test.subject_id}`}</Badge>
+            <Badge variant="secondary">
+              Subject: {test.subject_name || `#${test.subject_id}`}
+            </Badge>
             {isAdmin && (
-              <Badge variant="secondary">Coach: {test.coach_name || `#${test.coach_id}`}</Badge>
+              <Badge variant="secondary">
+                Coach: {test.coach_name || `#${test.coach_id}`}
+              </Badge>
             )}
             {test.exam_date && (
-              <Badge variant="secondary">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
+              <Badge variant="secondary">
+                Exam: {formatDateDDMMYYYY(test.exam_date)}
+              </Badge>
             )}
             {isAdmin && (
               <>
@@ -268,7 +310,8 @@ export function TestDetailPage() {
                       <AlertDialogDescription>
                         Are you sure you want to deactivate{" "}
                         <span className="font-semibold">{test.title}</span>?
-                        This test will be deactivated. Students who attempted it will keep their data.
+                        This test will be deactivated. Students who attempted it
+                        will keep their data.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -338,7 +381,9 @@ export function TestDetailPage() {
           </div>
           {assignments.length === 0 ? (
             <div className="flex h-32 items-center justify-center rounded-lg border border-dashed">
-              <p className="text-sm text-muted-foreground">No students assigned to this test.</p>
+              <p className="text-sm text-muted-foreground">
+                No students assigned to this test.
+              </p>
             </div>
           ) : (
             <>
@@ -359,17 +404,35 @@ export function TestDetailPage() {
                       <TableRow
                         key={a.id}
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => navigate(`${prefix}/students/${a.student_id}/assignments/${a.id}`)}
+                        onClick={() =>
+                          navigate(
+                            `${prefix}/students/${a.student_id}/assignments/${a.id}`,
+                          )
+                        }
                       >
-                        <TableCell className="font-mono text-sm text-muted-foreground">{a.id}</TableCell>
-                        <TableCell className="font-medium">{a.student_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono">{a.student_code}</Badge>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {a.id}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {a.student_name}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={a.status === "assigned" ? "secondary" : "default"}>{a.status}</Badge>
+                          <Badge variant="outline" className="font-mono">
+                            {a.student_code}
+                          </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{a.assigned_at}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              a.status === "assigned" ? "secondary" : "default"
+                            }
+                          >
+                            {a.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {a.assigned_at}
+                        </TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -393,19 +456,35 @@ export function TestDetailPage() {
                 <Pagination>
                   <PaginationContent className="flex items-center justify-between w-full">
                     <p className="text-sm text-muted-foreground">
-                      Showing {assignmentOffset + 1}–{Math.min(assignmentOffset + PAGE_SIZE, assignmentTotal)} of {assignmentTotal}
+                      Showing {assignmentOffset + 1}–
+                      {Math.min(assignmentOffset + PAGE_SIZE, assignmentTotal)}{" "}
+                      of {assignmentTotal}
                     </p>
                     <div className="flex gap-2">
                       <PaginationItem>
                         <PaginationPrevious
-                          onClick={() => setAssignmentOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                          className={assignmentOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                          onClick={() =>
+                            setAssignmentOffset((o) =>
+                              Math.max(0, o - PAGE_SIZE),
+                            )
+                          }
+                          className={
+                            assignmentOffset === 0
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
                         />
                       </PaginationItem>
                       <PaginationItem>
                         <PaginationNext
-                          onClick={() => setAssignmentOffset((o) => o + PAGE_SIZE)}
-                          className={assignmentOffset + PAGE_SIZE >= assignmentTotal ? "pointer-events-none opacity-50" : ""}
+                          onClick={() =>
+                            setAssignmentOffset((o) => o + PAGE_SIZE)
+                          }
+                          className={
+                            assignmentOffset + PAGE_SIZE >= assignmentTotal
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
                         />
                       </PaginationItem>
                     </div>
@@ -420,7 +499,9 @@ export function TestDetailPage() {
         <TabsContent value="questions" className="flex flex-col gap-3">
           {questions.length === 0 ? (
             <div className="flex flex-col h-32 items-center justify-center rounded-lg border border-dashed gap-3">
-              <p className="text-sm text-muted-foreground">No questions in this test.</p>
+              <p className="text-sm text-muted-foreground">
+                No questions in this test.
+              </p>
               <Button
                 variant="outline"
                 size="sm"
@@ -463,15 +544,25 @@ export function TestDetailPage() {
                           <TableCell className="font-mono text-sm text-muted-foreground">
                             {questionOffset + idx + 1}
                           </TableCell>
-                          <TableCell className="font-medium max-w-[300px] truncate">
+                          <TableCell className="font-medium max-w-75 truncate">
                             {q.question_text}
                           </TableCell>
-                          <TableCell className="text-sm">{q.option_a}</TableCell>
-                          <TableCell className="text-sm">{q.option_b}</TableCell>
-                          <TableCell className="text-sm">{q.option_c}</TableCell>
-                          <TableCell className="text-sm">{q.option_d}</TableCell>
+                          <TableCell className="text-sm">
+                            {q.option_a}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {q.option_b}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {q.option_c}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {q.option_d}
+                          </TableCell>
                           <TableCell>
-                            <Badge variant="secondary">{q.correct_answer}</Badge>
+                            <Badge variant="secondary">
+                              {q.correct_answer}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-sm">{q.marks}</TableCell>
                         </TableRow>
@@ -485,19 +576,33 @@ export function TestDetailPage() {
                 <Pagination>
                   <PaginationContent className="flex items-center justify-between w-full">
                     <p className="text-sm text-muted-foreground">
-                      Showing {questionOffset + 1}–{Math.min(questionOffset + PAGE_SIZE, questionTotal)} of {questionTotal}
+                      Showing {questionOffset + 1}–
+                      {Math.min(questionOffset + PAGE_SIZE, questionTotal)} of{" "}
+                      {questionTotal}
                     </p>
                     <div className="flex gap-2">
                       <PaginationItem>
                         <PaginationPrevious
-                          onClick={() => setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                          className={questionOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                          onClick={() =>
+                            setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))
+                          }
+                          className={
+                            questionOffset === 0
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
                         />
                       </PaginationItem>
                       <PaginationItem>
                         <PaginationNext
-                          onClick={() => setQuestionOffset((o) => o + PAGE_SIZE)}
-                          className={questionOffset + PAGE_SIZE >= questionTotal ? "pointer-events-none opacity-50" : ""}
+                          onClick={() =>
+                            setQuestionOffset((o) => o + PAGE_SIZE)
+                          }
+                          className={
+                            questionOffset + PAGE_SIZE >= questionTotal
+                              ? "pointer-events-none opacity-50"
+                              : ""
+                          }
                         />
                       </PaginationItem>
                     </div>
@@ -511,13 +616,23 @@ export function TestDetailPage() {
 
       {/* Edit Question Dialog (admin only) */}
       {isAdmin && (
-        <Dialog open={editingQuestion !== null} onOpenChange={(open) => { if (!open) setEditingQuestion(null); }}>
+        <Dialog
+          open={editingQuestion !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingQuestion(null);
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                Edit Question {editingQuestion ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}` : ""}
+                Edit Question{" "}
+                {editingQuestion
+                  ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}`
+                  : ""}
               </DialogTitle>
-              <DialogDescription>Update the question fields below.</DialogDescription>
+              <DialogDescription>
+                Update the question fields below.
+              </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <QuestionFormFields
@@ -527,7 +642,10 @@ export function TestDetailPage() {
                 }
               />
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditingQuestion(null)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingQuestion(null)}
+                >
                   Cancel
                 </Button>
                 <Button onClick={handleSaveQuestion} disabled={savingQuestion}>

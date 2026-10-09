@@ -9,10 +9,22 @@ import { PublicHeader } from "./PublicHeader";
 const t = aboutPageText;
 
 const aboutIcons = [
-  <SvgIcon src="/images/isometric-bank.svg" className="h-[126px] w-auto text-primary" />,
-  <SvgIcon src="/images/coach-clipboard.svg" className="h-[126px] w-auto text-primary" />,
-  <SvgIcon src="/images/student-backpack.svg" className="h-[126px] w-auto text-primary" />,
-  <SvgIcon src="/images/parent-child.svg" className="h-[126px] w-auto text-primary" />,
+  <SvgIcon
+    src="/images/isometric-bank.svg"
+    className="h-31.5 w-auto text-primary"
+  />,
+  <SvgIcon
+    src="/images/coach-clipboard.svg"
+    className="h-31.5 w-auto text-primary"
+  />,
+  <SvgIcon
+    src="/images/student-backpack.svg"
+    className="h-31.5 w-auto text-primary"
+  />,
+  <SvgIcon
+    src="/images/parent-child.svg"
+    className="h-31.5 w-auto text-primary"
+  />,
 ];
 
 export function AboutPage() {
@@ -89,7 +101,9 @@ export function AboutPage() {
                 <BuildingIcon className="size-5" />
               </div>
               <div>
-                <p className="text-sm font-medium mb-1">{t.contact.company.company}</p>
+                <p className="text-sm font-medium mb-1">
+                  {t.contact.company.company}
+                </p>
                 <p className="text-sm text-muted-foreground">EduQuant</p>
               </div>
             </div>
@@ -98,7 +112,9 @@ export function AboutPage() {
                 <MailIcon className="size-5" />
               </div>
               <div>
-                <p className="text-sm font-medium mb-1">{t.contact.company.helpline}</p>
+                <p className="text-sm font-medium mb-1">
+                  {t.contact.company.helpline}
+                </p>
                 <a
                   href={`mailto:${t.contact.company.helplineEmail}`}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors break-all"
@@ -112,7 +128,9 @@ export function AboutPage() {
                 <MapPinIcon className="size-5" />
               </div>
               <div>
-                <p className="text-sm font-medium mb-1">{t.contact.company.address}</p>
+                <p className="text-sm font-medium mb-1">
+                  {t.contact.company.address}
+                </p>
                 <p className="text-sm text-muted-foreground">
                   {t.contact.company.addressFull}
                 </p>
@@ -127,9 +145,24 @@ export function AboutPage() {
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8 text-xs text-muted-foreground">
           <span>{t.footer.copyright}</span>
           <div className="flex gap-4">
-            <Link to="/about" className="hover:text-foreground transition-colors">{t.footer.about}</Link>
-            <Link to="/privacy" className="hover:text-foreground transition-colors">{t.footer.privacy}</Link>
-            <Link to="/terms" className="hover:text-foreground transition-colors">{t.footer.terms}</Link>
+            <Link
+              to="/about"
+              className="hover:text-foreground transition-colors"
+            >
+              {t.footer.about}
+            </Link>
+            <Link
+              to="/privacy"
+              className="hover:text-foreground transition-colors"
+            >
+              {t.footer.privacy}
+            </Link>
+            <Link
+              to="/terms"
+              className="hover:text-foreground transition-colors"
+            >
+              {t.footer.terms}
+            </Link>
           </div>
         </div>
       </footer>

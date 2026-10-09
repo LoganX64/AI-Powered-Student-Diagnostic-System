@@ -1,15 +1,18 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  ArrowLeftIcon,
-  SaveIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,11 +71,16 @@ export function QuestionsPage() {
   const [questionTotal, setQuestionTotal] = useState(0);
   const [questionOffset, setQuestionOffset] = useState(0);
 
-  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(null);
-  const [questionForm, setQuestionForm] = useState<QuestionDraft>(emptyQuestion());
+  const [editingQuestion, setEditingQuestion] = useState<TestQuestion | null>(
+    null,
+  );
+  const [questionForm, setQuestionForm] =
+    useState<QuestionDraft>(emptyQuestion());
   const [savingQuestion, setSavingQuestion] = useState(false);
 
-  const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(null);
+  const [deletingQuestionId, setDeletingQuestionId] = useState<number | null>(
+    null,
+  );
   const [testNotFound, setTestNotFound] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -93,21 +101,24 @@ export function QuestionsPage() {
       });
   }, [testId, apiPrefix]);
 
-  const fetchQuestions = useCallback(async (off: number) => {
-    if (testId === null) return;
-    try {
-      const res = await apiFetch<PaginatedResponse<TestQuestion>>(
-        `${apiPrefix}/tests/${testId}/questions?limit=${PAGE_SIZE}&offset=${off}`
-      );
-      setQuestions(res.data ?? []);
-      setQuestionTotal(res.total);
-      setFetchError(null);
-    } catch (err) {
-      const message = (err as Error).message || "Failed to load questions";
-      setFetchError(message);
-      toast.error(message);
-    }
-  }, [testId, apiPrefix]);
+  const fetchQuestions = useCallback(
+    async (off: number) => {
+      if (testId === null) return;
+      try {
+        const res = await apiFetch<PaginatedResponse<TestQuestion>>(
+          `${apiPrefix}/tests/${testId}/questions?limit=${PAGE_SIZE}&offset=${off}`,
+        );
+        setQuestions(res.data ?? []);
+        setQuestionTotal(res.total);
+        setFetchError(null);
+      } catch (err) {
+        const message = (err as Error).message || "Failed to load questions";
+        setFetchError(message);
+        toast.error(message);
+      }
+    },
+    [testId, apiPrefix],
+  );
 
   useEffect(() => {
     fetchQuestions(questionOffset);
@@ -178,8 +189,13 @@ export function QuestionsPage() {
     return (
       <DashboardLayout title="Test Not Found">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-          <p className="text-muted-foreground">This test does not exist or has been deleted.</p>
-          <Button variant="outline" onClick={() => navigate(`${prefix}/all-tests`)}>
+          <p className="text-muted-foreground">
+            This test does not exist or has been deleted.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`${prefix}/all-tests`)}
+          >
             <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
           </Button>
         </div>
@@ -191,7 +207,9 @@ export function QuestionsPage() {
     return (
       <DashboardLayout title="Questions">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
-          <p role="alert" className="text-sm text-destructive">{testError}</p>
+          <p role="alert" className="text-sm text-destructive">
+            {testError}
+          </p>
           <Button
             variant="outline"
             onClick={() => {
@@ -207,7 +225,10 @@ export function QuestionsPage() {
           >
             Retry
           </Button>
-          <Button variant="outline" onClick={() => navigate(`${prefix}/all-tests`)}>
+          <Button
+            variant="outline"
+            onClick={() => navigate(`${prefix}/all-tests`)}
+          >
             <ArrowLeftIcon className="size-4 mr-2" /> Back to All Tests
           </Button>
         </div>
@@ -243,9 +264,13 @@ export function QuestionsPage() {
           <Badge variant="outline">ID: {test.test_id}</Badge>
           <Badge variant="secondary">Duration: {test.duration} min</Badge>
           {test.exam_date && (
-            <Badge variant="secondary">Exam: {formatDateDDMMYYYY(test.exam_date)}</Badge>
+            <Badge variant="secondary">
+              Exam: {formatDateDDMMYYYY(test.exam_date)}
+            </Badge>
           )}
-          <Badge variant="secondary">Subject: {test.subject_name || `#${test.subject_id}`}</Badge>
+          <Badge variant="secondary">
+            Subject: {test.subject_name || `#${test.subject_id}`}
+          </Badge>
         </div>
       </div>
 
@@ -255,14 +280,20 @@ export function QuestionsPage() {
           <div className="flex h-24 items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10">
             <p className="text-sm text-destructive">{fetchError}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => fetchQuestions(questionOffset)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchQuestions(questionOffset)}
+          >
             Retry
           </Button>
         </div>
       ) : questions.length === 0 ? (
         <div className="flex flex-col gap-4">
           <div className="flex h-24 items-center justify-center rounded-lg border border-dashed">
-            <p className="text-sm text-muted-foreground">No questions in this test. Add questions below.</p>
+            <p className="text-sm text-muted-foreground">
+              No questions in this test. Add questions below.
+            </p>
           </div>
           <CreateQuestionsForm
             testId={testId}
@@ -336,7 +367,7 @@ export function QuestionsPage() {
                       <TableCell className="font-mono text-sm text-muted-foreground">
                         {questionOffset + idx + 1}
                       </TableCell>
-                      <TableCell className="font-medium max-w-[300px] truncate">
+                      <TableCell className="font-medium max-w-75 truncate">
                         {q.question_text}
                       </TableCell>
                       <TableCell className="text-sm">{q.option_a}</TableCell>
@@ -359,19 +390,31 @@ export function QuestionsPage() {
             <Pagination>
               <PaginationContent className="flex items-center justify-between w-full">
                 <p className="text-sm text-muted-foreground">
-                  Showing {questionOffset + 1}–{Math.min(questionOffset + PAGE_SIZE, questionTotal)} of {questionTotal}
+                  Showing {questionOffset + 1}–
+                  {Math.min(questionOffset + PAGE_SIZE, questionTotal)} of{" "}
+                  {questionTotal}
                 </p>
                 <div className="flex gap-2">
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                      className={questionOffset === 0 ? "pointer-events-none opacity-50" : ""}
+                      onClick={() =>
+                        setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))
+                      }
+                      className={
+                        questionOffset === 0
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }
                     />
                   </PaginationItem>
                   <PaginationItem>
                     <PaginationNext
                       onClick={() => setQuestionOffset((o) => o + PAGE_SIZE)}
-                      className={questionOffset + PAGE_SIZE >= questionTotal ? "pointer-events-none opacity-50" : ""}
+                      className={
+                        questionOffset + PAGE_SIZE >= questionTotal
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }
                     />
                   </PaginationItem>
                 </div>
@@ -383,13 +426,23 @@ export function QuestionsPage() {
 
       {/* Edit Question Dialog (admin only) */}
       {isAdmin && (
-        <Dialog open={editingQuestion !== null} onOpenChange={(open) => { if (!open) setEditingQuestion(null); }}>
+        <Dialog
+          open={editingQuestion !== null}
+          onOpenChange={(open) => {
+            if (!open) setEditingQuestion(null);
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                Edit Question {editingQuestion ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}` : ""}
+                Edit Question{" "}
+                {editingQuestion
+                  ? `Q${questions.findIndex((qq) => qq.id === editingQuestion!.id) + 1 + questionOffset}`
+                  : ""}
               </DialogTitle>
-              <DialogDescription>Update the question fields below.</DialogDescription>
+              <DialogDescription>
+                Update the question fields below.
+              </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <QuestionFormFields
@@ -399,7 +452,10 @@ export function QuestionsPage() {
                 }
               />
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditingQuestion(null)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingQuestion(null)}
+                >
                   Cancel
                 </Button>
                 <Button onClick={handleSaveQuestion} disabled={savingQuestion}>

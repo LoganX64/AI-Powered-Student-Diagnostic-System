@@ -28,7 +28,7 @@ export function LiveVideoPanel({
         <div className="relative">
           <canvas
             ref={canvasRef}
-            className="w-full max-w-[640px] rounded-lg border bg-black"
+            className="w-full max-w-160 rounded-lg border bg-black"
           />
           {!connected && !error && live && (
             <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">

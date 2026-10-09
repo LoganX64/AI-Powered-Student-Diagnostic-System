@@ -15,7 +15,10 @@ import {
 } from "../../components/ui/alert-dialog";
 import { cn } from "../../lib/utils";
 import { useExamTimer } from "../../hooks/useExamTimer";
-import { useAnswerTracker, type AnswerRecord } from "../../hooks/useAnswerTracker";
+import {
+  useAnswerTracker,
+  type AnswerRecord,
+} from "../../hooks/useAnswerTracker";
 import {
   getAssignmentQuestions,
   submitExam,
@@ -30,7 +33,15 @@ import type {
   ExamStateResponse,
   IntegrityPolicy,
 } from "../../services/student.service";
-import { AlertTriangle, ArrowLeft, Flag, RefreshCw, ShieldCheck, Video, Timer } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Flag,
+  RefreshCw,
+  ShieldCheck,
+  Video,
+  Timer,
+} from "lucide-react";
 import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
@@ -85,8 +96,12 @@ export function StudentQuizPage() {
 
   // Read once at mount. A bare localStorage.getItem in the render body is
   // non-reactive, and useMemo is not a semantic guarantee that it runs once.
-  const [studentCode] = useState(() => localStorage.getItem("student_code") || "");
-  const [assignmentId] = useState(() => Number(localStorage.getItem("assignment_id") || "0"));
+  const [studentCode] = useState(
+    () => localStorage.getItem("student_code") || "",
+  );
+  const [assignmentId] = useState(() =>
+    Number(localStorage.getItem("assignment_id") || "0"),
+  );
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +110,9 @@ export function StudentQuizPage() {
   // Restoring an out-of-range index on first render would point currentQuestion at
   // undefined and render the "no questions" branch. Hold at 0 until the fetch
   // returns, then clamp to the real length.
-  const [restoredIndex] = useState<number>(() => loadCurrentIndex(assignmentId));
+  const [restoredIndex] = useState<number>(() =>
+    loadCurrentIndex(assignmentId),
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -125,7 +142,8 @@ export function StudentQuizPage() {
       setLoading(true);
       setError(null);
       try {
-        const data: AssignmentQuestionsResponse = await getAssignmentQuestions(assignmentId);
+        const data: AssignmentQuestionsResponse =
+          await getAssignmentQuestions(assignmentId);
         if (!cancelled) {
           const mapped: Question[] = data.questions.map((q) => ({
             id: q.id,
@@ -141,7 +159,10 @@ export function StudentQuizPage() {
           // Restore the saved position now that the real length is known, clamped
           // so a stale index from a longer exam can't strand the student.
           setCurrentIndex(() => {
-            const next = Math.min(Math.max(restoredIndex, 0), mapped.length - 1);
+            const next = Math.min(
+              Math.max(restoredIndex, 0),
+              mapped.length - 1,
+            );
             saveCurrentIndex(assignmentId, next);
             return next;
           });
@@ -154,14 +175,17 @@ export function StudentQuizPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : "Failed to load questions";
+          const msg =
+            err instanceof Error ? err.message : "Failed to load questions";
           setError(msg);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [assignmentId, refreshKey, restoredIndex]);
 
   const questionIds = useMemo(() => questions.map((q) => q.id), [questions]);
@@ -181,7 +205,9 @@ export function StudentQuizPage() {
   } = useAnswerTracker(questionIds, assignmentId);
 
   const currentQuestion = questions[currentIndex];
-  const currentRecord = currentQuestion ? records[currentQuestion.id] : undefined;
+  const currentRecord = currentQuestion
+    ? records[currentQuestion.id]
+    : undefined;
 
   // Track question changes — mark seen + start/stop timer
   useEffect(() => {
@@ -227,10 +253,11 @@ export function StudentQuizPage() {
     // either way — time_spent feeds SQI analytics, it does not decide the score — so
     // the threshold is the real duration, not an arbitrary multiple of it.
     const totalTimeSeconds = payload.reduce((sum, p) => sum + p.time_spent, 0);
-    const examDurationSeconds = Number(localStorage.getItem("exam_duration") || "60") * 60;
+    const examDurationSeconds =
+      Number(localStorage.getItem("exam_duration") || "60") * 60;
     if (totalTimeSeconds > examDurationSeconds) {
       const proceed = window.confirm(
-        `Total time spent (${(totalTimeSeconds / 60).toFixed(1)} min) exceeds exam duration (${(examDurationSeconds / 60).toFixed(1)} min). Submit anyway?`
+        `Total time spent (${(totalTimeSeconds / 60).toFixed(1)} min) exceeds exam duration (${(examDurationSeconds / 60).toFixed(1)} min). Submit anyway?`,
       );
       if (!proceed) {
         setSubmitting(false);
@@ -242,7 +269,10 @@ export function StudentQuizPage() {
       const result: SubmitResponse = await submitExam(assignmentId, payload);
       clearExamStorage(assignmentId);
       localStorage.removeItem("exam_ctx_" + assignmentId);
-      navigate("/submitted", { replace: true, state: { submitResult: result } });
+      navigate("/submitted", {
+        replace: true,
+        state: { submitResult: result },
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("already submitted")) {
@@ -266,7 +296,15 @@ export function StudentQuizPage() {
         state: { submitFailed: true, submitError: msg },
       });
     }
-  }, [submitting, stopTracking, flushAutosave, getPayload, questionIds, navigate, assignmentId]);
+  }, [
+    submitting,
+    stopTracking,
+    flushAutosave,
+    getPayload,
+    questionIds,
+    navigate,
+    assignmentId,
+  ]);
 
   const handleManualSubmit = () => {
     isAutoSubmitRef.current = false;
@@ -286,7 +324,8 @@ export function StudentQuizPage() {
   const examStartedAtRaw = localStorage.getItem("exam_started_at");
   const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
   // Backend stores duration in minutes; convert to seconds for useExamTimer
-  const examDuration = Number(localStorage.getItem("exam_duration") || "60") * 60;
+  const examDuration =
+    Number(localStorage.getItem("exam_duration") || "60") * 60;
 
   const timerTimeLeft = useExamTimer(
     examDuration,
@@ -306,7 +345,9 @@ export function StudentQuizPage() {
   // Tiered-exam behaviors (server-timing start, autosave, restore, proctoring)
   // ---------------------------------------------------------------------------
 
-  const mapStateToRecords = (st: ExamStateResponse): Record<number, AnswerRecord> => {
+  const mapStateToRecords = (
+    st: ExamStateResponse,
+  ): Record<number, AnswerRecord> => {
     const out: Record<number, AnswerRecord> = {};
     for (const a of st.answers) {
       const sel = a.selected_answer as AnswerRecord["selected_answer"];
@@ -381,7 +422,8 @@ export function StudentQuizPage() {
     if (!policy?.autosave || !examStarted || submitting) return;
     const id = setInterval(() => {
       const payload = getAutosavePayload();
-      if (payload.length) autosaveAnswers(assignmentId, payload).catch(() => {});
+      if (payload.length)
+        autosaveAnswers(assignmentId, payload).catch(() => {});
     }, 15000);
     return () => clearInterval(id);
   }, [policy, examStarted, submitting, assignmentId, getAutosavePayload]);
@@ -471,7 +513,8 @@ export function StudentQuizPage() {
 
   // Live WebSocket sender: sends JPEG frames at 1fps for live preview.
   useEffect(() => {
-    if (!policy?.video_proctoring || !examStarted || submitting || !cameraOk) return;
+    if (!policy?.video_proctoring || !examStarted || submitting || !cameraOk)
+      return;
     let ws: WebSocket | null = null;
     let cancelled = false;
     let frameInterval: ReturnType<typeof setInterval> | null = null;
@@ -479,7 +522,9 @@ export function StudentQuizPage() {
     let ctx: CanvasRenderingContext2D | null = null;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsBase = import.meta.env.VITE_BACKEND_URL?.replace(/^http/, "ws") || `${protocol}//${window.location.host}`;
+    const wsBase =
+      import.meta.env.VITE_BACKEND_URL?.replace(/^http/, "ws") ||
+      `${protocol}//${window.location.host}`;
     const wsUrl = `${wsBase}/student/assignments/${assignmentId}/live`;
 
     (async () => {
@@ -498,7 +543,8 @@ export function StudentQuizPage() {
           ctx = canvas.getContext("2d");
 
           frameInterval = setInterval(() => {
-            if (!ws || ws.readyState !== WebSocket.OPEN || !canvas || !ctx) return;
+            if (!ws || ws.readyState !== WebSocket.OPEN || !canvas || !ctx)
+              return;
             const videoEl = selfViewRef.current;
             if (!videoEl || videoEl.readyState < 2) return;
 
@@ -575,7 +621,9 @@ export function StudentQuizPage() {
   // Derived state
   // ---------------------------------------------------------------------------
 
-  const isLast = currentQuestion ? currentIndex === questions.length - 1 : false;
+  const isLast = currentQuestion
+    ? currentIndex === questions.length - 1
+    : false;
   const isMarked = currentRecord?.marked_for_review ?? false;
 
   // ---------------------------------------------------------------------------
@@ -589,7 +637,9 @@ export function StudentQuizPage() {
         <div className="mt-6 flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="mt-4 text-sm text-muted-foreground">Loading questions...</p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Loading questions...
+            </p>
           </div>
         </div>
       </div>
@@ -616,7 +666,11 @@ export function StudentQuizPage() {
               {error || "No questions found for this exam."}
             </p>
             <div className="mt-6 flex justify-center gap-3">
-              <Button onClick={() => setRefreshKey((k) => k + 1)} variant="outline" className="gap-2">
+              <Button
+                onClick={() => setRefreshKey((k) => k + 1)}
+                variant="outline"
+                className="gap-2"
+              >
                 <RefreshCw className="h-4 w-4" />
                 Try Again
               </Button>
@@ -827,7 +881,10 @@ export function StudentQuizPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Submit Exam?</AlertDialogTitle>
-            <AlertDialogDescription asChild className="text-sm text-muted-foreground space-y-2">
+            <AlertDialogDescription
+              asChild
+              className="text-sm text-muted-foreground space-y-2"
+            >
               <div>
                 <div>
                   You have{" "}
@@ -840,9 +897,18 @@ export function StudentQuizPage() {
                 </div>
                 <div className="pl-5 text-muted-foreground space-y-1">
                   <div>Once submitted, you will not be able to:</div>
-                  <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Change any answers</div>
-                  <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Review marked questions</div>
-                  <div className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />Return to the exam</div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
+                    Change any answers
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
+                    Review marked questions
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-muted-foreground shrink-0" />
+                    Return to the exam
+                  </div>
                 </div>
                 <div className="font-medium text-foreground">
                   {answeredCount} of {questions.length} questions answered.
@@ -874,7 +940,7 @@ export function StudentQuizPage() {
           autoPlay
           muted
           playsInline
-          className="fixed bottom-4 right-4 w-[150px] h-[112px] rounded-lg border border-border shadow-md object-cover z-50"
+          className="fixed bottom-4 right-4 w-37.5 h-28 rounded-lg border border-border shadow-md object-cover z-50"
         />
       )}
     </div>

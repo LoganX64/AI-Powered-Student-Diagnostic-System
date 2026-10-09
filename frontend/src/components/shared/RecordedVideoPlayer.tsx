@@ -44,7 +44,7 @@ export function RecordedVideoPlayer({
     setError(null);
     try {
       const data = await apiFetch<VideoStatusResponse>(
-        `${currentPrefix()}/assignments/${assignmentId}/video-chunks`
+        `${currentPrefix()}/assignments/${assignmentId}/video-chunks`,
       );
       const exists = Boolean(data.has_merged) || (data.chunks?.length ?? 0) > 0;
       setHasVideo(exists);
@@ -113,7 +113,11 @@ export function RecordedVideoPlayer({
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1 text-destructive hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-destructive hover:text-destructive"
+              >
                 <Trash2 className="h-3 w-3" />
                 Delete
               </Button>
@@ -145,7 +149,7 @@ export function RecordedVideoPlayer({
           <video
             src={videoUrl}
             controls
-            className="w-full max-w-[640px] rounded-lg border bg-black"
+            className="w-full max-w-160 rounded-lg border bg-black"
           />
         </div>
         {error && (

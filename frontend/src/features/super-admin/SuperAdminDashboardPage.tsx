@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Building2, Users, CreditCard, IndianRupee, Search, Ban, RotateCcw } from "lucide-react";
+import {
+  Building2,
+  Users,
+  CreditCard,
+  IndianRupee,
+  Search,
+  Ban,
+  RotateCcw,
+} from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 import { SuperAdminLayout } from "@/components/super-admin/SuperAdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +17,54 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { getGlobalStats, getTenants, getPlans, suspendTenant, reactivateTenant, type GlobalStats, type Tenant, type Plan } from "@/services/super-admin.service";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  getGlobalStats,
+  getTenants,
+  getPlans,
+  suspendTenant,
+  reactivateTenant,
+  type GlobalStats,
+  type Tenant,
+  type Plan,
+} from "@/services/super-admin.service";
 
 const PAGE_SIZE = 10;
 
@@ -34,7 +84,10 @@ const revenueChartConfig = {
   },
 } satisfies ChartConfig;
 
-const planBadgeVariant: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+const planBadgeVariant: Record<
+  string,
+  "default" | "secondary" | "outline" | "destructive"
+> = {
   free: "secondary",
   starter: "default",
   professional: "default",
@@ -43,8 +96,10 @@ const planBadgeVariant: Record<string, "default" | "secondary" | "outline" | "de
 
 const planBadgeColor: Record<string, string> = {
   starter: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
-  professional: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
-  enterprise: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+  professional:
+    "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300",
+  enterprise:
+    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
 };
 
 function getPlanName(planId: number | null, plans: Plan[]): string {
@@ -93,32 +148,44 @@ export function SuperAdminDashboardPage() {
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const fetchTenants = useCallback(async (off: number, searchTerm: string, plan: string, shouldAbort?: () => boolean) => {
-    setTableLoading(true);
-    try {
-      const res = await getTenants({
-        limit: PAGE_SIZE,
-        offset: off,
-        search: searchTerm || undefined,
-        plan: plan === "all" ? undefined : plan,
-      });
-      if (shouldAbort?.()) return;
-      setTenants(res.data ?? []);
-      setTotal(res.total);
-    } catch (err) {
-      if (!shouldAbort?.()) toast.error((err as Error).message);
-    } finally {
-      if (!shouldAbort?.()) setTableLoading(false);
-    }
-  }, []);
+  const fetchTenants = useCallback(
+    async (
+      off: number,
+      searchTerm: string,
+      plan: string,
+      shouldAbort?: () => boolean,
+    ) => {
+      setTableLoading(true);
+      try {
+        const res = await getTenants({
+          limit: PAGE_SIZE,
+          offset: off,
+          search: searchTerm || undefined,
+          plan: plan === "all" ? undefined : plan,
+        });
+        if (shouldAbort?.()) return;
+        setTenants(res.data ?? []);
+        setTotal(res.total);
+      } catch (err) {
+        if (!shouldAbort?.()) toast.error((err as Error).message);
+      } finally {
+        if (!shouldAbort?.()) setTableLoading(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
     fetchTenants(offset, search, planFilter, () => cancelled);
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [offset, search, planFilter, fetchTenants]);
 
   useEffect(() => {
@@ -161,7 +228,12 @@ export function SuperAdminDashboardPage() {
     { key: "tenants" as const, title: "Total Tenants", icon: Building2 },
     { key: "free_tenants" as const, title: "Free Users", icon: Users },
     { key: "paid_tenants" as const, title: "Paid Users", icon: CreditCard },
-    { key: "revenue" as const, title: "Revenue", icon: IndianRupee, isCurrency: true },
+    {
+      key: "revenue" as const,
+      title: "Revenue",
+      icon: IndianRupee,
+      isCurrency: true,
+    },
   ];
 
   return (
@@ -170,7 +242,9 @@ export function SuperAdminDashboardPage() {
         {statCards.map((card) => (
           <Card key={card.key}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                {card.title}
+              </CardTitle>
               <card.icon className="size-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -193,12 +267,23 @@ export function SuperAdminDashboardPage() {
           <CardTitle>Revenue Overview</CardTitle>
         </CardHeader>
         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-          <ChartContainer config={revenueChartConfig} className="aspect-auto h-[250px] w-full">
+          <ChartContainer
+            config={revenueChartConfig}
+            className="aspect-auto h-62.5 w-full"
+          >
             <AreaChart data={revenueData}>
               <defs>
                 <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0.1} />
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-revenue)"
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--color-revenue)"
+                    stopOpacity={0.1}
+                  />
                 </linearGradient>
               </defs>
               <CartesianGrid vertical={false} />
@@ -213,7 +298,10 @@ export function SuperAdminDashboardPage() {
                 cursor={false}
                 content={
                   <ChartTooltipContent
-                    formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Revenue"]}
+                    formatter={(value) => [
+                      `₹${Number(value).toLocaleString("en-IN")}`,
+                      "Revenue",
+                    ]}
                     indicator="dot"
                   />
                 }
@@ -275,59 +363,91 @@ export function SuperAdminDashboardPage() {
               <TableBody>
                 {tableLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">Loading...</TableCell>
+                    <TableCell colSpan={9} className="text-center py-8">
+                      Loading...
+                    </TableCell>
                   </TableRow>
                 ) : tenants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No tenants found</TableCell>
-                  </TableRow>
-                ) : tenants.map((t) => {
-                  const planSlug = getPlanSlug(t.plan_id, plans);
-                  return (
-                    <TableRow
-                      key={t.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => navigate(`/super-admin/tenants/${t.id}`)}
+                    <TableCell
+                      colSpan={9}
+                      className="text-center py-8 text-muted-foreground"
                     >
-                      <TableCell className="font-mono text-sm text-muted-foreground">{t.id}</TableCell>
-                      <TableCell className="font-medium">{t.name}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={planBadgeVariant[planSlug] ?? "secondary"}
-                          className={planBadgeColor[planSlug] ?? ""}
+                      No tenants found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  tenants.map((t) => {
+                    const planSlug = getPlanSlug(t.plan_id, plans);
+                    return (
+                      <TableRow
+                        key={t.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(`/super-admin/tenants/${t.id}`)}
+                      >
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {t.id}
+                        </TableCell>
+                        <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={planBadgeVariant[planSlug] ?? "secondary"}
+                            className={planBadgeColor[planSlug] ?? ""}
+                          >
+                            {getPlanName(t.plan_id, plans)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {t.student_count}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {t.coach_count}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {t.user_count}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={t.suspended_at ? "destructive" : "default"}
+                          >
+                            {t.suspended_at ? "Suspended" : "Active"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(t.created_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </TableCell>
+                        <TableCell
+                          className="text-right"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          {getPlanName(t.plan_id, plans)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">{t.student_count}</TableCell>
-                      <TableCell className="text-center">{t.coach_count}</TableCell>
-                      <TableCell className="text-center">{t.user_count}</TableCell>
-                      <TableCell>
-                        <Badge variant={t.suspended_at ? "destructive" : "default"}>
-                          {t.suspended_at ? "Suspended" : "Active"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(t.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        {t.suspended_at ? (
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => handleReactivate(t.id)}>
-                            <RotateCcw className="size-4" />
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="icon" className="size-8" onClick={() => setSuspendTenantId(t.id)}>
-                            <Ban className="size-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                          {t.suspended_at ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              onClick={() => handleReactivate(t.id)}
+                            >
+                              <RotateCcw className="size-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              onClick={() => setSuspendTenantId(t.id)}
+                            >
+                              <Ban className="size-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           </div>
@@ -335,19 +455,28 @@ export function SuperAdminDashboardPage() {
             <Pagination className="mt-4">
               <PaginationContent className="flex items-center justify-between w-full">
                 <p className="text-sm text-muted-foreground">
-                  Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total}
+                  Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of{" "}
+                  {total}
                 </p>
                 <div className="flex gap-2">
                   <PaginationItem>
                     <PaginationPrevious
-                      onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                      className={offset === 0 ? "pointer-events-none opacity-50" : ""}
+                      onClick={() =>
+                        setOffset((o) => Math.max(0, o - PAGE_SIZE))
+                      }
+                      className={
+                        offset === 0 ? "pointer-events-none opacity-50" : ""
+                      }
                     />
                   </PaginationItem>
                   <PaginationItem>
                     <PaginationNext
                       onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                      className={offset + PAGE_SIZE >= total ? "pointer-events-none opacity-50" : ""}
+                      className={
+                        offset + PAGE_SIZE >= total
+                          ? "pointer-events-none opacity-50"
+                          : ""
+                      }
                     />
                   </PaginationItem>
                 </div>
@@ -357,17 +486,24 @@ export function SuperAdminDashboardPage() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={suspendTenantId !== null} onOpenChange={(open) => !open && setSuspendTenantId(null)}>
+      <AlertDialog
+        open={suspendTenantId !== null}
+        onOpenChange={(open) => !open && setSuspendTenantId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Suspend Tenant</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to suspend this tenant? They will lose access to the platform until reactivated.
+              Are you sure you want to suspend this tenant? They will lose
+              access to the platform until reactivated.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSuspend} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleSuspend}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Suspend
             </AlertDialogAction>
           </AlertDialogFooter>

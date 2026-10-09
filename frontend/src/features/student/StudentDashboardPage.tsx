@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, BarChart3, Clock, FileText, LogOut, Mail, Phone } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Clock,
+  FileText,
+  LogOut,
+  Mail,
+  Phone,
+} from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { getStudentAssignments } from "../../services/student.service";
 import type { Assignment } from "../../services/student.service";
@@ -13,14 +21,18 @@ import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 export function StudentDashboardPage() {
   const navigate = useNavigate();
 
-  const [studentCode] = useState(() => localStorage.getItem("student_code") || "");
+  const [studentCode] = useState(
+    () => localStorage.getItem("student_code") || "",
+  );
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [examInProgress] = useState(
-    () => localStorage.getItem("exam_started") === "true" && !!localStorage.getItem("assignment_id")
+    () =>
+      localStorage.getItem("exam_started") === "true" &&
+      !!localStorage.getItem("assignment_id"),
   );
 
   useEffect(() => {
@@ -32,12 +44,17 @@ export function StudentDashboardPage() {
         const data = await getStudentAssignments();
         if (!cancelled) setAssignments(data);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load assignments");
+        if (!cancelled)
+          setError(
+            err instanceof Error ? err.message : "Failed to load assignments",
+          );
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [refreshKey]);
 
   const handleStartExam = (assignmentId: number) => {
@@ -92,7 +109,12 @@ export function StudentDashboardPage() {
           <span className="font-semibold text-foreground">{studentCode}</span>
         </span>
 
-        <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLogout}
+          className="gap-2"
+        >
           <LogOut className="h-4 w-4" />
           Logout
         </Button>
@@ -127,7 +149,9 @@ export function StudentDashboardPage() {
           {loading && (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-              <p className="mt-4 text-sm text-muted-foreground">Loading assignments...</p>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Loading assignments...
+              </p>
             </div>
           )}
 
@@ -135,11 +159,13 @@ export function StudentDashboardPage() {
           {!loading && error && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="rounded-xl border border-red-200 bg-red-50 px-6 py-4  ">
-                <p className="text-sm font-medium text-red-700 ">
-                  {error}
-                </p>
+                <p className="text-sm font-medium text-red-700 ">{error}</p>
               </div>
-              <Button onClick={() => setRefreshKey((k) => k + 1)} className="mt-4" variant="outline">
+              <Button
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="mt-4"
+                variant="outline"
+              >
                 Try Again
               </Button>
             </div>
@@ -181,10 +207,14 @@ export function StudentDashboardPage() {
             <div className="space-y-3">
               {assignments.map((assignment) => {
                 const isSubmitted = assignment.status === "submitted";
-                const assignedDate = new Date(assignment.assigned_at).toLocaleDateString(
-                  "en-US",
-                  { weekday: "short", year: "numeric", month: "short", day: "numeric" },
-                );
+                const assignedDate = new Date(
+                  assignment.assigned_at,
+                ).toLocaleDateString("en-US", {
+                  weekday: "short",
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                });
 
                 return (
                   <div
@@ -221,7 +251,7 @@ export function StudentDashboardPage() {
                       onClick={() => handleStartExam(assignment.id)}
                       disabled={isSubmitted}
                       variant={isSubmitted ? "outline" : "default"}
-                      className="min-w-[120px]"
+                      className="min-w-30"
                     >
                       {isSubmitted ? "Completed" : "Start Exam"}
                     </Button>

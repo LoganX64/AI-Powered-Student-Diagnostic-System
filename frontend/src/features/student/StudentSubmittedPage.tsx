@@ -6,7 +6,6 @@ import { submitAnswers } from "../../services/student.service";
 import type { AnswerPayload } from "../../services/student.service";
 import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 
-
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
 function clearStudentSession() {
@@ -54,9 +53,10 @@ function loadPendingSubmission(): PendingSubmission | null {
 export function StudentSubmittedPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const navState = location.state as
-    | { submitFailed?: boolean; submitError?: string }
-    | null;
+  const navState = location.state as {
+    submitFailed?: boolean;
+    submitError?: string;
+  } | null;
   const [countdown, setCountdown] = useState(REDIRECT_AFTER_SECONDS);
   const [retrying, setRetrying] = useState(false);
   const [retrySuccess, setRetrySuccess] = useState(false);
@@ -88,7 +88,9 @@ export function StudentSubmittedPage() {
         setRetrySuccess(true);
         return;
       }
-      setRetryError(msg || "Submission failed. Check your connection and try again.");
+      setRetryError(
+        msg || "Submission failed. Check your connection and try again.",
+      );
     } finally {
       setRetrying(false);
     }
@@ -146,14 +148,22 @@ export function StudentSubmittedPage() {
           } `}
         >
           {submissionFailed ? (
-            <AlertTriangle className="h-8 w-8 text-red-600 " aria-hidden="true" />
+            <AlertTriangle
+              className="h-8 w-8 text-red-600 "
+              aria-hidden="true"
+            />
           ) : (
-            <CheckCircle className="h-8 w-8 text-green-600 " aria-hidden="true" />
+            <CheckCircle
+              className="h-8 w-8 text-green-600 "
+              aria-hidden="true"
+            />
           )}
         </div>
 
         <h1 className="text-xl font-semibold text-foreground">
-          {submissionFailed ? "Submission failed" : "Your test has been submitted"}
+          {submissionFailed
+            ? "Submission failed"
+            : "Your test has been submitted"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {submissionFailed
@@ -190,9 +200,7 @@ export function StudentSubmittedPage() {
 
         {retrySuccess && (
           <div className="mt-6 rounded-xl border border-green-300 bg-green-50 px-6 py-4  ">
-            <p className="text-sm text-green-800 ">
-              Submission successful!
-            </p>
+            <p className="text-sm text-green-800 ">Submission successful!</p>
           </div>
         )}
 
@@ -210,7 +218,7 @@ export function StudentSubmittedPage() {
 
             <Button
               variant="outline"
-              className="mt-6 min-w-[160px]"
+              className="mt-6 min-w-40"
               onClick={handleRedirectNow}
             >
               Redirect Now

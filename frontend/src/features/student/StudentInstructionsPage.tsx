@@ -1,6 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Clock, CalendarClock, AlertTriangle, ArrowLeft, Video, VideoOff } from "lucide-react";
+import {
+  Clock,
+  CalendarClock,
+  AlertTriangle,
+  ArrowLeft,
+  Video,
+  VideoOff,
+} from "lucide-react";
 import { ExamHeader } from "../../components/student/exam-header";
 import { Button } from "../../components/ui/button";
 import { useExamTimer } from "../../hooks/useExamTimer";
@@ -79,14 +86,17 @@ export function StudentInstructionsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : "Failed to load exam";
+          const msg =
+            err instanceof Error ? err.message : "Failed to load exam";
           setError(msg);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [assignmentId]);
 
   // Camera check: when data loads and video_proctoring is enabled, test the camera.
@@ -95,7 +105,10 @@ export function StudentInstructionsPage() {
     setCameraStatus("checking");
     setCameraError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
+      });
       cameraStreamRef.current = stream;
       if (videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream;
@@ -178,7 +191,9 @@ export function StudentInstructionsPage() {
         <div className="mt-6 flex flex-1 items-center justify-center">
           <div className="flex flex-col items-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <p className="mt-4 text-sm text-muted-foreground">Loading exam details...</p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Loading exam details...
+            </p>
           </div>
         </div>
       </div>
@@ -191,7 +206,8 @@ export function StudentInstructionsPage() {
 
   if (error) {
     const isAlreadySubmitted = error.includes("already submitted");
-    const isNoQuestions = error.includes("no questions") || error.includes("not found");
+    const isNoQuestions =
+      error.includes("no questions") || error.includes("not found");
 
     return (
       <div className="flex min-h-screen flex-col bg-background px-4 py-6 sm:px-8">
@@ -215,7 +231,11 @@ export function StudentInstructionsPage() {
                   ? "This exam does not have any questions yet. Please contact your instructor."
                   : error}
             </p>
-            <Button onClick={handleBackToDashboard} className="mt-6 gap-2" variant="outline">
+            <Button
+              onClick={handleBackToDashboard}
+              className="mt-6 gap-2"
+              variant="outline"
+            >
               <ArrowLeft className="h-4 w-4" />
               Back to Dashboard
             </Button>
@@ -238,7 +258,9 @@ export function StudentInstructionsPage() {
         {/* Test title */}
         {data?.test_title && (
           <>
-            <span className="font-semibold text-foreground">{data.test_title}</span>
+            <span className="font-semibold text-foreground">
+              {data.test_title}
+            </span>
             <span className="hidden sm:block text-border">|</span>
           </>
         )}
@@ -275,7 +297,9 @@ export function StudentInstructionsPage() {
             <span className="hidden sm:block text-border">|</span>
             <span className="text-muted-foreground">
               Exam Date:{" "}
-              <span className="font-semibold text-foreground">{data.exam_date}</span>
+              <span className="font-semibold text-foreground">
+                {data.exam_date}
+              </span>
             </span>
           </>
         )}
@@ -307,7 +331,9 @@ export function StudentInstructionsPage() {
             <div className="mt-6 rounded-xl border border-border bg-muted/40 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Video className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">Camera Check</span>
+                <span className="text-sm font-medium text-foreground">
+                  Camera Check
+                </span>
               </div>
 
               {cameraStatus === "checking" && (
@@ -328,7 +354,7 @@ export function StudentInstructionsPage() {
                     autoPlay
                     muted
                     playsInline
-                    className="w-full max-w-[240px] rounded-lg border bg-black"
+                    className="w-full max-w-60 rounded-lg border bg-black"
                   />
                 </div>
               )}
@@ -337,10 +363,13 @@ export function StudentInstructionsPage() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2 text-sm text-red-600">
                     <VideoOff className="h-4 w-4" />
-                    Camera not available. Please allow camera access and refresh.
+                    Camera not available. Please allow camera access and
+                    refresh.
                   </div>
                   {cameraError && (
-                    <p className="text-xs text-muted-foreground">{cameraError}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {cameraError}
+                    </p>
                   )}
                   <Button
                     variant="outline"
@@ -359,7 +388,11 @@ export function StudentInstructionsPage() {
 
         {/* Footer with Accept button */}
         <div className="flex justify-between border-t border-border px-8 py-5">
-          <Button variant="outline" onClick={handleBackToDashboard} className="gap-2">
+          <Button
+            variant="outline"
+            onClick={handleBackToDashboard}
+            className="gap-2"
+          >
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>

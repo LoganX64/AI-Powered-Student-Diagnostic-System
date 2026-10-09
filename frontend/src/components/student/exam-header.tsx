@@ -18,7 +18,11 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export function ExamHeader({ candidateName, timeLeft, className }: ExamHeaderProps) {
+export function ExamHeader({
+  candidateName,
+  timeLeft,
+  className,
+}: ExamHeaderProps) {
   const isLow = timeLeft <= 300; // red when <= 5 minutes
 
   return (
@@ -40,7 +44,7 @@ export function ExamHeader({ candidateName, timeLeft, className }: ExamHeaderPro
 
       <span
         className={cn(
-          "min-w-[80px] rounded-xl border px-4 py-1.5 text-center text-sm font-semibold tabular-nums",
+          "min-w-20 rounded-xl border px-4 py-1.5 text-center text-sm font-semibold tabular-nums",
           isLow
             ? "border-red-300 bg-red-50 text-red-600   "
             : "border-border bg-muted text-foreground",
