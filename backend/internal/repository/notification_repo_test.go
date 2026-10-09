@@ -44,13 +44,15 @@ func TestNotificationUnreadCount(t *testing.T) {
 	}
 
 	nr := NewNotificationRepo(db)
-	// 3 unread for uidA: 2 targeted + 1 NULL (NULL rows count for any user)
+	// 2 unread owned by uidA.
 	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uidA, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
 	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uidA, EventType: "coach_activity", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
+	// A broadcast row, which ScopeOwn must NOT surface: read_at is a single
+	// column shared by the whole org, so it cannot carry per-user read state.
 	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: nil, EventType: "system_alert", Title: "t", Message: "m", Priority: "warning", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
@@ -64,33 +66,68 @@ func TestNotificationUnreadCount(t *testing.T) {
 	if _, err := nr.Create(NotificationRow{TenantID: otherTid, UserID: &otherUID, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
+	// A row owned by uidB in the same tenant: the isolation case. uidA must never
+	// see it under ScopeOwn.
+	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uidB, EventType: "exam_submitted", Title: "uidB only", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
+		t.Fatalf("create uidB notif: %v", err)
+	}
 
-	count, err := nr.UnreadCount(tid, &uidA)
+	count, err := nr.UnreadCount(tid, &uidA, ScopeOwn)
 	if err != nil {
 		t.Fatalf("UnreadCount: %v", err)
 	}
-	if count != 3 {
-		t.Fatalf("expected unread count 3 for uidA, got %d", count)
+	if count != 2 {
+		t.Fatalf("expected unread count 2 for uidA, got %d", count)
 	}
 
+	// ScopeOwn must exclude both the broadcast row and uidB's row.
+	ownRows, _, err := nr.List(tid, &uidA, ScopeOwn, "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List ScopeOwn: %v", err)
+	}
+	for _, r := range ownRows {
+		if r.UserID == nil {
+			t.Fatal("ScopeOwn surfaced a broadcast row")
+		}
+		if *r.UserID != uidA {
+			t.Fatalf("ScopeOwn surfaced another user's row (user_id=%d)", *r.UserID)
+		}
+	}
+
+	// ScopeTenant (the admin's view) does include uidB's row, so oversight works.
+	allRows, allTotal, err := nr.List(tid, &uidA, ScopeTenant, "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List ScopeTenant: %v", err)
+	}
+	sawUIDB := false
+	for _, r := range allRows {
+		if r.UserID != nil && *r.UserID == uidB && r.Title == "uidB only" {
+			sawUIDB = true
+		}
+	}
+	if !sawUIDB {
+		t.Fatal("ScopeTenant hid another user's row from the admin")
+	}
+	// Tenant-wide unread covers uidA's 2 + uidB's 1 + the broadcast row.
+	allUnread, err := nr.UnreadCount(tid, &uidA, ScopeTenant)
+	if err != nil {
+		t.Fatalf("UnreadCount ScopeTenant: %v", err)
+	}
+	if allUnread != 4 {
+		t.Fatalf("tenant-scoped unread=%d, want 4 (2 uidA + 1 uidB + 1 broadcast)", allUnread)
+	}
+	_ = allTotal
+
 	// mark one of uidA's notifications read
-	rows, _, err := nr.List(tid, &uidA, "", false, 50, 0)
+	rows, _, err := nr.List(tid, &uidA, ScopeOwn, "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(rows) == 0 {
 		t.Fatalf("expected rows for uidA")
 	}
-	// List also returns broadcast rows (user_id IS NULL), ordered by created_at
-	// DESC, so rows[0] is not necessarily one of uidA's. Pick a row uidA owns —
-	// MarkRead refuses broadcast rows by design.
-	var uidARow int
-	for _, r := range rows {
-		if r.UserID != nil && *r.UserID == uidA {
-			uidARow = r.ID
-			break
-		}
-	}
+	// Every row ScopeOwn returned is uidA's by construction, so rows[0] is safe.
+	uidARow := rows[0].ID
 	if uidARow == 0 {
 		t.Fatalf("no row owned by uidA in the listing")
 	}
@@ -109,33 +146,18 @@ func TestNotificationUnreadCount(t *testing.T) {
 	}
 	// A broadcast row must be refused outright: read_at is one column, so one
 	// user marking an org-wide notification read would hide it for everyone.
-	var broadcastRow int
-	for _, r := range rows {
-		if r.UserID == nil {
-			broadcastRow = r.ID
-			break
-		}
-	}
-	if broadcastRow != 0 {
-		if marked, err := nr.MarkRead(broadcastRow, tid, uidA); err != nil {
-			t.Fatalf("MarkRead on broadcast: %v", err)
-		} else if marked {
-			t.Fatalf("MarkRead let a single user mark a broadcast notification read")
-		}
-	}
-	count, _ = nr.UnreadCount(tid, &uidA)
-	if count != 2 {
-		t.Fatalf("expected unread count 2 after mark read, got %d", count)
-	}
-
-	// tenant-scoped count (no userID): after marking one of uidA's read, tid has
-	// 2 unread (uidA's remaining row + the NULL row).
-	total, err := nr.UnreadCount(tid, nil)
+	broadcastRow, err := nr.Create(NotificationRow{TenantID: tid, UserID: nil, EventType: "system_alert", Title: "broadcast2", Message: "m", Priority: "warning", Metadata: json.RawMessage("{}")})
 	if err != nil {
-		t.Fatalf("UnreadCount nil: %v", err)
+		t.Fatalf("create broadcast: %v", err)
 	}
-	if total != 2 {
-		t.Fatalf("expected tenant-scoped unread 2, got %d", total)
+	if marked, err := nr.MarkRead(broadcastRow, tid, uidA); err != nil {
+		t.Fatalf("MarkRead on broadcast: %v", err)
+	} else if marked {
+		t.Fatalf("MarkRead let a single user mark a broadcast notification read")
+	}
+	count, _ = nr.UnreadCount(tid, &uidA, ScopeOwn)
+	if count != 1 {
+		t.Fatalf("expected unread count 1 after mark read, got %d", count)
 	}
 }
 
@@ -177,11 +199,11 @@ func TestNotificationMarkReadAndDelete(t *testing.T) {
 		t.Fatalf("expected ReadAt to be set after MarkRead")
 	}
 
-	// MarkAllRead for the user (only their targeted + NULL rows)
+	// MarkAllRead for the user (only their own rows)
 	if err := nr.MarkAllRead(tid, &uid); err != nil {
 		t.Fatalf("MarkAllRead: %v", err)
 	}
-	count, _ := nr.UnreadCount(tid, &uid)
+	count, _ := nr.UnreadCount(tid, &uid, ScopeOwn)
 	if count != 0 {
 		t.Fatalf("expected 0 unread after MarkAllRead, got %d", count)
 	}

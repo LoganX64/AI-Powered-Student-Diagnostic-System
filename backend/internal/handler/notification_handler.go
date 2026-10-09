@@ -25,7 +25,21 @@ func NewNotificationHandler(
 	}
 }
 
+// scopeFor maps the caller's role to the rows they may read. The admin is the
+// sole owner of the organization and sees everything in the tenant; a coach sees
+// only rows addressed to them, never a colleague's.
+func scopeFor(role string) repository.NotificationScope {
+	if role == "admin" {
+		return repository.ScopeTenant
+	}
+	return repository.ScopeOwn
+}
+
 // GET /admin/notifications?event_type=&unread=&limit=&offset=
+//
+// The response carries viewer_user_id so the client can tell which rows it may
+// act on. The admin sees every row in the tenant but MarkRead/Delete are
+// owner-scoped, so without this the UI would offer actions that 404.
 func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
 	userID := c.GetInt("user_id")
@@ -33,7 +47,7 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	unreadOnly := c.Query("unread") == "true"
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 
-	notifications, total, err := h.NotificationRepo.List(tenantID, &userID, eventType, unreadOnly, limit, offset)
+	notifications, total, err := h.NotificationRepo.List(tenantID, &userID, scopeFor(c.GetString("role")), eventType, unreadOnly, limit, offset)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch notifications")
 		return
@@ -41,14 +55,17 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	if notifications == nil {
 		notifications = []repository.NotificationRow{}
 	}
-	c.JSON(http.StatusOK, gin.H{"total": total, "limit": limit, "offset": offset, "data": notifications})
+	c.JSON(http.StatusOK, gin.H{
+		"total": total, "limit": limit, "offset": offset,
+		"data": notifications, "viewer_user_id": userID,
+	})
 }
 
 // GET /admin/notifications/unread-count
 func (h *NotificationHandler) UnreadCount(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
 	userID := c.GetInt("user_id")
-	count, err := h.NotificationRepo.UnreadCount(tenantID, &userID)
+	count, err := h.NotificationRepo.UnreadCount(tenantID, &userID, scopeFor(c.GetString("role")))
 	if err != nil {
 		utils.InternalError(c, err, "failed to count unread")
 		return

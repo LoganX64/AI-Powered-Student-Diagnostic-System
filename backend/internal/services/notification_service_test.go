@@ -3,100 +3,278 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/testutil"
 )
 
-// setupNotifTenant creates an isolated tenant with an admin (enabled), an admin
-// that has exam_submitted disabled, and a coach (enabled). Returns tenant id and
-// the three user ids (A=enabled admin, B=disabled admin, C=coach).
-func setupNotifTenant(t *testing.T, db *sql.DB) (tid int, a, b, c int) {
+// notifTenant creates an isolated tenant mirroring the real topology: exactly one
+// admin (A, who owns the org), plus coaches B (no students), C (no students) and
+// D (owns the student). Returns the tenant id, the four user ids, and D's
+// assignment.
+//
+// One admin matters for the assertions: sqi_complete resolves to every admin, so
+// a second admin would make the expected recipient count wrong and hide a bug
+// where the admin list is not actually read.
+//
+// The coaches table is what resolves targeting — notifications are addressed by
+// users.id while assignments reference coaches.id — so a test that omits a coach
+// row would silently exercise the admin-only fallback instead of the coach path.
+func notifTenant(t *testing.T, db *sql.DB) (tid int, a, b, c, d int, assignmentID int) {
+	t.Helper()
 	if err := db.QueryRow(`INSERT INTO tenants (name) VALUES ($1) RETURNING id`, "svc-notif-"+t.Name()).Scan(&tid); err != nil {
 		t.Fatalf("create tenant: %v", err)
 	}
-	ur := repository.NewUserRepo(db)
-	var err error
-	if a, err = ur.Create(tid, "svc_a@test.local", "x", "admin"); err != nil {
-		t.Fatalf("create A: %v", err)
-	}
-	if b, err = ur.Create(tid, "svc_b@test.local", "x", "admin"); err != nil {
-		t.Fatalf("create B: %v", err)
-	}
-	if c, err = ur.Create(tid, "svc_c@test.local", "x", "coach"); err != nil {
-		t.Fatalf("create C: %v", err)
-	}
-	nr := repository.NewNotificationRepo(db)
-	if err := nr.UpdatePreferences(b, map[string]bool{"exam_submitted": false}); err != nil {
-		t.Fatalf("disable pref for B: %v", err)
-	}
-	return tid, a, b, c
+	// One admin and three coaches. Admin count matters: sqi_complete resolves to
+// every admin, so a second admin would change the expected recipient set.
+	a = testutil.CreateAdmin(t, db, tid)
+	// CreateCoach inserts the users row and the coaches row together, which is
+	// what targeting resolves through.
+	b, _ = testutil.CreateCoach(t, db, tid)
+	c, _ = testutil.CreateCoach(t, db, tid)
+	var coachCID int
+	d, coachCID = testutil.CreateCoach(t, db, tid)
+	subject := testutil.CreateSubject(t, db, tid, "Subject")
+	student := testutil.CreateStudent(t, db, tid, coachCID, testutil.UniqueCode(t, "stu"), "Bob")
+	testID := testutil.CreateTest(t, db, tid, subject, coachCID, 60)
+	assignmentID = testutil.CreateAssignment(t, db, student, testID, coachCID)
+
+	return tid, a, b, c, d, assignmentID
 }
 
-// Test 3.11: notification created on exam submission (fan-out), respects disabled pref
-func TestNotifyExamSubmittedFanout(t *testing.T) {
+// disableEvent turns one user's preference for an event off, proving the
+// per-recipient gate still applies now that fan-out is targeted rather than
+// blanket.
+func disableEvent(t *testing.T, db *sql.DB, userID int, eventType string) {
+	t.Helper()
+	nr := repository.NewNotificationRepo(db)
+	if err := nr.UpdatePreferences(userID, map[string]bool{eventType: false}); err != nil {
+		t.Fatalf("disable %s for %d: %v", eventType, userID, err)
+	}
+}
+
+// notifyRecipients returns the set of user_ids that received an event type,
+// tenant-wide, so a test asserts on delivery rather than on a specific list order.
+func notifyRecipients(t *testing.T, db *sql.DB, tid int, eventType string) map[int]bool {
+	t.Helper()
+	rows, err := db.Query(`SELECT user_id FROM notifications WHERE tenant_id = $1 AND event_type = $2`, tid, eventType)
+	if err != nil {
+		t.Fatalf("recipients query: %v", err)
+	}
+	defer rows.Close()
+	got := map[int]bool{}
+	for rows.Next() {
+		var uid sql.NullInt64
+		if err := rows.Scan(&uid); err != nil {
+			t.Fatalf("scan recipient: %v", err)
+		}
+		if uid.Valid {
+			got[int(uid.Int64)] = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate recipients: %v", err)
+	}
+	return got
+}
+
+// Exam submission reaches the admin and the coach who owns the student, and
+// nobody else — coach C has no students and must not be told.
+func TestNotifyExamSubmittedTargetsOwningCoach(t *testing.T) {
 	db := testutil.OpenTestDB(t)
-	tid, a, b, c := setupNotifTenant(t, db)
+	tid, a, b, c, d, assignmentID := notifTenant(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyExamSubmitted(tid, 42, 7, "Bob"); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob"); err != nil {
 		t.Fatalf("NotifyExamSubmitted: %v", err)
 	}
 
-	rows, total, err := nr.List(tid, nil, "exam_submitted", false, 50, 0)
+	got := notifyRecipients(t, db, tid, "exam_submitted")
+	if !got[a] {
+		t.Fatalf("admin %d must receive exam_submitted, got %v", a, got)
+	}
+	if !got[d] {
+		t.Fatalf("owning coach %d must receive exam_submitted, got %v", d, got)
+	}
+	if got[c] {
+		t.Fatalf("coach %d owns no students and must not be notified, got %v", c, got)
+	}
+	if got[b] {
+		t.Fatalf("coach %d was never a recipient and must not be notified, got %v", b, got)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected exactly 2 recipients, got %v", got)
+	}
+
+	// Metadata must round-trip so the UI can deep-link to the submission.
+	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "exam_submitted", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if total != 2 {
-		t.Fatalf("expected 2 fanned-out notifications, got %d", total)
+	if len(rows) == 0 {
+		t.Fatal("no rows for the admin")
 	}
-	got := map[int]bool{}
-	for _, r := range rows {
-		if r.UserID == nil {
-			t.Fatalf("fan-out must create per-user rows, got user_id=NULL")
-		}
-		got[*r.UserID] = true
-		// metadata must round-trip student_id / assignment_id
-		var meta map[string]float64
-		if err := json.Unmarshal(r.Metadata, &meta); err != nil {
-			t.Fatalf("unmarshal metadata: %v", err)
-		}
-		if int(meta["student_id"]) != 42 || int(meta["assignment_id"]) != 7 {
-			t.Fatalf("metadata mismatch: %v", meta)
-		}
+	// Metadata must round-trip so the UI can deep-link to the submission. It is
+	// mixed-type now: numeric ids for routing, plus resolved display names.
+	var meta map[string]interface{}
+	if err := json.Unmarshal(rows[0].Metadata, &meta); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
 	}
-	if !got[a] || !got[c] {
-		t.Fatalf("expected notifications for enabled admin A and coach C, got %v", got)
+	if int(meta["student_id"].(float64)) != 42 || int(meta["assignment_id"].(float64)) != assignmentID {
+		t.Fatalf("metadata mismatch: %v", meta)
 	}
-	if got[b] {
-		t.Fatalf("disabled admin B should NOT receive exam_submitted notification")
+	// The message must read as prose, not as a primary key: "Coach (ID: 3)" and
+	// "assignment 7" tell an admin nothing they can act on.
+	if !strings.Contains(rows[0].Message, "Bob") {
+		t.Fatalf("message must name the student, got %q", rows[0].Message)
+	}
+	for _, banned := range []string{"(ID:", "assignment"} {
+		if strings.Contains(rows[0].Message, banned) {
+			t.Fatalf("message leaks raw identifiers (%q): %q", banned, rows[0].Message)
+		}
 	}
 }
 
-// Test 3.11 (supplementary): per-event priority for student-exam-logout is warning
-func TestNotifyStudentExamLogoutPriority(t *testing.T) {
+// sqi_complete is admin-only: the batch spans the organization, so no single
+// coach owns it.
+func TestNotifySQICompleteIsAdminOnly(t *testing.T) {
 	db := testutil.OpenTestDB(t)
-	tid, a, _, _ := setupNotifTenant(t, db)
+	tid, a, _, c, d, _ := notifTenant(t, db)
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyStudentExamLogout(tid, 42, 7, "Bob"); err != nil {
+	if err := svc.NotifySQIComplete(tid, 7, 120, 0); err != nil {
+		t.Fatalf("NotifySQIComplete: %v", err)
+	}
+
+	got := notifyRecipients(t, db, tid, "sqi_complete")
+	if !got[a] {
+		t.Fatalf("admin must receive sqi_complete, got %v", got)
+	}
+	if got[c] || got[d] {
+		t.Fatalf("no coach may receive sqi_complete, got %v", got)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected exactly 1 recipient, got %v", got)
+	}
+}
+
+// coach_activity reaches only the coach who acted and the admin. This was the
+// noisiest event: it used to tell every coach about every other coach's work.
+func TestNotifyCoachActivityTargetsActingCoach(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid, a, _, c, d, _ := notifTenant(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+
+	actingCoachID, err := repository.NewCoachRepo(db).GetIDFromUser(d)
+	if err != nil {
+		t.Fatalf("coach id: %v", err)
+	}
+	if err := svc.NotifyCoachActivity(tid, actingCoachID, "created test", "Patent exam"); err != nil {
+		t.Fatalf("NotifyCoachActivity: %v", err)
+	}
+
+	got := notifyRecipients(t, db, tid, "coach_activity")
+	if !got[a] {
+		t.Fatalf("admin must receive coach_activity, got %v", got)
+	}
+	if !got[d] {
+		t.Fatalf("acting coach %d must receive coach_activity, got %v", d, got)
+	}
+	if got[c] {
+		t.Fatalf("coach %d did not act and must not be notified, got %v", c, got)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected exactly 2 recipients, got %v", got)
+	}
+}
+
+// student_exam_logout targets the owning coach, same as exam_submitted.
+func TestNotifyStudentExamLogoutTargetsOwningCoach(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid, a, _, c, d, assignmentID := notifTenant(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+
+	if err := svc.NotifyStudentExamLogout(tid, 42, assignmentID, "Bob"); err != nil {
 		t.Fatalf("NotifyStudentExamLogout: %v", err)
 	}
-	rows, _, err := nr.List(tid, &a, "student_exam_logout", false, 50, 0)
+
+	got := notifyRecipients(t, db, tid, "student_exam_logout")
+	if !got[a] || !got[d] {
+		t.Fatalf("expected admin %d and owning coach %d, got %v", a, d, got)
+	}
+	if got[c] {
+		t.Fatalf("coach %d owns no students and must not be notified, got %v", c, got)
+	}
+
+	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "student_exam_logout", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(rows) != 1 {
-		t.Fatalf("expected 1 notification for admin A, got %d", len(rows))
+		t.Fatalf("expected 1 notification for the admin, got %d", len(rows))
 	}
 	if rows[0].Priority != "warning" {
 		t.Fatalf("expected priority warning, got %q", rows[0].Priority)
+	}
+}
+
+// The per-recipient preference gate still applies after targeting: an admin who
+// disabled the event is skipped while the owning coach still receives it.
+func TestNotifyTargetedRespectsPreferences(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid, a, _, c, d, assignmentID := notifTenant(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	disableEvent(t, db, a, "exam_submitted")
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob"); err != nil {
+		t.Fatalf("NotifyExamSubmitted: %v", err)
+	}
+
+	got := notifyRecipients(t, db, tid, "exam_submitted")
+	if got[a] {
+		t.Fatalf("admin %d disabled exam_submitted and must be skipped, got %v", a, got)
+	}
+	if !got[d] {
+		t.Fatalf("owning coach %d must still receive it, got %v", d, got)
+	}
+	if got[c] {
+		t.Fatalf("coach %d is not a recipient, got %v", c, got)
+	}
+}
+
+// A coach lookup that fails must not lose the event: the admin still receives it.
+// Assignment 9999999 does not exist, so the coach cannot be resolved.
+func TestNotifyExamSubmittedFallsBackToAdminWhenCoachUnknown(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid, a, _, _, _, _ := notifTenant(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+
+	if err := svc.NotifyExamSubmitted(tid, 42, 9999999, "Bob"); err != nil {
+		t.Fatalf("NotifyExamSubmitted must not fail on an unresolvable coach: %v", err)
+	}
+
+	got := notifyRecipients(t, db, tid, "exam_submitted")
+	if !got[a] {
+		t.Fatalf("admin must still be notified when the coach lookup fails, got %v", got)
 	}
 }

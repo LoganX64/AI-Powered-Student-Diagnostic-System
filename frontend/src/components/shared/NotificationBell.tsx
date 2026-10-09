@@ -18,7 +18,7 @@ export function NotificationBell() {
   // No notifications endpoint exists for super_admin — suppress the bell
   // (hooks must still run unconditionally to satisfy rules-of-hooks).
   const enabled = role === "admin" || role === "coach";
-  const { unreadCount, notifications } = useNotifications(30000, enabled);
+  const { unreadCount, notifications } = useNotifications(10000, enabled);
   const navigate = useNavigate();
   const prefix = prefixForRole(role);
 

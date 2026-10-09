@@ -34,16 +34,46 @@ type NotificationPrefRow struct {
 	Enabled   bool   `json:"enabled"`
 }
 
-func (r *NotificationRepo) List(tenantID int, userID *int, eventType string, unreadOnly bool, limit, offset int) ([]NotificationRow, int, error) {
+// NotificationScope selects which rows a viewer may read.
+type NotificationScope int
+
+const (
+	// ScopeOwn restricts a viewer to rows addressed to them. Used for coaches,
+	// who see only their own notifications and never another coach's.
+	ScopeOwn NotificationScope = iota
+	// ScopeTenant exposes every row in the tenant. Used for the single admin who
+	// owns the organization, giving org-wide visibility without a second admin.
+	ScopeTenant
+)
+
+// scopedClause appends the row-visibility predicate for a scope.
+//
+// Scope is passed explicitly rather than inferred from whether userID is nil:
+// "no user filter" (tenant-wide) and "only my rows" are different permissions,
+// and conflating them lets a coach's list widen to the whole org by accident.
+//
+// A nil userID under ScopeOwn yields a predicate matching nothing, so a caller
+// that forgets the identity sees an empty list rather than the whole tenant.
+func scopedClause(scope NotificationScope, userID *int, clause string, idx *int, args *[]interface{}) string {
+	if scope == ScopeTenant {
+		return clause
+	}
+	*idx++
+	own := -1
+	if userID != nil {
+		own = *userID
+	}
+	clause += " AND n.user_id = $" + strconv.Itoa(*idx)
+	*args = append(*args, own)
+	return clause
+}
+
+func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationScope, eventType string, unreadOnly bool, limit, offset int) ([]NotificationRow, int, error) {
 	var args []interface{}
 	args = append(args, tenantID)
 	clause := "WHERE n.tenant_id = $1"
 	idx := 1
-	if userID != nil {
-		idx++
-		clause += " AND (n.user_id = $" + strconv.Itoa(idx) + " OR n.user_id IS NULL)"
-		args = append(args, *userID)
-	}
+	clause = scopedClause(scope, userID, clause, &idx, &args)
 	if eventType != "" {
 		idx++
 		clause += " AND n.event_type = $" + strconv.Itoa(idx)
@@ -155,12 +185,24 @@ func (r *NotificationRepo) MarkRead(id, tenantID, userID int) (bool, error) {
 	return rowsAffected(res)
 }
 
+// MarkAllRead marks the caller's own unread notifications read.
+//
+// Deliberately owner-scoped, matching MarkRead's rule. It used to include
+// broadcast rows (`user_id IS NULL`), which are a single shared row: with the
+// admin now holding a tenant-wide view, "mark all as read" would have stamped
+// read_at on every coach's rows and emptied their unread badges. It also meant
+// the one operation able to clear a broadcast row was reachable by any user,
+// contradicting MarkRead's refusal of them.
+//
+// The admin's view is wider than the set this touches, by design — the rows that
+// stay unread are the coaches', and only they may clear them.
 func (r *NotificationRepo) MarkAllRead(tenantID int, userID *int) error {
-	if userID != nil {
-		_, err := r.DB.Exec(`UPDATE notifications SET read_at = NOW() WHERE tenant_id = $1 AND read_at IS NULL AND (user_id = $2 OR user_id IS NULL)`, tenantID, *userID)
-		return err
-	}
-	_, err := r.DB.Exec(`UPDATE notifications SET read_at = NOW() WHERE tenant_id = $1 AND read_at IS NULL`, tenantID)
+	var args []interface{}
+	args = append(args, tenantID)
+	idx := 1
+	clause := "WHERE tenant_id = $1 AND read_at IS NULL"
+	clause = scopedClause(ScopeOwn, userID, clause, &idx, &args)
+	_, err := r.DB.Exec(`UPDATE notifications AS n SET read_at = NOW() `+clause, args...)
 	return err
 }
 
@@ -187,15 +229,16 @@ func rowsAffected(res sql.Result) (bool, error) {
 	return n > 0, nil
 }
 
-func (r *NotificationRepo) UnreadCount(tenantID int, userID *int) (int, error) {
+// UnreadCount counts unread rows visible under the given scope. The admin's badge
+// reflects the whole tenant, a coach's only their own rows.
+func (r *NotificationRepo) UnreadCount(tenantID int, userID *int, scope NotificationScope) (int, error) {
+	var args []interface{}
+	args = append(args, tenantID)
+	clause := "WHERE n.tenant_id = $1 AND n.read_at IS NULL"
+	idx := 1
+	clause = scopedClause(scope, userID, clause, &idx, &args)
 	var count int
-	var err error
-	if userID != nil {
-		err = r.DB.QueryRow(`SELECT COUNT(*) FROM notifications WHERE tenant_id = $1 AND read_at IS NULL AND (user_id = $2 OR user_id IS NULL)`, tenantID, *userID).Scan(&count)
-	} else {
-		err = r.DB.QueryRow(`SELECT COUNT(*) FROM notifications WHERE tenant_id = $1 AND read_at IS NULL`, tenantID).Scan(&count)
-	}
-	if err != nil {
+	if err := r.DB.QueryRow(`SELECT COUNT(*) FROM notifications n `+clause, args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil

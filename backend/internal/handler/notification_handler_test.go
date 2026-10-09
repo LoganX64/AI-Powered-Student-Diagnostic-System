@@ -228,6 +228,11 @@ func TestNotificationMarkReadCrossTenant(t *testing.T) {
 	}
 }
 
+// Mark-all-read is owner-scoped. The admin holds a tenant-wide list, so a wider
+// predicate here would stamp read_at on every coach's rows and silently clear
+// their unread badges. Broadcast rows are excluded for the same reason: one
+// shared row cannot carry per-user read state, which is also why MarkRead
+// refuses them.
 func TestNotificationMarkAllRead(t *testing.T) {
 	f := newHandlerFixture(t)
 	uid := f.AdminUserID
@@ -236,15 +241,16 @@ func TestNotificationMarkAllRead(t *testing.T) {
 	broadcast := testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
 
 	// Another user's row in the same tenant must be left alone.
-	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "admin")
-	otherRow := testutil.CreateNotification(t, f.DB, f.TenantID, &other, "system_alert", "Other's", false)
+	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "coach")
+	otherRow := testutil.CreateNotification(t, f.DB, f.TenantID, &other, "exam_submitted", "Other's", false)
 
 	_, code := notifMarkAllRead(t, f)
 	if code != http.StatusOK {
 		t.Fatalf("code=%d", code)
 	}
 
-	for _, id := range []int{a, b, broadcast} {
+	// The admin's own rows are cleared.
+	for _, id := range []int{a, b} {
 		var readAt sql.NullString
 		if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, id).Scan(&readAt); err != nil {
 			t.Fatalf("read %d: %v", id, err)
@@ -253,15 +259,84 @@ func TestNotificationMarkAllRead(t *testing.T) {
 			t.Fatalf("notification %d still unread after mark-all-read", id)
 		}
 	}
-	// MarkAllRead filters `(user_id = $2 OR user_id IS NULL)`, so another user's
-	// row must survive. Pinned so a future widening is caught.
+
+	// The coach's row must survive — the isolation guarantee.
 	var otherReadAt sql.NullString
 	if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, otherRow).Scan(&otherReadAt); err != nil {
 		t.Fatalf("read other row: %v", err)
 	}
 	if otherReadAt.Valid {
-		t.Logf("SECURITY: mark-all-read also cleared user %d's notification %d", other, otherRow)
+		t.Fatalf("SECURITY: mark-all-read cleared user %d's notification %d", other, otherRow)
 	}
+
+	// Broadcast rows stay unread too.
+	var broadcastReadAt sql.NullString
+	if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, broadcast).Scan(&broadcastReadAt); err != nil {
+		t.Fatalf("read broadcast: %v", err)
+	}
+	if broadcastReadAt.Valid {
+		t.Fatal("SECURITY: mark-all-read cleared a broadcast row")
+	}
+}
+
+// The admin sees every row in the tenant but must not be able to act on a
+// coach's: MarkRead and Delete are owner-scoped, so both 404.
+func TestNotificationAdminActsOnlyOnOwnRows(t *testing.T) {
+	f := newHandlerFixture(t)
+	coachRow := testutil.CreateNotification(t, f.DB, f.TenantID, &f.CoachUserID, "exam_submitted", "Coach's", false)
+
+	if _, code := notifMarkRead(t, f, f.AdminUserID, coachRow); code != http.StatusNotFound {
+		t.Fatalf("admin MarkRead on a coach's row = %d, want 404", code)
+	}
+	if _, code := notifDelete(t, f, coachRow); code != http.StatusNotFound {
+		t.Fatalf("admin Delete on a coach's row = %d, want 404", code)
+	}
+
+	var readAt sql.NullString
+	if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, coachRow).Scan(&readAt); err != nil {
+		t.Fatalf("read coach row: %v", err)
+	}
+	if readAt.Valid {
+		t.Fatal("SECURITY: the admin marked a coach's notification read")
+	}
+	var left int
+	if err := f.DB.QueryRow(`SELECT COUNT(*) FROM notifications WHERE id = $1`, coachRow).Scan(&left); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if left == 0 {
+		t.Fatal("SECURITY: the admin deleted a coach's notification")
+	}
+}
+
+// A coach's list is scoped to their own rows: the admin's notifications and
+// another coach's must both be absent.
+func TestNotificationCoachSeesOnlyOwnRows(t *testing.T) {
+	f := newHandlerFixture(t)
+	adminRow := testutil.CreateNotification(t, f.DB, f.TenantID, &f.AdminUserID, "system_alert", "Admin's row", false)
+	otherCoach := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "peer"), "coach")
+	peerRow := testutil.CreateNotification(t, f.DB, f.TenantID, &otherCoach, "exam_submitted", "Peer's row", false)
+	ownRow := testutil.CreateNotification(t, f.DB, f.TenantID, &f.CoachUserID, "exam_submitted", "Own row", false)
+
+	body, code := notifGetAsCoach(t, f, "")
+	if code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	if !strings.Contains(body, "Own row") {
+		t.Fatalf("coach's own notification missing: %s", body)
+	}
+	if strings.Contains(body, "Admin's row") {
+		t.Fatalf("coach list leaked the admin's notification: %s", body)
+	}
+	if strings.Contains(body, "Peer's row") {
+		t.Fatalf("coach list leaked another coach's notification: %s", body)
+	}
+	// Unread count must be scoped the same way.
+	if got := notifUnreadCountAsCoach(t, f); got != 1 {
+		t.Fatalf("coach unread_count=%d, want 1 (own unread row only)", got)
+	}
+	_ = adminRow
+	_ = peerRow
+	_ = ownRow
 }
 
 func TestNotificationDelete(t *testing.T) {
@@ -441,6 +516,35 @@ func notifGetAs(t *testing.T, f *handlerFixture, userID int, query string) (stri
 	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
 	f.Notifications.ListNotifications(c)
 	return w.Body.String(), w.Code
+}
+
+func notifGetAsCoach(t *testing.T, f *handlerFixture, query string) (string, int) {
+	t.Helper()
+	target := "/coach/notifications"
+	if query != "" {
+		target += "?" + query
+	}
+	c, w := f.ctxAsCoach(t)
+	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
+	f.Notifications.ListNotifications(c)
+	return w.Body.String(), w.Code
+}
+
+func notifUnreadCountAsCoach(t *testing.T, f *handlerFixture) int {
+	t.Helper()
+	c, w := f.ctxAsCoach(t)
+	c.Request = httptest.NewRequest(http.MethodGet, "/coach/notifications/unread-count", nil)
+	f.Notifications.UnreadCount(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("coach unread count code=%d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Count int `json:"unread_count"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return resp.Count
 }
 
 func notifUnreadCount(t *testing.T, f *handlerFixture) int {

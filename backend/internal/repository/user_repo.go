@@ -138,6 +138,82 @@ func (r *UserRepo) ExistsByID(userID int) (bool, error) {
 
 // ListIDsByTenantRoles returns the user IDs of all users in a tenant matching
 // one of the given roles. Used for per-user notification fan-out (admin + coach).
+// UserIDForCoach resolves the users.id behind a coaches.id, tenant-scoped.
+//
+// Needed because the coach-facing handlers hold a coaches.id (from
+// CoachRepo.GetIDFromUser or a request body) while notifications are addressed by
+// users.id. Without the tenant predicate this would answer across organizations.
+func (r *UserRepo) UserIDForCoach(tenantID, coachID int) (int, error) {
+	var userID int
+	err := r.DB.QueryRow(`SELECT user_id FROM coaches WHERE id = $1 AND tenant_id = $2`, coachID, tenantID).Scan(&userID)
+	return userID, err
+}
+
+// CoachIdentity resolves both the users.id and the display name of a coach.
+//
+// Notifications are addressed by users.id but must read as a person's name: a
+// message naming "Coach (ID: 3)" tells the admin nothing, since they know the
+// coaches by name, not by primary key.
+func (r *UserRepo) CoachIdentity(tenantID, coachID int) (int, string, error) {
+	var userID int
+	var name sql.NullString
+	err := r.DB.QueryRow(`SELECT user_id, name FROM coaches WHERE id = $1 AND tenant_id = $2`, coachID, tenantID).Scan(&userID, &name)
+	if err != nil {
+		return 0, "", err
+	}
+	return userID, name.String, nil
+}
+
+// AssignmentContextForNotification resolves what a notification about an
+// assignment needs in order to be readable: who the coach is, which test was
+// taken, and how the student is identified to a human.
+//
+// One query because every notification path that takes an assignmentID needs all
+// of it, and the pieces are joined across four tables. Tenant scoping goes
+// through students, since assignments itself carries no tenant_id.
+func (r *UserRepo) AssignmentContextForNotification(tenantID, assignmentID int) (AssignmentNotifyContext, error) {
+	var out AssignmentNotifyContext
+	out.CoachUserID = -1
+	err := r.DB.QueryRow(`
+		SELECT COALESCE(c.user_id, -1), COALESCE(c.name, ''), COALESCE(t.title, ''),
+		       COALESCE(s.name, ''), COALESCE(s.student_code, '')
+		FROM assignments ass
+		JOIN students s ON s.id = ass.student_id AND s.tenant_id = $2
+		LEFT JOIN coaches c ON c.id = ass.coach_id
+		LEFT JOIN tests t ON t.id = ass.test_id
+		WHERE ass.id = $1
+	`, assignmentID, tenantID).
+		Scan(&out.CoachUserID, &out.CoachName, &out.TestTitle, &out.StudentName, &out.StudentCode)
+	return out, err
+}
+
+// AssignmentNotifyContext is the display data for one assignment.
+type AssignmentNotifyContext struct {
+	CoachUserID int
+	CoachName   string
+	TestTitle   string
+	StudentName string
+	StudentCode string
+}
+
+// CoachUserIDForAssignment resolves the users.id of the coach who owns an
+// assignment, scoped to the tenant.
+//
+// notifications.user_id references users(id), but assignments.coach_id
+// references coaches(id), so notification fan-out has to cross that link.
+// Tenant scoping comes through coaches because assignments carries no
+// tenant_id of its own — without it the lookup would answer for any tenant's
+// assignment, which is what the caller passes in.
+func (r *UserRepo) CoachUserIDForAssignment(tenantID, assignmentID int) (int, error) {
+	var userID int
+	err := r.DB.QueryRow(`
+		SELECT c.user_id
+		FROM assignments ass JOIN coaches c ON c.id = ass.coach_id
+		WHERE ass.id = $1 AND c.tenant_id = $2
+	`, assignmentID, tenantID).Scan(&userID)
+	return userID, err
+}
+
 func (r *UserRepo) ListIDsByTenantRoles(tenantID int, roles []string) ([]int, error) {
 	if len(roles) == 0 {
 		return []int{}, nil

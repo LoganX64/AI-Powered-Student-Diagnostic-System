@@ -76,7 +76,7 @@ func (s *JobService) Process(jobID, tenantID int) error {
 			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
 		}
 		if s.NotificationService != nil {
-			if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, "No attempts to process"); err != nil {
+			if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, 0, 0); err != nil {
 				log.Printf("[JOB] notify SQI complete failed for job %d: %v", jobID, err)
 			}
 		}
@@ -121,7 +121,7 @@ func (s *JobService) Process(jobID, tenantID int) error {
 			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
 		}
 		if s.NotificationService != nil {
-			if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, "All attempts processed"); err != nil {
+			if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, done, failed); err != nil {
 				log.Printf("[JOB] notify SQI complete failed for job %d: %v", jobID, err)
 			}
 		}

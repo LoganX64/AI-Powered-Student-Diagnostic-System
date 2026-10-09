@@ -47,8 +47,21 @@ function getPriorityBadge(priority: Notification["priority"]) {
 }
 
 export function NotificationsPage() {
-  const { notifications, unreadCount, loading, refetch } = useNotifications(30000);
+  const { notifications, unreadCount, viewerUserId, loading, refetch } =
+    useNotifications();
   const [activeTab, setActiveTab] = useState("all");
+
+  // The admin sees every row in the organization, but MarkRead and Delete are
+  // owner-scoped server-side, so acting on a coach's notification would 404.
+  // Only offer the actions on rows the viewer owns; until the id resolves, show
+  // none rather than buttons that cannot work.
+  const canActOn = (n: Notification) =>
+    viewerUserId !== null && n.user_id === viewerUserId;
+
+  // True when the unread badge counts rows this viewer cannot clear, i.e. the
+  // admin looking at org-wide unread. Coaches only ever see their own.
+  const ownsEveryVisibleRow =
+    viewerUserId !== null && notifications.every((n) => n.user_id === viewerUserId);
 
   const filtered = notifications.filter((n) => {
     if (activeTab === "all") return true;
@@ -103,6 +116,13 @@ export function NotificationsPage() {
                 </CardTitle>
                 <CardDescription>
                   Stay updated with the latest activity and alerts.
+                  {unreadCount > 0 && !ownsEveryVisibleRow && (
+                    <span className="mt-1 block">
+                      The unread count covers the whole organization. &ldquo;Mark all
+                      as read&rdquo; clears only your own notifications; each
+                      user clears their own.
+                    </span>
+                  )}
                 </CardDescription>
               </div>
               {unreadCount > 0 && (
@@ -165,28 +185,35 @@ export function NotificationsPage() {
                           <p className="text-sm text-muted-foreground">{notification.message}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(notification.created_at).toLocaleString()}
+                            {!canActOn(notification) && (
+                              <span className="ml-2">
+                                Read-only — belongs to another user
+                              </span>
+                            )}
                           </p>
                         </div>
-                        <div className="flex gap-1">
-                          {!notification.read_at && (
+                        {canActOn(notification) && (
+                          <div className="flex gap-1">
+                            {!notification.read_at && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                onClick={() => markAsRead(notification.id)}
+                              >
+                                <CheckIcon className="size-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="size-8"
-                              onClick={() => markAsRead(notification.id)}
+                              className="size-8 text-destructive"
+                              onClick={() => deleteNotification(notification.id)}
                             >
-                              <CheckIcon className="size-4" />
+                              <Trash2Icon className="size-4" />
                             </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive"
-                            onClick={() => deleteNotification(notification.id)}
-                          >
-                            <Trash2Icon className="size-4" />
-                          </Button>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
