@@ -35,7 +35,19 @@ func scopeFor(role string) repository.NotificationScope {
 	return repository.ScopeOwn
 }
 
-// GET /admin/notifications?event_type=&unread=&limit=&offset=
+// normalizePriority accepts only the severities the notifications table defines.
+// An unrecognised value is dropped rather than passed through, so a typo or a
+// stale client asking for a severity that no longer exists returns the unfiltered
+// list instead of a permanently empty page.
+func normalizePriority(p string) string {
+	switch p {
+	case "info", "warning", "alert":
+		return p
+	}
+	return ""
+}
+
+// GET /admin/notifications?event_type=&priority=&unread=&limit=&offset=
 //
 // The response carries viewer_user_id so the client can tell which rows it may
 // act on. The admin sees every row in the tenant but MarkRead/Delete are
@@ -44,10 +56,11 @@ func (h *NotificationHandler) ListNotifications(c *gin.Context) {
 	tenantID := c.GetInt("tenant_id")
 	userID := c.GetInt("user_id")
 	eventType := c.Query("event_type")
+	priority := normalizePriority(c.Query("priority"))
 	unreadOnly := c.Query("unread") == "true"
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 
-	notifications, total, err := h.NotificationRepo.List(tenantID, &userID, scopeFor(c.GetString("role")), eventType, unreadOnly, limit, offset)
+	notifications, total, err := h.NotificationRepo.List(tenantID, &userID, scopeFor(c.GetString("role")), eventType, priority, unreadOnly, limit, offset)
 	if err != nil {
 		utils.InternalError(c, err, "failed to fetch notifications")
 		return

@@ -112,7 +112,7 @@ func TestNotifyExamSubmittedTargetsOwningCoach(t *testing.T) {
 	}
 
 	// Metadata must round-trip so the UI can deep-link to the submission.
-	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "exam_submitted", false, 50, 0)
+	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "exam_submitted", "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestNotifyStudentExamLogoutTargetsOwningCoach(t *testing.T) {
 		t.Fatalf("coach %d owns no students and must not be notified, got %v", c, got)
 	}
 
-	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "student_exam_logout", false, 50, 0)
+	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "student_exam_logout", "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

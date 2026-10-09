@@ -68,7 +68,13 @@ func scopedClause(scope NotificationScope, userID *int, clause string, idx *int,
 	return clause
 }
 
-func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationScope, eventType string, unreadOnly bool, limit, offset int) ([]NotificationRow, int, error) {
+// List returns a page of notifications plus the total matching the filters.
+//
+// priority is a separate filter from event_type on purpose: the UI's tabs are
+// severity-based (Info / Warning / Alert) while event_type is the specific
+// event, and several event types share the "info" priority, so reusing
+// event_type for the tabs would be a lossy mapping.
+func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationScope, eventType, priority string, unreadOnly bool, limit, offset int) ([]NotificationRow, int, error) {
 	var args []interface{}
 	args = append(args, tenantID)
 	clause := "WHERE n.tenant_id = $1"
@@ -78,6 +84,11 @@ func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationSco
 		idx++
 		clause += " AND n.event_type = $" + strconv.Itoa(idx)
 		args = append(args, eventType)
+	}
+	if priority != "" {
+		idx++
+		clause += " AND n.priority = $" + strconv.Itoa(idx)
+		args = append(args, priority)
 	}
 	if unreadOnly {
 		clause += " AND n.read_at IS NULL"

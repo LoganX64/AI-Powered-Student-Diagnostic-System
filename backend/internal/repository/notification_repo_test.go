@@ -81,7 +81,7 @@ func TestNotificationUnreadCount(t *testing.T) {
 	}
 
 	// ScopeOwn must exclude both the broadcast row and uidB's row.
-	ownRows, _, err := nr.List(tid, &uidA, ScopeOwn, "", false, 50, 0)
+	ownRows, _, err := nr.List(tid, &uidA, ScopeOwn, "", "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List ScopeOwn: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestNotificationUnreadCount(t *testing.T) {
 	}
 
 	// ScopeTenant (the admin's view) does include uidB's row, so oversight works.
-	allRows, allTotal, err := nr.List(tid, &uidA, ScopeTenant, "", false, 50, 0)
+	allRows, allTotal, err := nr.List(tid, &uidA, ScopeTenant, "", "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List ScopeTenant: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestNotificationUnreadCount(t *testing.T) {
 	_ = allTotal
 
 	// mark one of uidA's notifications read
-	rows, _, err := nr.List(tid, &uidA, ScopeOwn, "", false, 50, 0)
+	rows, _, err := nr.List(tid, &uidA, ScopeOwn, "", "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -158,6 +158,90 @@ func TestNotificationUnreadCount(t *testing.T) {
 	count, _ = nr.UnreadCount(tid, &uidA, ScopeOwn)
 	if count != 1 {
 		t.Fatalf("expected unread count 1 after mark read, got %d", count)
+	}
+}
+
+// The priority filter backs the UI's Info/Warning/Alert tabs. Both the returned
+// rows and the total must be scoped to it, because the pager renders
+// "Showing X–Y of <total>" — a total that ignored the filter would make the page
+// claim more rows than the tab can ever produce.
+func TestNotificationPriorityFilter(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid := notifSetup(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	ur := NewUserRepo(db)
+	uid, err := ur.Create(tid, "notif_prio@test.local", "x", "admin")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	nr := NewNotificationRepo(db)
+	for _, p := range []string{"info", "info", "info", "warning", "alert"} {
+		if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uid, EventType: "exam_submitted", Title: p, Message: "m", Priority: p, Metadata: json.RawMessage("{}")}); err != nil {
+			t.Fatalf("create %s row: %v", p, err)
+		}
+	}
+
+	// An unfiltered page sees everything.
+	_, allTotal, err := nr.List(tid, &uid, ScopeOwn, "", "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List unfiltered: %v", err)
+	}
+	if allTotal != 5 {
+		t.Fatalf("unfiltered total=%d, want 5", allTotal)
+	}
+
+	for _, tc := range []struct {
+		priority string
+		want     int
+	}{
+		{"info", 3},
+		{"warning", 1},
+		{"alert", 1},
+		// No such severity: an empty priority is how the handler says "no filter",
+		// so it must not be mistaken for a match-nothing filter.
+		{"", 5},
+	} {
+		rows, total, err := nr.List(tid, &uid, ScopeOwn, "", tc.priority, false, 50, 0)
+		if err != nil {
+			t.Fatalf("List priority=%q: %v", tc.priority, err)
+		}
+		if total != tc.want {
+			t.Fatalf("priority=%q total=%d, want %d", tc.priority, total, tc.want)
+		}
+		if len(rows) != tc.want {
+			t.Fatalf("priority=%q returned %d rows, want %d", tc.priority, len(rows), tc.want)
+		}
+		for _, r := range rows {
+			if tc.priority != "" && r.Priority != tc.priority {
+				t.Fatalf("priority=%q leaked a %q row", tc.priority, r.Priority)
+			}
+		}
+	}
+
+	// A page within a filtered set must page the filtered rows, and its total
+	// must still describe the whole filtered set.
+	page1, total, err := nr.List(tid, &uid, ScopeOwn, "", "info", false, 2, 0)
+	if err != nil {
+		t.Fatalf("List page 1: %v", err)
+	}
+	if len(page1) != 2 || total != 3 {
+		t.Fatalf("page 1 of the info set: %d rows of total %d, want 2 of 3", len(page1), total)
+	}
+	page2, _, err := nr.List(tid, &uid, ScopeOwn, "", "info", false, 2, 2)
+	if err != nil {
+		t.Fatalf("List page 2: %v", err)
+	}
+	if len(page2) != 1 {
+		t.Fatalf("page 2 of the info set: %d rows, want 1", len(page2))
+	}
+	seen := map[int]bool{}
+	for _, r := range append(page1, page2...) {
+		if seen[r.ID] {
+			t.Fatalf("row %d appeared on both pages", r.ID)
+		}
+		seen[r.ID] = true
 	}
 }
 
