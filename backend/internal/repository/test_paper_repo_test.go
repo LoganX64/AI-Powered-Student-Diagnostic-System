@@ -176,8 +176,92 @@ func TestTestPaperCoachAndSubjectHelpers(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("DeleteSubject: %v %v", ok, err)
 	}
-	subs, _, err := r.ListSubjects(tenantID, "", 10, 0)
+	subs, _, err := r.ListSubjects(tenantID, "", false, 10, 0)
 	if err != nil || len(subs) != 1 || subs[0].Name != "Geo" {
 		t.Fatalf("ListSubjects: %v %v", subs, err)
+	}
+}
+
+// A deactivated subject disappears from the default list, so the UI needs the
+// flipped listing to discover the id and offer Reactivate. This is the regression
+// guard for "subject deactivated but cannot be reactivated".
+func TestListSubjectsIncludeDeactivatedRoundTrip(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewTestPaperRepo(db)
+	tenantID := createTenant(t, db)
+	adminID := createUser(t, db, tenantID, uniqueEmail(t, "admin"), "admin")
+
+	keepID := createSubject(t, db, tenantID, "Keeper")
+	goneID := createSubject(t, db, tenantID, "Goner")
+
+	ok, err := r.DeleteSubject(goneID, tenantID, adminID)
+	if err != nil || !ok {
+		t.Fatalf("DeleteSubject: %v %v", ok, err)
+	}
+
+	// Default listing hides it.
+	active, activeTotal, err := r.ListSubjects(tenantID, "", false, 10, 0)
+	if err != nil {
+		t.Fatalf("ListSubjects(active): %v", err)
+	}
+	if activeTotal != 1 || len(active) != 1 || active[0].SubjectID != keepID {
+		t.Fatalf("active listing = %v total=%d, want only [%d]", active, activeTotal, keepID)
+	}
+	if active[0].DeletedAt != nil {
+		t.Fatalf("active subject %d carries deleted_at=%q", keepID, *active[0].DeletedAt)
+	}
+
+	// Flipped listing shows exactly the deactivated row, with a timestamp the
+	// UI keys off to decide Reactivate vs Deactivate.
+	deactivated, deactivatedTotal, err := r.ListSubjects(tenantID, "", true, 10, 0)
+	if err != nil {
+		t.Fatalf("ListSubjects(deactivated): %v", err)
+	}
+	if deactivatedTotal != 1 || len(deactivated) != 1 || deactivated[0].SubjectID != goneID {
+		t.Fatalf("deactivated listing = %v total=%d, want only [%d]", deactivated, deactivatedTotal, goneID)
+	}
+	if deactivated[0].DeletedAt == nil {
+		t.Fatalf("deactivated subject %d has nil deleted_at", goneID)
+	}
+
+	// Search narrows the deactivated listing too, and total must stay consistent.
+	found, foundTotal, err := r.ListSubjects(tenantID, "gon", true, 10, 0)
+	if err != nil || foundTotal != 1 || len(found) != 1 || found[0].SubjectID != goneID {
+		t.Fatalf("search deactivated = %v total=%d %v", found, foundTotal, err)
+	}
+	missed, missedTotal, err := r.ListSubjects(tenantID, "keeper", true, 10, 0)
+	if err != nil || missedTotal != 0 || len(missed) != 0 {
+		t.Fatalf("active subject leaked into deactivated search: %v total=%d", missed, missedTotal)
+	}
+
+	// Reactivate restores it to the default listing.
+	ok, err = r.ReactivateSubject(goneID, tenantID)
+	if err != nil || !ok {
+		t.Fatalf("ReactivateSubject: %v %v", ok, err)
+	}
+	restored, restoredTotal, err := r.ListSubjects(tenantID, "", false, 10, 0)
+	if err != nil || restoredTotal != 2 {
+		t.Fatalf("restored listing total=%d %v, want 2", restoredTotal, err)
+	}
+	var sawGone bool
+	for _, s := range restored {
+		if s.SubjectID == goneID {
+			sawGone = true
+			if s.DeletedAt != nil {
+				t.Fatalf("reactivated subject %d still has deleted_at=%q", goneID, *s.DeletedAt)
+			}
+		}
+	}
+	if !sawGone {
+		t.Fatalf("reactivated subject %d missing from active listing %v", goneID, restored)
+	}
+
+	// A second restore is a no-op, not a silent re-delete.
+	ok, err = r.ReactivateSubject(goneID, tenantID)
+	if err != nil {
+		t.Fatalf("ReactivateSubject second call: %v", err)
+	}
+	if ok {
+		t.Fatal("reactivate on an already-active subject should report found=false")
 	}
 }

@@ -78,8 +78,9 @@ type QuestionRequest struct {
 }
 
 type SubjectRow struct {
-	SubjectID int    `json:"subject_id"`
-	Name      string `json:"name"`
+	SubjectID int     `json:"subject_id"`
+	Name      string  `json:"name"`
+	DeletedAt *string `json:"deleted_at"`
 }
 
 func (r *TestPaperRepo) Create(tenantID int, title string, subjectID, coachID, duration int, examDate *string, subjectName string) (int, error) {
@@ -467,9 +468,21 @@ func (r *TestPaperRepo) ReactivateSubject(subjectID, tenantID int) (bool, error)
 	return rowsAffected > 0, nil
 }
 
-func (r *TestPaperRepo) ListSubjects(tenantID int, search string, limit, offset int) ([]SubjectRow, int, error) {
-	countQuery := "SELECT COUNT(*) FROM subjects WHERE tenant_id=$1 AND deleted_at IS NULL"
-	dataQuery := "SELECT id, name FROM subjects WHERE tenant_id=$1 AND deleted_at IS NULL"
+// ListSubjects returns subjects for a tenant. When includeDeactivated is true the
+// list is flipped to soft-deleted subjects only, which is what the admin UI needs
+// to surface a "Reactivate" action — otherwise a deactivated subject vanishes
+// from the table and its id is only recoverable by re-creating the same name.
+//
+// The flag feeds both queries so `total` always matches the rows returned.
+func (r *TestPaperRepo) ListSubjects(tenantID int, search string, includeDeactivated bool, limit, offset int) ([]SubjectRow, int, error) {
+	deletedClause := "deleted_at IS NULL"
+	if includeDeactivated {
+		deletedClause = "deleted_at IS NOT NULL"
+	}
+
+	where := "tenant_id=$1 AND " + deletedClause
+	countQuery := "SELECT COUNT(*) FROM subjects WHERE " + where
+	dataQuery := "SELECT id, name, deleted_at FROM subjects WHERE " + where
 	args := []interface{}{tenantID}
 
 	if search != "" {
@@ -496,7 +509,7 @@ func (r *TestPaperRepo) ListSubjects(tenantID int, search string, limit, offset 
 	var subjects []SubjectRow
 	for rows.Next() {
 		var s SubjectRow
-		if err := rows.Scan(&s.SubjectID, &s.Name); err != nil {
+		if err := rows.Scan(&s.SubjectID, &s.Name, &s.DeletedAt); err != nil {
 			return nil, 0, err
 		}
 		subjects = append(subjects, s)

@@ -78,6 +78,7 @@ export type Student = {
 export type Subject = {
   subject_id: number;
   name: string;
+  deleted_at?: string | null;
 };
 
 export type CoachSubject = {

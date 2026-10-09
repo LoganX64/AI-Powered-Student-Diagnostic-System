@@ -284,9 +284,12 @@ export const updateSubject = (subjectId: number, name: string) =>
     body: JSON.stringify({ name }),
   });
 
-export const getSubjects = (params?: PaginationParams, init?: RequestInit) =>
+export const getSubjects = (
+  params?: PaginationParams & { include_deactivated?: boolean },
+  init?: RequestInit,
+) =>
   apiFetch<PaginatedResponse<Subject>>(
-    `${getPrefix()}/subjects${buildQuery(params)}`,
+    `${getPrefix()}/subjects${buildListQuery(params)}`,
     init,
   );
 

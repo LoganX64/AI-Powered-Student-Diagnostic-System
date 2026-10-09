@@ -56,8 +56,9 @@ func (h *AdminHandler) ListSubjects(c *gin.Context) {
 
 	limit, offset := utils.ParsePagination(c.Query("limit"), c.Query("offset"))
 	search := c.Query("search")
+	includeDeactivated := c.Query("include_deactivated") == "true"
 
-	subjects, total, err := h.TestPaperRepo.ListSubjects(tenantID, search, limit, offset)
+	subjects, total, err := h.TestPaperRepo.ListSubjects(tenantID, search, includeDeactivated, limit, offset)
 	if err != nil {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to fetch subjects")
 		return

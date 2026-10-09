@@ -251,7 +251,7 @@ func TestAdminDeleteSubjectCrossTenant(t *testing.T) {
 		t.Fatalf("code=%d, want 404 (body=%s)", w.Code, w.Body.String())
 	}
 	// The foreign subject must still be active in its own tenant.
-	subs, _, err := f.TestPaperRepo.ListSubjects(f.OtherTenantID, "", 10, 0)
+	subs, _, err := f.TestPaperRepo.ListSubjects(f.OtherTenantID, "", false, 10, 0)
 	if err != nil {
 		t.Fatalf("ListSubjects: %v", err)
 	}

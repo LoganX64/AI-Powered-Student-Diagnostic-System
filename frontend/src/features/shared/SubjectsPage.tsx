@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import { Trash2Icon, BookOpenIcon, PencilIcon } from "lucide-react";
+import { Trash2Icon, BookOpenIcon, PencilIcon, RotateCcwIcon, SearchIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
@@ -46,16 +46,41 @@ export function SubjectsPage() {
   const [creating, setCreating] = useState(false);
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+  const [includeDeactivated, setIncludeDeactivated] = useState(false);
   const [reactivateTarget, setReactivateTarget] = useState<{ id: number; name: string } | null>(null);
   const [editTarget, setEditTarget] = useState<Subject | null>(null);
   const [editName, setEditName] = useState("");
   const [editing, setEditing] = useState(false);
 
-  const fetchSubjects = useCallback(async (off: number) => {
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Without this a slow earlier page/search resolves last and overwrites the
+  // current one, so the table briefly shows rows that don't match the footer.
+  const subjectsReqRef = useRef(0);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSearch(searchInput);
+      setOffset(0);
+    }, 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchInput]);
+
+  const fetchSubjects = useCallback(async (off: number, deactivated: boolean, searchTerm: string) => {
+    const reqId = ++subjectsReqRef.current;
     try {
-      const res = await getSubjects({ limit: PAGE_SIZE, offset: off });
+      const res = await getSubjects({
+        limit: PAGE_SIZE,
+        offset: off,
+        include_deactivated: deactivated,
+        search: searchTerm || undefined,
+      });
+      if (reqId !== subjectsReqRef.current) return;
       setSubjects(res.data ?? []);
       setTotal(res.total);
     } catch {
@@ -64,8 +89,8 @@ export function SubjectsPage() {
   }, []);
 
   useEffect(() => {
-    fetchSubjects(offset);
-  }, [offset, fetchSubjects]);
+    fetchSubjects(offset, includeDeactivated, search);
+  }, [offset, includeDeactivated, search, fetchSubjects]);
 
   const handleCreate: React.FormEventHandler<HTMLFormElement> = async (e) => {
     e.preventDefault();
@@ -84,7 +109,7 @@ export function SubjectsPage() {
       const res = await createSubject(result.data);
       toast.success(`Subject "${result.data.name}" created — ID: ${res.subject_id}`);
       (e.target as HTMLFormElement).reset();
-      fetchSubjects(offset);
+      fetchSubjects(offset, includeDeactivated, search);
     } catch (err) {
       const e = err as Error & { payload?: { deactivated_id?: number; deactivated_name?: string } };
       if (e.payload?.deactivated_id) {
@@ -97,16 +122,25 @@ export function SubjectsPage() {
     }
   };
 
-  const handleReactivate = async () => {
-    if (!reactivateTarget) return;
+  // Shared by the row action and the create-collision prompt: re-fetch with the
+  // current toggle/search so a restore from either place lands consistently.
+  const doReactivate = async (id: number, name: string) => {
     try {
-      await reactivateSubject(reactivateTarget.id);
-      toast.success(`Subject "${reactivateTarget.name}" reactivated`);
+      setReactivatingId(id);
+      await reactivateSubject(id);
+      toast.success(`Subject "${name}" reactivated`);
       setReactivateTarget(null);
-      fetchSubjects(offset);
+      fetchSubjects(offset, includeDeactivated, search);
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      setReactivatingId(null);
     }
+  };
+
+  const handleReactivate = () => {
+    if (!reactivateTarget) return;
+    return doReactivate(reactivateTarget.id, reactivateTarget.name);
   };
 
   const handleDelete = async (subject: Subject) => {
@@ -114,7 +148,7 @@ export function SubjectsPage() {
       setDeletingId(subject.subject_id);
       await deleteSubject(subject.subject_id);
       toast.success(`Subject "${subject.name}" deactivated`);
-      fetchSubjects(offset);
+      fetchSubjects(offset, includeDeactivated, search);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -137,7 +171,7 @@ export function SubjectsPage() {
       await updateSubject(editTarget.subject_id, name);
       toast.success(`Subject renamed to "${name}"`);
       setEditTarget(null);
-      fetchSubjects(offset);
+      fetchSubjects(offset, includeDeactivated, search);
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -185,7 +219,28 @@ export function SubjectsPage() {
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">All Subjects</h2>
-          <Badge variant="secondary">{total}</Badge>
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+              <input
+                placeholder="Search subjects..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+            <Button
+              variant={includeDeactivated ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                setIncludeDeactivated(!includeDeactivated);
+                setOffset(0);
+              }}
+            >
+              {includeDeactivated ? "Showing Deactivated" : "Show Deactivated"}
+            </Button>
+            <Badge variant="secondary">{total}</Badge>
+          </div>
         </div>
 
         {subjects.length === 0 ? (
@@ -201,6 +256,7 @@ export function SubjectsPage() {
                 <TableRow>
                   <TableHead className="w-16">ID</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead className="w-32">Status</TableHead>
                   <TableHead className="w-20 text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -211,49 +267,95 @@ export function SubjectsPage() {
                       {subject.subject_id}
                     </TableCell>
                     <TableCell className="font-medium">{subject.name}</TableCell>
+                    <TableCell>
+                      {subject.deleted_at ? (
+                        <Badge variant="destructive">Deactivated</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          Active
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-foreground"
-                          aria-label={`Edit ${subject.name}`}
-                          onClick={() => openEdit(subject)}
-                        >
-                          <PencilIcon className="size-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
+                        {subject.deleted_at ? (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-muted-foreground hover:text-green-600"
+                                disabled={reactivatingId === subject.subject_id}
+                                aria-label={`Reactivate ${subject.name}`}
+                              >
+                                <RotateCcwIcon className="size-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Reactivate Subject</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to reactivate{" "}
+                                  <span className="font-semibold">{subject.name}</span>?
+                                  It will become available again when assigning tests.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => doReactivate(subject.subject_id, subject.name)}
+                                  className="bg-green-600 text-white hover:bg-green-700"
+                                >
+                                  Reactivate
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        ) : (
+                          <>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="size-8 text-muted-foreground hover:text-destructive"
-                              disabled={deletingId === subject.subject_id}
-                              aria-label={`Delete ${subject.name}`}
+                              className="size-8 text-muted-foreground hover:text-foreground"
+                              aria-label={`Edit ${subject.name}`}
+                              onClick={() => openEdit(subject)}
                             >
-                              <Trash2Icon className="size-4" />
+                              <PencilIcon className="size-4" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Subject</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to deactivate{" "}
-                                <span className="font-semibold">{subject.name}</span>?
-                                This subject will be deactivated. It can be reactivated later.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(subject)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Deactivate
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-muted-foreground hover:text-destructive"
+                                  disabled={deletingId === subject.subject_id}
+                                  aria-label={`Delete ${subject.name}`}
+                                >
+                                  <Trash2Icon className="size-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Subject</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to deactivate{" "}
+                                    <span className="font-semibold">{subject.name}</span>?
+                                    This subject will be deactivated. It can be reactivated later.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDelete(subject)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Deactivate
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -301,7 +403,7 @@ export function SubjectsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setReactivateTarget(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleReactivate}>
+            <AlertDialogAction onClick={handleReactivate} disabled={reactivatingId !== null}>
               Reactivate
             </AlertDialogAction>
           </AlertDialogFooter>
