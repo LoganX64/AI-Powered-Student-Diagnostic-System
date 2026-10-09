@@ -23,6 +23,7 @@ import {
   type Test,
   type IntegrityPolicy,
 } from "@/services/dashboard.service";
+import { isTruncated, MAX_LIST_LIMIT } from "@/lib/utils";
 
 interface StudentAssignDialogProps {
   studentId: number;
@@ -51,6 +52,7 @@ function AssignForm({
 }) {
   const [step, setStep] = useState(1);
   const [tests, setTests] = useState<Test[]>([]);
+  const [testsTotal, setTestsTotal] = useState(0);
   const [testId, setTestId] = useState("");
   // Simple by default, matching what this dialog produced before exam types
   // were selectable here.
@@ -60,9 +62,12 @@ function AssignForm({
 
   useEffect(() => {
     // has_questions: an empty test must not be assignable — the student would sit a
-// timer with nothing to answer.
-getTests({ limit: 200, has_questions: true })
-      .then((res) => setTests(res.data ?? []))
+    // timer with nothing to answer.
+    getTests({ limit: MAX_LIST_LIMIT, has_questions: true })
+      .then((res) => {
+        setTests(res.data ?? []);
+        setTestsTotal(res.total);
+      })
       .catch((err) =>
         toast.error(
           err instanceof Error ? err.message : "Failed to load tests",
@@ -160,6 +165,11 @@ getTests({ limit: 200, has_questions: true })
           {selectedTest && (
             <p className="text-xs text-muted-foreground">
               Duration: {selectedTest.duration} min · Coach: {selectedTest.coach_name}
+            </p>
+          )}
+          {isTruncated(testsTotal, tests.length) && (
+            <p className="text-xs text-muted-foreground">
+              Showing {tests.length} of {testsTotal} tests — search to narrow.
             </p>
           )}
           {error && <p className="text-sm text-destructive">{error}</p>}

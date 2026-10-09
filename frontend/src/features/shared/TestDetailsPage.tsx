@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { getAssignments, getSubjects, getCoaches, type Assignment, type Subject, type Coach } from "@/services/dashboard.service";
-import { formatDateDDMMYYYY } from "@/lib/utils";
+import { formatDateDDMMYYYY, isTruncated, MAX_LIST_LIMIT } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
@@ -60,13 +60,28 @@ export function TestDetailsPage() {
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
+  // Totals kept alongside the rows so a capped dropdown can say so; the subject
+  // and coach lists are loaded once and never paged, so there is no other way to
+  // tell a complete list from a truncated one.
+  const [subjectTotal, setSubjectTotal] = useState(0);
+  const [coachTotal, setCoachTotal] = useState(0);
 
   const yearOptions = getYearOptions();
 
   useEffect(() => {
-    getSubjects({ limit: 200 }).then((res) => setSubjects(res.data ?? [])).catch(() => {});
+    getSubjects({ limit: MAX_LIST_LIMIT })
+      .then((res) => {
+        setSubjects(res.data ?? []);
+        setSubjectTotal(res.total);
+      })
+      .catch(() => {});
     if (role === "admin") {
-      getCoaches({ limit: 200 }).then((res) => setCoaches(res.data ?? [])).catch(() => {});
+      getCoaches({ limit: MAX_LIST_LIMIT })
+        .then((res) => {
+          setCoaches(res.data ?? []);
+          setCoachTotal(res.total);
+        })
+        .catch(() => {});
     }
   }, [role]);
 
@@ -156,6 +171,11 @@ export function TestDetailsPage() {
                 onChange={(v) => { setSubjectId(v); setOffset(0); }}
                 placeholder="Search subjects..."
               />
+              {isTruncated(subjectTotal, subjects.length) && (
+                <p className="text-xs text-muted-foreground">
+                  Showing {subjects.length} of {subjectTotal} subjects — narrow the list to pick another.
+                </p>
+              )}
             </div>
             {role === "admin" && (
               <div className="flex flex-col gap-1.5">
@@ -169,6 +189,11 @@ export function TestDetailsPage() {
                   onChange={(v) => { setCoachId(v); setOffset(0); }}
                   placeholder="Search coaches..."
                 />
+                {isTruncated(coachTotal, coaches.length) && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing {coaches.length} of {coachTotal} coaches — narrow the list to pick another.
+                  </p>
+                )}
               </div>
             )}
           </div>

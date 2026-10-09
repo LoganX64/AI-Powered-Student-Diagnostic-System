@@ -4,6 +4,7 @@ import { XIcon, PlusIcon, ChevronDownIcon, CheckIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { createSubject, getSubjects } from "@/services/dashboard.service";
+import { MAX_LIST_LIMIT } from "@/lib/utils";
 import type { Subject } from "@/services/types";
 
 type SubjectPickerProps = {
@@ -23,7 +24,7 @@ export function SubjectPicker({ selected, onChange, error }: SubjectPickerProps)
 
   const fetchSubjects = useCallback(async () => {
     try {
-      const res = await getSubjects({ limit: 200 });
+      const res = await getSubjects({ limit: MAX_LIST_LIMIT });
       setSubjects(res.data ?? []);
     } catch {
       // silently ignore

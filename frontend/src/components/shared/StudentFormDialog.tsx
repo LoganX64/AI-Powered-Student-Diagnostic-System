@@ -30,6 +30,7 @@ import {
   type Batch,
 } from "@/services/dashboard.service";
 import { createStudentSchema, updateStudentSchema, zodErrors } from "@/lib/validations";
+import { isTruncated, MAX_LIST_LIMIT } from "@/lib/utils";
 
 export type StudentFormInitial = {
   name: string;
@@ -72,6 +73,7 @@ function StudentFormFields({
   const [coachSearch, setCoachSearch] = useState("");
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [coachesTotal, setCoachesTotal] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 const coachReqRef = useRef(0);
@@ -108,12 +110,13 @@ const coachReqRef = useRef(0);
       coachAbortRef.current = controller;
       try {
         const res = await getCoaches(
-          { search: coachSearch, limit: 200 },
+          { search: coachSearch, limit: MAX_LIST_LIMIT },
           { signal: controller.signal },
         );
         if (reqId !== coachReqRef.current) return;
         const list = res.data ?? [];
         setCoaches(list);
+        setCoachesTotal(res.total);
         if (mode === "edit" && !prefilledRef.current && initialCoachId) {
           const match = list.find((c) => c.coach_id === initialCoachId);
           if (match) {
@@ -283,6 +286,13 @@ const coachReqRef = useRef(0);
             <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-md">
               No coaches found
             </div>
+          )}
+          {/* The dropdown is the only way to pick a coach, so a capped result set
+              must not read as the full roster. */}
+          {isTruncated(coachesTotal, coaches.length) && (
+            <p className="text-xs text-muted-foreground">
+              Showing {coaches.length} of {coachesTotal} coaches — keep typing to narrow.
+            </p>
           )}
           {errors.coach_id && <p className="text-sm text-destructive">{errors.coach_id}</p>}
         </div>

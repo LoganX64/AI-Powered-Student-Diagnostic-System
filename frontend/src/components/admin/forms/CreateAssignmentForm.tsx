@@ -45,6 +45,7 @@ import {
 } from "@/services/dashboard.service";
 import { computeEstimatedCost } from "@/config/pricing";
 import { useCombobox } from "@/hooks/useCombobox";
+import { isTruncated, MAX_LIST_LIMIT } from "@/lib/utils";
 import { ExamTypePanel } from "@/components/shared/assignment/ExamTypePanel";
 import { CostSummary } from "@/components/shared/assignment/CostSummary";
 import { EMPTY_POLICY } from "@/components/shared/assignment/exam-presets";
@@ -173,6 +174,9 @@ export function CreateAssignmentForm() {
   const [tests, setTests] = useState<Test[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  // Totals so a capped list says so rather than reading as complete.
+  const [testsTotal, setTestsTotal] = useState(0);
+  const [studentsTotal, setStudentsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [selectedTestId, setSelectedTestId] = useState("");
@@ -189,13 +193,15 @@ export function CreateAssignmentForm() {
     (async () => {
       try {
         const [t, s, b] = await Promise.all([
-          getTests({ limit: 200, has_questions: true }),
-          getStudents({ limit: 200 }),
+          getTests({ limit: MAX_LIST_LIMIT, has_questions: true }),
+          getStudents({ limit: MAX_LIST_LIMIT }),
           getBatches(),
         ]);
         if (!active) return;
         setTests(t.data ?? []);
+        setTestsTotal(t.total);
         setStudents(s.data ?? []);
+        setStudentsTotal(s.total);
         setBatches(b.data ?? []);
       } catch (err) {
         toast.error((err as Error).message);
@@ -335,6 +341,11 @@ export function CreateAssignmentForm() {
                 Duration: {selectedTest.duration} min · Coach: {selectedTest.coach_name}
               </p>
             )}
+            {isTruncated(testsTotal, tests.length) && (
+              <p className="text-xs text-muted-foreground">
+                Showing {tests.length} of {testsTotal} tests — search to narrow.
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -380,6 +391,13 @@ export function CreateAssignmentForm() {
                 {selectedTest && eligibleStudents.length === 0 && (
                   <p className="text-xs text-destructive">
                     No students belong to this test&apos;s coach.
+                  </p>
+                )}
+                {/* eligibleStudents is filtered client-side from students, so a
+                    capped fetch can hide a student who does belong to the coach. */}
+                {isTruncated(studentsTotal, students.length) && (
+                  <p className="text-xs text-muted-foreground">
+                    Loaded {students.length} of {studentsTotal} students — some may be missing above.
                   </p>
                 )}
               </>
