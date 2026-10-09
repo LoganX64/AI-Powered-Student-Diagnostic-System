@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,23 +20,37 @@ import (
 )
 
 func runMigrations(dbURL string) {
+	log.Println("[MIGRATE] Connecting to database...")
+
+	// Append connect_timeout to the DSN so the TCP dial itself has a hard
+	// deadline. Without this, Avast (or a slow/unreachable DB) can block the
+	// process indefinitely during startup.
+	timedURL := dbURL
+	if !strings.Contains(dbURL, "connect_timeout") {
+		sep := "?"
+		if strings.Contains(dbURL, "?") {
+			sep = "&"
+		}
+		timedURL = dbURL + sep + "connect_timeout=15"
+	}
+
 	m, err := migrate.New(
 		"file://migrations",
-		dbURL,
+		timedURL,
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("[MIGRATE] failed to initialise: %v", err)
 	}
 
 	if err := m.Up(); err != nil {
 		if err.Error() == "no change" {
-			log.Println("No new migrations")
+			log.Println("[MIGRATE] No new migrations")
 		} else {
-			log.Fatal(err)
+			log.Fatalf("[MIGRATE] failed to apply: %v", err)
 		}
 	}
 
-	log.Println("Migrations applied successfully")
+	log.Println("[MIGRATE] Migrations applied successfully")
 }
 
 func main() {
