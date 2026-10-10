@@ -136,19 +136,6 @@ func (r *UserRepo) ExistsByID(userID int) (bool, error) {
 	return exists, err
 }
 
-// ListIDsByTenantRoles returns the user IDs of all users in a tenant matching
-// one of the given roles. Used for per-user notification fan-out (admin + coach).
-// UserIDForCoach resolves the users.id behind a coaches.id, tenant-scoped.
-//
-// Needed because the coach-facing handlers hold a coaches.id (from
-// CoachRepo.GetIDFromUser or a request body) while notifications are addressed by
-// users.id. Without the tenant predicate this would answer across organizations.
-func (r *UserRepo) UserIDForCoach(tenantID, coachID int) (int, error) {
-	var userID int
-	err := r.DB.QueryRow(`SELECT user_id FROM coaches WHERE id = $1 AND tenant_id = $2`, coachID, tenantID).Scan(&userID)
-	return userID, err
-}
-
 // CoachIdentity resolves both the users.id and the display name of a coach.
 //
 // Notifications are addressed by users.id but must read as a person's name: a
@@ -196,24 +183,8 @@ type AssignmentNotifyContext struct {
 	StudentCode string
 }
 
-// CoachUserIDForAssignment resolves the users.id of the coach who owns an
-// assignment, scoped to the tenant.
-//
-// notifications.user_id references users(id), but assignments.coach_id
-// references coaches(id), so notification fan-out has to cross that link.
-// Tenant scoping comes through coaches because assignments carries no
-// tenant_id of its own — without it the lookup would answer for any tenant's
-// assignment, which is what the caller passes in.
-func (r *UserRepo) CoachUserIDForAssignment(tenantID, assignmentID int) (int, error) {
-	var userID int
-	err := r.DB.QueryRow(`
-		SELECT c.user_id
-		FROM assignments ass JOIN coaches c ON c.id = ass.coach_id
-		WHERE ass.id = $1 AND c.tenant_id = $2
-	`, assignmentID, tenantID).Scan(&userID)
-	return userID, err
-}
-
+// ListIDsByTenantRoles returns the user IDs of all users in a tenant matching
+// one of the given roles. Used for per-user notification fan-out (admin + coach).
 func (r *UserRepo) ListIDsByTenantRoles(tenantID int, roles []string) ([]int, error) {
 	if len(roles) == 0 {
 		return []int{}, nil

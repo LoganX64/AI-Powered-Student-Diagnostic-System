@@ -16,12 +16,16 @@ func NewNotificationService(notifRepo *repository.NotificationRepo, userRepo *re
 	return &NotificationService{NotificationRepo: notifRepo, UserRepo: userRepo}
 }
 
+// The event types this system actually emits.
+//
+// system_alert and storage_warning were dropped: neither had a producer, so
+// nothing could create them, and the preference rows seeded for them by
+// migration 000016 could never be exercised. SettingsPage still renders toggles
+// for both — see the note there.
 const (
 	EventExamSubmitted     = "exam_submitted"
 	EventCoachActivity     = "coach_activity"
-	EventSystemAlert       = "system_alert"
 	EventSQIComplete       = "sqi_complete"
-	EventStorageWarning    = "storage_warning"
 	EventStudentExamLogout = "student_exam_logout"
 )
 
@@ -101,46 +105,6 @@ func (s *NotificationService) notifyUsers(
 		}
 	}
 	return nil
-}
-
-// Notify is a targeted single-user notification (used for future direct messages).
-func (s *NotificationService) Notify(
-	eventType string,
-	tenantID int,
-	userID *int,
-	title string,
-	message string,
-	priority string,
-	metadata map[string]interface{},
-) error {
-	metaBytes, err := json.Marshal(metadata)
-	if err != nil {
-		metaBytes = []byte("{}")
-	}
-	_, err = s.NotificationRepo.Create(repository.NotificationRow{
-		TenantID:  tenantID,
-		UserID:    userID,
-		EventType: eventType,
-		Title:     title,
-		Message:   message,
-		Priority:  priority,
-		Metadata:  metaBytes,
-	})
-	return err
-}
-
-// coachUserForAssignment resolves the coach who owns an assignment, so the event
-// reaches them and not their colleagues.
-//
-// A failed lookup is logged and downgraded to admin-only: the admin's row is
-// still written, so the event is not lost, it just misses the coach.
-func (s *NotificationService) coachUserForAssignment(tenantID, assignmentID int) *int {
-	userID, err := s.UserRepo.CoachUserIDForAssignment(tenantID, assignmentID)
-	if err != nil {
-		log.Printf("[NOTIFICATION] coach lookup failed for assignment %d in tenant %d: %v", assignmentID, tenantID, err)
-		return nil
-	}
-	return &userID
 }
 
 // assignmentContext resolves the readable facts about an assignment: which coach
@@ -242,23 +206,6 @@ func (s *NotificationService) NotifyCoachActivity(tenantID, coachID int, action,
 	)
 }
 
-// NotifySystemAlert is org-level, so only the admin is notified.
-func (s *NotificationService) NotifySystemAlert(tenantID int, message string) error {
-	recipients, err := s.resolveRecipients(tenantID, nil)
-	if err != nil {
-		return err
-	}
-	return s.notifyUsers(
-		recipients,
-		EventSystemAlert,
-		tenantID,
-		"System Alert",
-		message,
-		"warning",
-		nil,
-	)
-}
-
 // NotifySQIComplete is admin-only. An SQI batch runs across the whole
 // organization, so there is no single owning coach to target; coaches have no
 // per-student stake in a job that spans every student.
@@ -311,28 +258,6 @@ func pluralize(n int, noun string) string {
 		return fmt.Sprintf("%d %s", n, noun)
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
-}
-
-// NotifyStorageWarning is a quota fact about the organization, so admin-only.
-func (s *NotificationService) NotifyStorageWarning(tenantID int, usedBytes, limitBytes int64) error {
-	priority := "warning"
-	pct := float64(usedBytes) / float64(limitBytes) * 100
-	if limitBytes > 0 && pct >= 95 {
-		priority = "alert"
-	}
-	recipients, err := s.resolveRecipients(tenantID, nil)
-	if err != nil {
-		return err
-	}
-	return s.notifyUsers(
-		recipients,
-		EventStorageWarning,
-		tenantID,
-		"Storage Quota Warning",
-		fmt.Sprintf("Storage usage is at %.1f%% (%d / %d bytes).", pct, usedBytes, limitBytes),
-		priority,
-		map[string]interface{}{"used_bytes": usedBytes, "limit_bytes": limitBytes, "percentage": pct},
-	)
 }
 
 // NotifyStudentExamLogout targets the coach who owns the assignment, same as
