@@ -251,7 +251,12 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		return
 	}
 
-	notifyExamSubmitted := func() {
+	// auto_submit is the client's assertion that the timer expired and it
+	// submitted on the student's behalf. It is a hint the notification wording
+	// uses; the server has no way to derive it, because a student still on the
+	// last question when the clock runs out is indistinguishable from one who
+	// never got to it. Defaults false, so a plain submit is unchanged.
+	notifyExamSubmitted := func(autoSubmit bool) {
 		if h.NotificationService == nil {
 			return
 		}
@@ -261,13 +266,14 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			log.Printf("[NOTIFICATION] failed to resolve student name for %d: %v", studentID, nerr)
 			name = "Unknown"
 		}
-		if err := h.NotificationService.NotifyExamSubmitted(tenantID, studentID, assignmentID, name); err != nil {
+		if err := h.NotificationService.NotifyExamSubmitted(tenantID, studentID, assignmentID, name, autoSubmit); err != nil {
 			log.Printf("[NOTIFICATION] exam submitted notify failed: %v", err)
 		}
 	}
 
 	var req struct {
-		Answers []services.AnswerInput `json:"answers"`
+		Answers    []services.AnswerInput `json:"answers"`
+		AutoSubmit bool                   `json:"auto_submit"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.BadRequest(c, "invalid payload")
@@ -301,7 +307,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to enqueue finalization")
 				return
 			}
-			notifyExamSubmitted()
+			notifyExamSubmitted(req.AutoSubmit)
 			c.JSON(http.StatusAccepted, gin.H{
 				"attempt_id":       attemptID,
 				"status":           "queued",
@@ -321,7 +327,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 			return
 		}
-		notifyExamSubmitted()
+		notifyExamSubmitted(req.AutoSubmit)
 		c.JSON(http.StatusOK, gin.H{
 			"attempt_id":       res.AttemptID,
 			"total_time_spent": res.TotalTimeSpent,
@@ -340,7 +346,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 		return
 	}
-	notifyExamSubmitted()
+	notifyExamSubmitted(req.AutoSubmit)
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       res.AttemptID,
 		"total_time_spent": res.TotalTimeSpent,

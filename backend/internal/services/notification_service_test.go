@@ -90,7 +90,7 @@ func TestNotifyExamSubmittedTargetsOwningCoach(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob"); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", false); err != nil {
 		t.Fatalf("NotifyExamSubmitted: %v", err)
 	}
 
@@ -232,6 +232,86 @@ func TestNotifyStudentExamLogoutTargetsOwningCoach(t *testing.T) {
 	}
 }
 
+// A timer-expiry submission is labelled "Auto Submit" and states no reason. The
+// server cannot distinguish a student who ran out of time from one still on the
+// last question, so any cause in the wording would be a guess the coach could
+// act on wrongly.
+func TestNotifyExamSubmittedAutoSubmitWording(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid, a, _, _, _, assignmentID := notifTenant(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", false); err != nil {
+		t.Fatalf("manual: %v", err)
+	}
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", true); err != nil {
+		t.Fatalf("auto: %v", err)
+	}
+
+	rows, _, err := nr.List(tid, &a, repository.ScopeOwn, "exam_submitted", "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+
+	byTitle := map[string]repository.NotificationRow{}
+	for _, r := range rows {
+		byTitle[r.Title] = r
+	}
+	manualRow, hasManual := byTitle["Exam Submitted"]
+	autoRow, hasAuto := byTitle["Auto Submit"]
+	if !hasManual || !hasAuto {
+		t.Fatalf("titles = %v, want one 'Exam Submitted' and one 'Auto Submit'", byTitle)
+	}
+
+	if !strings.Contains(autoRow.Message, "auto-submitted") {
+		t.Fatalf("auto message must say it was auto-submitted, got %q", autoRow.Message)
+	}
+	if !strings.Contains(autoRow.Message, "Bob") || !strings.Contains(autoRow.Message, "Test") {
+		t.Fatalf("auto message must name the student and the paper, got %q", autoRow.Message)
+	}
+	// The reason is the whole point: none of these may appear.
+	for _, banned := range []string{"ran out of time", "time expired", "logged out", "unanswered"} {
+		if strings.Contains(strings.ToLower(autoRow.Message), banned) {
+			t.Fatalf("auto message attributes a reason (%q): %q", banned, autoRow.Message)
+		}
+	}
+	// Manual wording must be untouched by this feature.
+	if !strings.Contains(manualRow.Message, "submitted") {
+		t.Fatalf("manual message changed unexpectedly: %q", manualRow.Message)
+	}
+
+	// Both stay the same event type and severity, so the tabs and unread counts
+	// behave identically for a manual and an auto submission.
+	if manualRow.EventType != autoRow.EventType {
+		t.Fatalf("event_type diverged: %q vs %q", manualRow.EventType, autoRow.EventType)
+	}
+	if autoRow.Priority != "info" {
+		t.Fatalf("auto priority = %q, want info", autoRow.Priority)
+	}
+
+	// The flag is recorded so a consumer can tell the two apart later.
+	var meta map[string]interface{}
+	if err := json.Unmarshal(autoRow.Metadata, &meta); err != nil {
+		t.Fatalf("unmarshal auto metadata: %v", err)
+	}
+	if meta["auto_submit"] != true {
+		t.Fatalf("auto_submit missing from metadata: %v", meta)
+	}
+	var manualMeta map[string]interface{}
+	if err := json.Unmarshal(manualRow.Metadata, &manualMeta); err != nil {
+		t.Fatalf("unmarshal manual metadata: %v", err)
+	}
+	if _, present := manualMeta["auto_submit"]; present {
+		t.Fatalf("manual submission must not carry auto_submit: %v", manualMeta)
+	}
+}
+
 // The per-recipient preference gate still applies after targeting: an admin who
 // disabled the event is skipped while the owning coach still receives it.
 func TestNotifyTargetedRespectsPreferences(t *testing.T) {
@@ -243,7 +323,7 @@ func TestNotifyTargetedRespectsPreferences(t *testing.T) {
 
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
-	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob"); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", false); err != nil {
 		t.Fatalf("NotifyExamSubmitted: %v", err)
 	}
 
@@ -269,7 +349,7 @@ func TestNotifyExamSubmittedFallsBackToAdminWhenCoachUnknown(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyExamSubmitted(tid, 42, 9999999, "Bob"); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, 9999999, "Bob", false); err != nil {
 		t.Fatalf("NotifyExamSubmitted must not fail on an unresolvable coach: %v", err)
 	}
 

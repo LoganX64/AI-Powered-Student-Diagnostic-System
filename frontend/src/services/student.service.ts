@@ -124,12 +124,13 @@ export async function getAssignmentQuestions(
 export async function submitAnswers(
   assignmentId: number,
   answers: AnswerPayload[],
+  autoSubmit = false,
 ): Promise<SubmitResponse> {
   return apiFetch<SubmitResponse>(
     `/student/submit/${assignmentId}`,
     {
       method: "POST",
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers, auto_submit: autoSubmit }),
     },
     "student"
   );
@@ -186,15 +187,21 @@ export async function uploadVideoChunk(
   );
 }
 
+// autoSubmit marks a submission the client made because the timer expired,
+// rather than the student pressing Submit. The notification wording differs, so
+// it has to travel with the request — the server cannot infer it, since a student
+// on the last question when the clock runs out looks identical to one who ran
+// out of time. Defaults false so a manual submit is unaffected.
 export async function submitExam(
   assignmentId: number,
   answers: AnswerPayload[],
+  autoSubmit = false,
 ): Promise<SubmitResponse> {
   return apiFetch<SubmitResponse>(
     `/student/assignments/${assignmentId}/submit`,
     {
       method: "POST",
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers, auto_submit: autoSubmit }),
     },
     "student"
   );

@@ -266,7 +266,11 @@ export function StudentQuizPage() {
     }
 
     try {
-      const result: SubmitResponse = await submitExam(assignmentId, payload);
+      const result: SubmitResponse = await submitExam(
+        assignmentId,
+        payload,
+        isAutoSubmitRef.current,
+      );
       clearExamStorage(assignmentId);
       localStorage.removeItem("exam_ctx_" + assignmentId);
       navigate("/submitted", {
@@ -286,6 +290,9 @@ export function StudentQuizPage() {
           assignment_id: assignmentId,
           answers: payload,
           queued_at: Date.now(),
+          // Carried so the retry below is still labelled as an auto-submit.
+          // Without it a retried auto-submit would revert to "Exam Submitted".
+          auto_submit: isAutoSubmitRef.current,
         }),
       );
       // Deliberately not clearing exam storage here. pending_submission is a copy,

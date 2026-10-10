@@ -39,6 +39,9 @@ type PendingSubmission = {
   assignment_id: number;
   answers: AnswerPayload[];
   queued_at: number;
+  // Absent on entries written before this field existed; the retry then falls
+  // back to a manual-submit notification.
+  auto_submit?: boolean;
 };
 
 function loadPendingSubmission(): PendingSubmission | null {
@@ -76,7 +79,11 @@ export function StudentSubmittedPage() {
     setRetryError(null);
 
     try {
-      await submitAnswers(pending.assignment_id, pending.answers);
+      await submitAnswers(
+        pending.assignment_id,
+        pending.answers,
+        pending.auto_submit === true,
+      );
       localStorage.removeItem("pending_submission");
       setPending(null);
       setRetrySuccess(true);

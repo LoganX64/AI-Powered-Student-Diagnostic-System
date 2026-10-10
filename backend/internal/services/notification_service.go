@@ -134,7 +134,13 @@ func describeStudent(name, code string) string {
 	}
 }
 
-func (s *NotificationService) NotifyExamSubmitted(tenantID, studentID, assignmentID int, studentName string) error {
+// NotifyExamSubmitted reports a completed exam.
+//
+// autoSubmit distinguishes the client's timer-expiry submission from a manual
+// one, and changes only the wording. Neither variant states a reason: the server
+// cannot tell a student who ran out of time from one who was still on the last
+// question when the clock expired, so the coach reads the paper to find out.
+func (s *NotificationService) NotifyExamSubmitted(tenantID, studentID, assignmentID int, studentName string, autoSubmit bool) error {
 	ctx := s.assignmentContext(tenantID, assignmentID)
 	if ctx.StudentName != "" {
 		studentName = ctx.StudentName
@@ -150,23 +156,32 @@ func (s *NotificationService) NotifyExamSubmitted(tenantID, studentID, assignmen
 	}
 
 	student := describeStudent(studentName, ctx.StudentCode)
+
+	title := "Exam Submitted"
 	msg := fmt.Sprintf("%s submitted an exam.", student)
 	if ctx.TestTitle != "" {
 		msg = fmt.Sprintf("%s submitted %q.", student, ctx.TestTitle)
 	}
+	if autoSubmit {
+		// Neutral by design: "auto-submitted" is a fact the server can state.
+		// "ran out of time" is not, and would read as unanswered questions when
+		// the student may simply have been on the last question.
+		title = "Auto Submit"
+		msg = fmt.Sprintf("%s's test paper was auto-submitted.", student)
+		if ctx.TestTitle != "" {
+			msg = fmt.Sprintf("%s's test paper %q was auto-submitted.", student, ctx.TestTitle)
+		}
+	}
 
-	return s.notifyUsers(
-		recipients,
-		EventExamSubmitted,
-		tenantID,
-		"Exam Submitted",
-		msg,
-		"info",
-		map[string]interface{}{
-			"student_id": studentID, "assignment_id": assignmentID,
-			"test_title": ctx.TestTitle, "student_name": student,
-		},
-	)
+	meta := map[string]interface{}{
+		"student_id": studentID, "assignment_id": assignmentID,
+		"test_title": ctx.TestTitle, "student_name": student,
+	}
+	if autoSubmit {
+		meta["auto_submit"] = true
+	}
+
+	return s.notifyUsers(recipients, EventExamSubmitted, tenantID, title, msg, "info", meta)
 }
 
 // NotifyCoachActivity reports a coach's own action. Only that coach and the
