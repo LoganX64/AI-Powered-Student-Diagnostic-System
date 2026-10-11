@@ -15,6 +15,7 @@ import (
 // view of a released result.
 type ResultHandler struct {
 	ReleaseService *services.ResultReleaseService
+	ViewService    *services.ResultViewService
 	AttemptRepo    *repository.AttemptRepo
 	TokenRepo      *repository.ResultTokenRepo
 	StudentRepo    *repository.StudentRepo
@@ -23,6 +24,7 @@ type ResultHandler struct {
 
 func NewResultHandler(
 	releaseService *services.ResultReleaseService,
+	viewService *services.ResultViewService,
 	attemptRepo *repository.AttemptRepo,
 	tokenRepo *repository.ResultTokenRepo,
 	studentRepo *repository.StudentRepo,
@@ -30,6 +32,7 @@ func NewResultHandler(
 ) *ResultHandler {
 	return &ResultHandler{
 		ReleaseService: releaseService,
+		ViewService:    viewService,
 		AttemptRepo:    attemptRepo,
 		TokenRepo:      tokenRepo,
 		StudentRepo:    studentRepo,
@@ -74,7 +77,7 @@ func (h *ResultHandler) ReleaseAssignmentResult(c *gin.Context) {
 		}
 	}
 
-	outcome, err := h.ReleaseService.ReleaseResult(assignmentID, c.GetInt("user_id"))
+	outcome, err := h.ReleaseService.ReleaseResult(tenantID, studentID, assignmentID, c.GetInt("user_id"))
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrResultNotComputed):

@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 
 // Re-export login types from auth.service for backward compatibility
 export type { StudentLoginPayload } from "./auth.service";
@@ -185,6 +185,60 @@ export async function uploadVideoChunk(
     { method: "POST", body: form },
     "student",
   );
+}
+
+// A released result as the student sees it. Deliberately carries no sqi, rank,
+// percentile or grade — the backend omits those and the UI must not invent them.
+export type StudentResult = {
+  attempt_id: number;
+  assignment_id: number;
+  test_title: string;
+  student_name: string;
+  student_code: string;
+  marks_earned: number;
+  max_marks: number;
+  percentage: number;
+  correct: number;
+  wrong: number;
+  skipped: number;
+  released_at: string | null;
+};
+
+/**
+ * Fetches one released result by its emailed token.
+ *
+ * Sent without the student session deliberately: the token in the URL is the
+ * credential, and the recipient may open the link hours later without being
+ * signed in. A 404 means the token is unknown, expired or revoked — the backend
+ * returns the same response for all three so this cannot be used to probe.
+ */
+export async function getResultByToken(
+  token: string,
+): Promise<StudentResult | null> {
+  try {
+    const res = await apiFetch<{ result: StudentResult }>(
+      `/student/results/${encodeURIComponent(token)}`,
+      {},
+      "student",
+    );
+    return res.result ?? null;
+  } catch (err) {
+    // 404 covers unknown, expired and revoked tokens alike — the backend will
+    // not say which. Mapped to null so the page can render "link no longer
+    // valid" rather than surfacing an error toast.
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+/** Every released result for the signed-in student. */
+export async function getMyResults(): Promise<StudentResult[]> {
+  const res = await apiFetch<{ results: StudentResult[] }>(
+    "/student/results",
+    {},
+    "student",
+  );
+  return res.results ?? [];
 }
 
 // autoSubmit marks a submission the client made because the timer expired,

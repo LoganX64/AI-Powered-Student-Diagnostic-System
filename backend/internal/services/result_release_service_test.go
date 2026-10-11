@@ -59,7 +59,7 @@ func TestReleaseResultSuccess(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, g.tid)
 
 	svc, ar, tr := releaseServiceFor(db)
-	out, err := svc.ReleaseResult(g.assignmentID, 1)
+	out, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 1)
 	if err != nil {
 		t.Fatalf("ReleaseResult: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestReleaseRefusesUncomputedResult(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, g.tid)
 
 	svc, _, _ := releaseServiceFor(db)
-	if _, err := svc.ReleaseResult(g.assignmentID, 1); err != ErrResultNotComputed {
+	if _, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 1); err != ErrResultNotComputed {
 		t.Fatalf("err=%v, want ErrResultNotComputed", err)
 	}
 
@@ -130,7 +130,7 @@ func TestReleaseAllowsGenuineZeroScore(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, g.tid)
 
 	svc, _, _ := releaseServiceFor(db)
-	out, err := svc.ReleaseResult(g.assignmentID, 1)
+	out, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 1)
 	if err != nil {
 		t.Fatalf("a zero score must be releasable, got %v", err)
 	}
@@ -147,11 +147,11 @@ func TestReleaseIsIdempotent(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, g.tid)
 
 	svc, _, _ := releaseServiceFor(db)
-	if _, err := svc.ReleaseResult(g.assignmentID, 1); err != nil {
+	if _, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 1); err != nil {
 		t.Fatalf("first release: %v", err)
 	}
 
-	out, err := svc.ReleaseResult(g.assignmentID, 2)
+	out, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 2)
 	if err != nil {
 		t.Fatalf("second release: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestReleaseSucceedsWithoutEmail(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, g.tid)
 
 	svc, _, _ := releaseServiceFor(db)
-	out, err := svc.ReleaseResult(g.assignmentID, 1)
+	out, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 1)
 	if err != nil {
 		t.Fatalf("release without an email must still succeed, got %v", err)
 	}
@@ -212,7 +212,7 @@ func TestReleaseRefusesWhenNoAttempt(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
 
 	svc, _, _ := releaseServiceFor(db)
-	if _, err := svc.ReleaseResult(assignmentID, 1); err != ErrResultNotComputed {
+	if _, err := svc.ReleaseResult(tid, studentID, assignmentID, 1); err != ErrResultNotComputed {
 		t.Fatalf("err=%v, want ErrResultNotComputed", err)
 	}
 }
@@ -241,11 +241,11 @@ func TestReleaseIsIndependentPerAssignment(t *testing.T) {
 	}
 
 	svc, _, _ := releaseServiceFor(db)
-	if _, err := svc.ReleaseResult(first, 1); err != nil {
+	if _, err := svc.ReleaseResult(tid, studentID, first, 1); err != nil {
 		t.Fatalf("release first: %v", err)
 	}
 	// The first release must not have released the retest.
-	out, err := svc.ReleaseResult(second, 1)
+	out, err := svc.ReleaseResult(tid, studentID, second, 1)
 	if err != nil {
 		t.Fatalf("release second: %v", err)
 	}
@@ -286,10 +286,10 @@ func TestReleaseToleratesSummaryWithoutScores(t *testing.T) {
 	}
 
 	svc, ar, _ := releaseServiceFor(db)
-	if _, err := svc.ReleaseResult(assignmentID, 1); err != nil {
+	if _, err := svc.ReleaseResult(tid, studentID, assignmentID, 1); err != nil {
 		t.Fatalf("release with a sparse summary: %v", err)
 	}
-	res, err := ar.GetReleasableResult(attemptID, assignmentID)
+	res, err := ar.GetReleasableResult(attemptID, assignmentID, studentID, tid)
 	if err != nil {
 		t.Fatalf("read result: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestReleasedTokenResolves(t *testing.T) {
 	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, g.tid)
 
 	svc, _, tr := releaseServiceFor(db)
-	out, err := svc.ReleaseResult(g.assignmentID, 1)
+	out, err := svc.ReleaseResult(g.tid, g.studentID, g.assignmentID, 1)
 	if err != nil {
 		t.Fatalf("ReleaseResult: %v", err)
 	}

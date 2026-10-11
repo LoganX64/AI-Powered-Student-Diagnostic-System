@@ -11,6 +11,7 @@ import { StudentDashboardPage } from "../src/features/student/StudentDashboardPa
 import { StudentInstructionsPage } from "../src/features/student/StudentInstructionsPage.tsx";
 import { StudentQuizPage } from "../src/features/student/StudentQuizPage.tsx";
 import { StudentSubmittedPage } from "../src/features/student/StudentSubmittedPage.tsx";
+import { StudentResultPage } from "../src/features/student/StudentResultPage.tsx";
 import { AdminSigninPage } from "../src/features/admin/AdminSigninPage.tsx";
 import { AdminSignupPage } from "../src/features/admin/AdminSignupPage.tsx";
 import { CoachSigninPage } from "../src/features/coach/CoachSigninPage.tsx";
@@ -65,6 +66,11 @@ const router = createBrowserRouter([
       { path: "super-admin-signin", Component: SuperAdminSigninPage },
       { path: "forgot-password", Component: ForgotPasswordPage },
       { path: "reset-password", Component: ResetPasswordPage },
+
+      // Public result link from the release email. Deliberately outside
+      // ProtectedRoute: the token in the URL is the credential, and the
+      // recipient may open it without a student session.
+      { path: "student/results/:token", Component: StudentResultPage },
 
       // Protected routes — require authentication
       {

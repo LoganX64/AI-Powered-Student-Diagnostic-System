@@ -207,6 +207,9 @@ type ReleasableResult struct {
 	MaxScore    float64
 	Percent     float64
 	ReleasedAt  sql.NullTime
+	Correct     int
+	Wrong       int
+	Skipped     int
 	// HasResult distinguishes "the SQI job never ran" from "the student scored
 	// zero". Both leave the score fields at zero, so the numeric values cannot
 	// answer this.
@@ -216,15 +219,17 @@ type ReleasableResult struct {
 // GetReleasableResult loads the result for an attempt together with the student
 // and test it belongs to.
 //
-// Scoped by assignmentID as well as attemptID so a caller cannot release a
-// result by guessing an attempt id that belongs to a different assignment —
-// the handler has already authorised the student, and this keeps the attempt
-// tied to the assignment that authorisation was granted for.
+// tenantID and studentID are bound into the query rather than checked in the
+// handler beforehand. A separate check is not a security boundary: the handler
+// authorises one student and the query then fetches whatever the assignment id
+// names, so a caller could pair their own student with someone else's
+// assignment. Binding them here means an unauthorised pair simply matches no
+// row.
 //
 // Percent and max score come from analysis_json.exam_summary, which is where the
 // SQI job writes them. A result whose summary lacks them falls back to zero, so
 // the email never renders an empty or NaN score.
-func (r *AttemptRepo) GetReleasableResult(attemptID, assignmentID int) (*ReleasableResult, error) {
+func (r *AttemptRepo) GetReleasableResult(attemptID, assignmentID, studentID, tenantID int) (*ReleasableResult, error) {
 	var out ReleasableResult
 	var summary []byte
 	var resultID sql.NullInt64
@@ -239,8 +244,8 @@ func (r *AttemptRepo) GetReleasableResult(attemptID, assignmentID int) (*Releasa
 		JOIN students s ON s.id = ass.student_id
 		LEFT JOIN tests t ON t.id = ass.test_id
 		LEFT JOIN attempt_results r ON r.attempt_id = a.id
-		WHERE a.id = $1 AND a.assignment_id = $2
-	`, attemptID, assignmentID).
+		WHERE a.id = $1 AND a.assignment_id = $2 AND ass.student_id = $3 AND s.tenant_id = $4
+	`, attemptID, assignmentID, studentID, tenantID).
 		Scan(&out.AttemptID, &out.AssignmentID, &out.StudentID,
 			&out.StudentName, &out.StudentCode, &out.StudentEmail,
 			&out.TestTitle, &out.RawScore, &summary, &out.ReleasedAt, &resultID)
@@ -248,6 +253,9 @@ func (r *AttemptRepo) GetReleasableResult(attemptID, assignmentID int) (*Releasa
 		return nil, err
 	}
 	out.HasResult = resultID.Valid
+	out.Correct = correctCount(summary)
+	out.Wrong = wrongCount(summary)
+	out.Skipped = skippedCount(summary)
 
 	var examSummary examSummaryShape
 	if len(summary) > 0 {
@@ -263,12 +271,34 @@ func (r *AttemptRepo) GetReleasableResult(attemptID, assignmentID int) (*Releasa
 	return &out, nil
 }
 
-// examSummaryShape mirrors just the two score fields needed for the release
-// email, so a change elsewhere in the diagnostic payload cannot break it.
+// examSummaryShape mirrors just the score fields needed for the release email
+// and the student results page, so a change elsewhere in the diagnostic payload
+// cannot break either.
 type examSummaryShape struct {
 	MaxPossibleScore float64 `json:"max_possible_score"`
 	ScorePercent     float64 `json:"score_percent"`
+	Correct          int     `json:"correct"`
+	Wrong            int     `json:"wrong"`
+	Skipped          int     `json:"skipped"`
 }
+
+// summaryCounts decodes just the question tallies out of analysis_json.
+func summaryCounts(summary []byte) (correct, wrong, skipped int) {
+	if len(summary) == 0 {
+		return 0, 0, 0
+	}
+	var payload struct {
+		ExamSummary examSummaryShape `json:"exam_summary"`
+	}
+	if err := json.Unmarshal(summary, &payload); err != nil {
+		return 0, 0, 0
+	}
+	return payload.ExamSummary.Correct, payload.ExamSummary.Wrong, payload.ExamSummary.Skipped
+}
+
+func correctCount(summary []byte) int { c, _, _ := summaryCounts(summary); return c }
+func wrongCount(summary []byte) int   { _, w, _ := summaryCounts(summary); return w }
+func skippedCount(summary []byte) int { _, _, s := summaryCounts(summary); return s }
 
 // MarkResultReleased stamps the release audit columns.
 //
@@ -290,19 +320,131 @@ func (r *AttemptRepo) MarkResultReleased(attemptID, releasedBy int) (bool, error
 	return n > 0, nil
 }
 
-// GetSubmittedAttemptID returns the terminal attempt for an assignment.
+// GetSubmittedAttemptID returns the terminal attempt for an assignment, scoped
+// to the student and tenant that were authorised.
+//
+// Scoped in SQL for the same reason as GetReleasableResult: the caller proves
+// ownership of a student, and this must be the row for *that* student, not
+// whatever the assignment id happens to name.
 //
 // Picks the latest attempt so a retest (a second assignment for the same test)
-// or any future repeat resolves to the most recent sitting.
-func (r *AttemptRepo) GetSubmittedAttemptID(assignmentID int) (int, error) {
+// resolves to the most recent sitting.
+func (r *AttemptRepo) GetSubmittedAttemptID(assignmentID, studentID, tenantID int) (int, error) {
 	var id int
-	err := r.DB.QueryRow(
-		`SELECT id FROM attempts
-		 WHERE assignment_id = $1 AND status IN ('submitted', 'completed')
-		 ORDER BY id DESC LIMIT 1`,
-		assignmentID,
-	).Scan(&id)
+	err := r.DB.QueryRow(`
+		SELECT a.id
+		FROM attempts a
+		JOIN assignments ass ON ass.id = a.assignment_id
+		JOIN students s ON s.id = ass.student_id
+		WHERE a.assignment_id = $1
+		  AND ass.student_id = $2
+		  AND s.tenant_id = $3
+		  AND a.status IN ('submitted', 'completed')
+		ORDER BY a.id DESC LIMIT 1
+	`, assignmentID, studentID, tenantID).Scan(&id)
 	return id, err
+}
+
+// GetReleasedResultByToken resolves a token straight to its released result.
+//
+// The token is the credential, so there is no caller identity to compare
+// against — possession is the authorisation. The row is still required to be
+// released, so a token that somehow outlives its release reveals nothing.
+//
+// Returns sql.ErrNoRows for unknown, expired, or unreleased alike.
+func (r *AttemptRepo) GetReleasedResultByToken(tokenHash string) (*ReleasableResult, error) {
+	var out ReleasableResult
+	var summary []byte
+	err := r.DB.QueryRow(`
+		SELECT a.id, a.assignment_id, ass.student_id,
+		       COALESCE(s.name, ''), COALESCE(s.student_code, ''),
+		       COALESCE(t.title, ''),
+		       COALESCE(r.raw_score, 0), COALESCE(r.analysis_json, '{}'::jsonb),
+		       r.released_at
+		FROM result_tokens tok
+		JOIN attempts a ON a.id = tok.attempt_id
+		JOIN assignments ass ON ass.id = a.assignment_id
+		JOIN students s ON s.id = ass.student_id
+		LEFT JOIN tests t ON t.id = ass.test_id
+		JOIN attempt_results r ON r.attempt_id = a.id
+		WHERE tok.token_hash = $1
+		  AND tok.expires_at > NOW()
+		  AND r.released_at IS NOT NULL
+	`, tokenHash).
+		Scan(&out.AttemptID, &out.AssignmentID, &out.StudentID,
+			&out.StudentName, &out.StudentCode, &out.TestTitle,
+			&out.RawScore, &summary, &out.ReleasedAt)
+	if err != nil {
+		return nil, err
+	}
+	out.Correct, out.Wrong, out.Skipped = summaryCounts(summary)
+
+	var examSummary examSummaryShape
+	if len(summary) > 0 {
+		var payload struct {
+			ExamSummary examSummaryShape `json:"exam_summary"`
+		}
+		if err := json.Unmarshal(summary, &payload); err == nil {
+			examSummary = payload.ExamSummary
+		}
+	}
+	out.MaxScore = examSummary.MaxPossibleScore
+	out.Percent = examSummary.ScorePercent
+	return &out, nil
+}
+
+// ListReleasedResultsForStudent returns every released result for one student,
+// newest first.
+//
+// Scoped by student and tenant in SQL. Filtering a tenant-wide list afterwards
+// would be a display convenience, not a boundary, so the predicate does the work.
+func (r *AttemptRepo) ListReleasedResultsForStudent(studentID, tenantID int) ([]ReleasableResult, error) {
+	rows, err := r.DB.Query(`
+		SELECT a.id, a.assignment_id, ass.student_id,
+		       COALESCE(s.name, ''), COALESCE(s.student_code, ''),
+		       COALESCE(t.title, ''),
+		       COALESCE(r.raw_score, 0), COALESCE(r.analysis_json, '{}'::jsonb),
+		       r.released_at
+		FROM attempts a
+		JOIN assignments ass ON ass.id = a.assignment_id
+		JOIN students s ON s.id = ass.student_id
+		LEFT JOIN tests t ON t.id = ass.test_id
+		JOIN attempt_results r ON r.attempt_id = a.id
+		WHERE ass.student_id = $1 AND s.tenant_id = $2 AND r.released_at IS NOT NULL
+		ORDER BY r.released_at DESC, a.id DESC
+	`, studentID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []ReleasableResult{}
+	for rows.Next() {
+		var res ReleasableResult
+		var summary []byte
+		if err := rows.Scan(&res.AttemptID, &res.AssignmentID, &res.StudentID,
+			&res.StudentName, &res.StudentCode, &res.TestTitle,
+			&res.RawScore, &summary, &res.ReleasedAt); err != nil {
+			return nil, err
+		}
+		res.Correct, res.Wrong, res.Skipped = summaryCounts(summary)
+		var examSummary examSummaryShape
+		if len(summary) > 0 {
+			var payload struct {
+				ExamSummary examSummaryShape `json:"exam_summary"`
+			}
+			if err := json.Unmarshal(summary, &payload); err == nil {
+				examSummary = payload.ExamSummary
+			}
+		}
+		res.MaxScore = examSummary.MaxPossibleScore
+		res.Percent = examSummary.ScorePercent
+		out = append(out, res)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (r *AttemptRepo) GetAnswerDetails(attemptID int) ([]AnswerDetail, error) {

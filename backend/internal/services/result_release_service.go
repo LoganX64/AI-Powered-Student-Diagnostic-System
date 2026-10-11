@@ -45,6 +45,12 @@ func NewResultReleaseService(
 
 // ReleaseResult publishes one student's result for one assignment.
 //
+// tenantID and studentID are not merely checked, they are bound into every
+// lookup. The handler authorises the caller against the student in the URL; this
+// makes the rows fetched belong to that same student, so a coach who owns
+// student A cannot pair that with student B's assignment id and publish B's
+// result.
+//
 // Order matters: the release is recorded before the token is minted, so a token
 // never exists for a result that was not released. Email is last and
 // fire-and-forget, because a result that has been released must not appear
@@ -52,8 +58,8 @@ func NewResultReleaseService(
 //
 // The returned link is surfaced to the coach so it can be copied manually when
 // the student has no email on file or SMTP is unconfigured.
-func (s *ResultReleaseService) ReleaseResult(assignmentID, releasedBy int) (*ResultReleaseOutcome, error) {
-	attemptID, err := s.AttemptRepo.GetSubmittedAttemptID(assignmentID)
+func (s *ResultReleaseService) ReleaseResult(tenantID, studentID, assignmentID, releasedBy int) (*ResultReleaseOutcome, error) {
+	attemptID, err := s.AttemptRepo.GetSubmittedAttemptID(assignmentID, studentID, tenantID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrResultNotComputed
@@ -61,7 +67,7 @@ func (s *ResultReleaseService) ReleaseResult(assignmentID, releasedBy int) (*Res
 		return nil, err
 	}
 
-	res, err := s.AttemptRepo.GetReleasableResult(attemptID, assignmentID)
+	res, err := s.AttemptRepo.GetReleasableResult(attemptID, assignmentID, studentID, tenantID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrResultNotComputed

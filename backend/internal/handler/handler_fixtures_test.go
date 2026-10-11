@@ -138,7 +138,8 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 
 	resultTokenRepo := repository.NewResultTokenRepo(f.DB)
 	resultReleaseService := services.NewResultReleaseService(f.AttemptRepo, resultTokenRepo, testMailer())
-	f.Results = NewResultHandler(resultReleaseService, f.AttemptRepo, resultTokenRepo, f.StudentRepo, f.CoachRepo)
+	resultViewService := services.NewResultViewService(f.AttemptRepo, resultTokenRepo)
+	f.Results = NewResultHandler(resultReleaseService, resultViewService, f.AttemptRepo, resultTokenRepo, f.StudentRepo, f.CoachRepo)
 	f.SuperAdmin = NewSuperAdminHandler(f.TenantRepo, f.ProfileRepo, authService)
 
 	// Primary tenant.
@@ -235,6 +236,19 @@ func (f *handlerFixture) ctxSuperAdmin(t *testing.T) (*gin.Context, *httptest.Re
 func withJSONBody(c *gin.Context, method, body string) {
 	c.Request = httptest.NewRequest(method, "/x", postBody(body))
 	c.Request.Header.Set("Content-Type", "application/json")
+}
+
+// ctxAsStudentWithID seeds a student identity with an explicit id, for handlers
+// that read the signed-in student rather than a path param.
+func (f *handlerFixture) ctxAsStudentWithID(t *testing.T, studentID int) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/student/results", nil)
+	c.Set("tenant_id", f.TenantID)
+	c.Set("student_id", studentID)
+	c.Set("role", "student")
+	return c, w
 }
 
 // withParam sets a single path param (e.g. "id") on the context.

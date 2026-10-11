@@ -10,8 +10,8 @@ import {
   Phone,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
-import { getStudentAssignments } from "../../services/student.service";
-import type { Assignment } from "../../services/student.service";
+import { getStudentAssignments, getMyResults } from "../../services/student.service";
+import type { Assignment, StudentResult } from "../../services/student.service";
 import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,7 @@ export function StudentDashboardPage() {
   );
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [results, setResults] = useState<StudentResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -42,14 +43,24 @@ export function StudentDashboardPage() {
       setError(null);
       try {
         const data = await getStudentAssignments();
-        if (!cancelled) setAssignments(data);
+        if (cancelled) return;
+        setAssignments(data);
       } catch (err) {
-        if (!cancelled)
-          setError(
-            err instanceof Error ? err.message : "Failed to load assignments",
-          );
+        if (cancelled) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load assignments",
+        );
       } finally {
         if (!cancelled) setLoading(false);
+      }
+
+      // Fetched separately and independently: a failure here must not blank the
+      // assignment list, and a student with no released results yet is normal.
+      try {
+        const released = await getMyResults();
+        if (!cancelled) setResults(released);
+      } catch {
+        if (!cancelled) setResults([]);
       }
     })();
     return () => {
@@ -258,6 +269,46 @@ export function StudentDashboardPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* Released results. Only what a coach has published appears here;
+              a submitted exam with no release yet is absent by design. */}
+          {!loading && !error && results.length > 0 && (
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-foreground">
+                Your results
+              </h2>
+              {results.map((r) => (
+                <div
+                  key={r.attempt_id}
+                  className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                      <BarChart3 className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {r.test_title || "Test result"}
+                      </p>
+                      <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>
+                          {r.marks_earned} out of {r.max_marks} marks
+                        </span>
+                        <span className="font-medium text-foreground">
+                          {r.percentage}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  {r.released_at && (
+                    <span className="text-xs text-muted-foreground">
+                      Released {new Date(r.released_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

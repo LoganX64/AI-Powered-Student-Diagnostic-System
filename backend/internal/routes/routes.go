@@ -129,7 +129,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	resultTokenRepo := repository.NewResultTokenRepo(db)
 	resultReleaseService := services.NewResultReleaseService(attemptRepo, resultTokenRepo, mailer)
-	resultHandler := handlers.NewResultHandler(resultReleaseService, attemptRepo, resultTokenRepo, studentRepo, coachRepo)
+	resultViewService := services.NewResultViewService(attemptRepo, resultTokenRepo)
+	resultHandler := handlers.NewResultHandler(resultReleaseService, resultViewService, attemptRepo, resultTokenRepo, studentRepo, coachRepo)
 
 	liveviewHub := liveview.NewHub(redisClient)
 	studentWSHandler := liveview.NewStudentWSHandler(liveviewHub, studentRepo, assignmentRepo)
@@ -157,6 +158,11 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		student.POST("/login", middleware.NewRateLimiter(redisClient, middleware.LoginLimit), studentHandler.StudentLogin)
 		student.POST("/logout", authHandler.Logout)
 
+		// Emailed result link. Intentionally outside the protected group: the
+		// bearer token in the path is the credential, and the recipient may not
+		// be signed in when they open it.
+		student.GET("/results/:token", resultHandler.GetResultByToken)
+
 		// Shared (Redis) rate limiter when available, else per-instance in-memory.
 		limiter := middleware.NewRateLimiter(redisClient, middleware.DefaultLimit)
 
@@ -173,6 +179,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 			protected.POST("/assignments/:id/video-chunk", limiter, studentHandler.VideoChunk)
 			protected.GET("/assignments/:id/live", studentWSHandler.StudentLiveStream)
+			protected.GET("/results", resultHandler.ListMyResults)
 		}
 	}
 
