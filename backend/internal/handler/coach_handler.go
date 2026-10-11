@@ -169,8 +169,29 @@ func (h *CoachHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	id, code, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID)
+	email := normalizeStudentEmail(req.Email)
+	if email != nil {
+		if !validStudentEmail(*email) {
+			utils.BadRequest(c, "invalid email address")
+			return
+		}
+		taken, err := h.StudentRepo.EmailTakenInTenant(tenantID, *email, 0)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check email")
+			return
+		}
+		if taken {
+			utils.BadRequest(c, "email already in use for another student in your organization")
+			return
+		}
+	}
+
+	id, code, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID, email)
 	if err != nil {
+		if errors.Is(err, ErrStudentEmailTaken) {
+			utils.BadRequest(c, "email already in use for another student in your organization")
+			return
+		}
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
 	}

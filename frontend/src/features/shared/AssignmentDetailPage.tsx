@@ -1,12 +1,26 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon } from "lucide-react";
+import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon, SendIcon, CheckIcon, CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { JobProgress } from "@/components/shared/JobProgress";
 import {
   Table,
@@ -16,7 +30,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getAssignmentDetail, computeSQI, type AssignmentDetail } from "@/services/dashboard.service";
+import {
+  getAssignmentDetail,
+  computeSQI,
+  releaseResults,
+  type AssignmentDetail,
+} from "@/services/dashboard.service";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
 import { RecordedVideoPlayer } from "@/components/shared/RecordedVideoPlayer";
 
@@ -33,6 +52,11 @@ export function AssignmentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [computeJobId, setComputeJobId] = useState<number | null>(null);
   const [videoDeleted, setVideoDeleted] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  // Set when the release succeeded but no email went out, so the coach can
+  // copy the link manually.
+  const [shareLink, setShareLink] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     if (studentId === null || parsedAssignmentId === null) return;
@@ -61,6 +85,28 @@ export function AssignmentDetailPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
       .finally(() => setLoading(false));
   }, [studentId, parsedAssignmentId]);
+
+  const handleRelease = async () => {
+    if (studentId === null || parsedAssignmentId === null) return;
+    try {
+      setReleasing(true);
+      const res = await releaseResults(studentId, parsedAssignmentId);
+      if (res.already_released) {
+        toast.info("This result was already released.");
+      } else if (res.email_sent) {
+        toast.success(`Result released. Email sent to ${data?.student.name}.`);
+      } else {
+        toast.success("Result released. No email was sent - share the link below.");
+        setShareLink(res.link ?? null);
+      }
+      setReleaseOpen(false);
+      reload();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setReleasing(false);
+    }
+  };
 
   if (studentId === null || parsedAssignmentId === null) {
     return (
@@ -190,11 +236,71 @@ export function AssignmentDetailPage() {
         >
           <BarChart3Icon className="size-4" /> Calculate Score
         </Button>
+        <ReleaseButton
+          computed={data.result_computed === true}
+          releasedAt={data.released_at ?? null}
+          computePending={computeJobId !== null}
+          onOpen={() => setReleaseOpen(true)}
+        />
         <span className="text-sm text-muted-foreground">
           <ClockIcon className="size-3.5 inline mr-1" />
           Total time: {Math.floor(totalTime / 60)}m {Math.round(totalTime % 60)}s
         </span>
       </div>
+
+      <Dialog open={releaseOpen} onOpenChange={setReleaseOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Release result to {student.name}?</DialogTitle>
+            <DialogDescription>
+              {student.name} will be able to see their marks and percentage
+              for this attempt. The link expires after 15 days. If they have an
+              email on file it will be sent to them; otherwise you will get a
+              link to share. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReleaseOpen(false)} disabled={releasing}>
+              Cancel
+            </Button>
+            <Button onClick={handleRelease} disabled={releasing}>
+              {releasing ? "Releasing..." : "Release result"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={shareLink !== null}
+        onOpenChange={(o) => !o && setShareLink(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share this result link</DialogTitle>
+            <DialogDescription>
+              No email was sent, so send this link to {student.name} yourself.
+              It expires in 15 days.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-x-auto rounded border bg-muted px-2 py-1 text-xs">
+              {shareLink}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(shareLink ?? "")
+                  .then(() => toast.success("Link copied"))
+                  .catch(() => toast.error("Could not copy"));
+              }}
+            >
+              <CopyIcon className="size-4" /> Copy
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {computeJobId !== null && (
         <JobProgress
@@ -281,5 +387,65 @@ export function AssignmentDetailPage() {
         </div>
       )}
     </DashboardLayout>
+  );
+}
+
+/**
+ * Release is gated on `result_computed` rather than on `sqi_score` being
+ * non-null: a student who scored zero has a perfectly releasable result, and
+ * gating on the score would permanently lock them out of seeing it.
+ *
+ * The disabled state carries the reason as a tooltip, because a coach hitting a
+ * dead button with no explanation would just click "Calculate Score" and hope.
+ */
+function ReleaseButton({
+  computed,
+  releasedAt,
+  computePending,
+  onOpen,
+}: {
+  computed: boolean;
+  releasedAt: string | null;
+  computePending: boolean;
+  onOpen: () => void;
+}) {
+  if (releasedAt) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="outline" className="w-fit gap-2" disabled>
+              <CheckIcon className="size-4" /> Result released
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Released on {formatDateDDMMYYYY(releasedAt)}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  const disabledReason = computePending
+    ? "Waiting for the score to finish calculating."
+    : "Calculate the score first — results can only be released once computed.";
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">
+            <Button
+              className="w-fit gap-2"
+              disabled={!computed || computePending}
+              onClick={onOpen}
+            >
+              <SendIcon className="size-4" /> Release results
+            </Button>
+          </span>
+        </TooltipTrigger>
+        {!computed && (
+          <TooltipContent>{disabledReason}</TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
   );
 }

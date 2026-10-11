@@ -22,6 +22,9 @@ type StudentRow struct {
 	BatchID     *int    `json:"batch_id"`
 	CreatedAt   string  `json:"created_at"`
 	DeletedAt   *string `json:"deleted_at"`
+	// Returned so the edit form can repopulate the field. Without it an edit
+	// would post an empty email and silently clear the one on file.
+	Email *string `json:"email"`
 }
 
 	type StudentDetailRow struct {
@@ -38,12 +41,12 @@ type StudentRow struct {
 	DeletedByRole  *string `json:"deleted_by_role"`
 }
 
-func (r *StudentRepo) Create(tenantID int, name, studentCode string, coachID int) (int, error) {
+func (r *StudentRepo) Create(tenantID int, name, studentCode string, coachID int, email *string) (int, error) {
 	var id int
 	err := r.DB.QueryRow(`
-		INSERT INTO students (tenant_id, name, student_code, coach_id)
-		VALUES ($1,$2,$3,$4) RETURNING id
-	`, tenantID, name, studentCode, coachID).Scan(&id)
+		INSERT INTO students (tenant_id, name, student_code, coach_id, email)
+		VALUES ($1,$2,$3,$4,$5) RETURNING id
+	`, tenantID, name, studentCode, coachID, email).Scan(&id)
 	return id, err
 }
 
@@ -124,7 +127,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	}
 
 	countQuery := "SELECT COUNT(*) FROM students s WHERE " + where
-	dataQuery := "SELECT s.id, s.name, s.student_code, s.coach_id, COALESCE(c.name, '') AS coach_name, s.batch_id, s.created_at, s.deleted_at FROM students s LEFT JOIN coaches c ON s.coach_id = c.id WHERE " + where
+	dataQuery := "SELECT s.id, s.name, s.student_code, s.coach_id, COALESCE(c.name, '') AS coach_name, s.batch_id, s.created_at, s.deleted_at, s.email FROM students s LEFT JOIN coaches c ON s.coach_id = c.id WHERE " + where
 
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
@@ -144,7 +147,7 @@ func (r *StudentRepo) List(tenantID int, coachID *int, includeDeactivated bool, 
 	var students []StudentRow
 	for rows.Next() {
 		var s StudentRow
-		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName, &s.BatchID, &s.CreatedAt, &s.DeletedAt); err != nil {
+		if err := rows.Scan(&s.StudentID, &s.Name, &s.StudentCode, &s.CoachID, &s.CoachName, &s.BatchID, &s.CreatedAt, &s.DeletedAt, &s.Email); err != nil {
 			return nil, 0, err
 		}
 		students = append(students, s)
@@ -215,13 +218,27 @@ func (r *StudentRepo) SoftDelete(studentID, tenantID, deletedBy int, coachID *in
 	return rowsAffected > 0, nil
 }
 
-func (r *StudentRepo) UpdateStudent(tenantID, studentID int, name, studentCode string, coachID int, batchID *int) error {
+func (r *StudentRepo) UpdateStudent(tenantID, studentID int, name, studentCode string, coachID int, batchID *int, email *string) error {
 	_, err := r.DB.Exec(`
 		UPDATE students
-		SET name = $1, student_code = $2, coach_id = $3, batch_id = $4
-		WHERE id = $5 AND tenant_id = $6 AND deleted_at IS NULL
-	`, name, studentCode, coachID, batchID, studentID, tenantID)
+		SET name = $1, student_code = $2, coach_id = $3, batch_id = $4, email = $5
+		WHERE id = $6 AND tenant_id = $7 AND deleted_at IS NULL
+	`, name, studentCode, coachID, batchID, email, studentID, tenantID)
 	return err
+}
+
+// EmailTakenInTenant reports whether another student in the same tenant already
+// uses this email. Mirrors StudentCodeExists: it exists so the handler can
+// return a 400 with a useful message instead of surfacing the raw unique
+// violation. The idx_students_email_tenant index remains the real enforcement,
+// since this check cannot see concurrent writes.
+func (r *StudentRepo) EmailTakenInTenant(tenantID int, email string, exceptStudentID int) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM students WHERE tenant_id=$1 AND email=$2 AND id<>$3 AND deleted_at IS NULL)",
+		tenantID, email, exceptStudentID,
+	).Scan(&exists)
+	return exists, err
 }
 
 func (r *StudentRepo) StudentCodeExists(tenantID int, studentCode string, exceptStudentID int) (bool, error) {

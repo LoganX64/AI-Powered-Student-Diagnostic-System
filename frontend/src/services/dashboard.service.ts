@@ -426,6 +426,22 @@ export const getAssignmentDetail = (studentId: number, assignmentId: number) =>
     `${getPrefix()}/students/${studentId}/assignments/${assignmentId}`,
   );
 
+export type ReleaseResultsResponse = {
+  message: string;
+  attempt_id: number;
+  already_released: boolean;
+  email_sent: boolean;
+  /** Present so a coach can copy it when the student has no address on file. */
+  link?: string;
+};
+
+// Releasing is irreversible, so the caller must confirm with the coach first.
+export const releaseResults = (studentId: number, assignmentId: number) =>
+  apiFetch<ReleaseResultsResponse>(
+    `${getPrefix()}/students/${studentId}/assignments/${assignmentId}/release-results`,
+    { method: "POST" },
+  );
+
 // ─── SQI endpoint (role-aware) ────────────────────────────────────────────
 
 export const getStudentSQI = (

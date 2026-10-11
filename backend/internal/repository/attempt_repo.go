@@ -192,6 +192,28 @@ func (r *AttemptRepo) GetSQIResult(attemptID int) (sql.NullFloat64, []byte, erro
 	return sqiScore, analysisJSON, err
 }
 
+// ResultReleaseState tells the coach UI what the Release button should do: an
+// attempt with no attempt_results row cannot be released yet, and one with a
+// released_at has already been released.
+//
+// computed is a separate boolean rather than "sqi_score is non-null" because a
+// genuine zero score is still a computed result, and treating NULL sqi_score as
+// the discriminator would disable release for exactly the students who scored
+// nothing.
+func (r *AttemptRepo) GetResultReleaseState(attemptID int) (computed bool, releasedAt sql.NullTime, err error) {
+	err = r.DB.QueryRow(
+		"SELECT released_at FROM attempt_results WHERE attempt_id=$1", attemptID,
+	).Scan(&releasedAt)
+	switch {
+	case err == sql.ErrNoRows:
+		// No result row: nothing computed, therefore nothing released.
+		return false, sql.NullTime{}, nil
+	case err != nil:
+		return false, sql.NullTime{}, err
+	}
+	return true, releasedAt, nil
+}
+
 // ReleasableResult is everything the release flow needs to state a score to a
 // student: the attempt, its owning assignment, the display names, and the score
 // fields lifted out of analysis_json.

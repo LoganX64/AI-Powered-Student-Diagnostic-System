@@ -141,6 +141,7 @@ export function StudentsPage() {
         student_code: editingStudent.student_code,
         coach_id: editingStudent.coach_id,
         batch_id: editingStudent.batch_id ?? null,
+        email: editingStudent.email ?? "",
       }
     : undefined;
 

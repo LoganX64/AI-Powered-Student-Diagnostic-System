@@ -156,12 +156,20 @@ func buildAssignmentResultsResponse(
 			"assignment": gin.H{"id": assignmentID, "status": status, "assigned_at": assignedAt},
 			"attempt":    nil,
 			"sqi_score":  nil,
-			"answers":    []interface{}{},
+			// No attempt means nothing to release. Sent explicitly so the client
+			// can render a disabled button instead of relying on a missing key.
+			"result_computed": false,
+			"released_at":     nil,
+			"answers":         []interface{}{},
 		}, nil
 	}
 
 	sqiScore, analysisJSON, err := attemptRepo.GetSQIResult(attemptID)
 	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+	resultComputed, releasedAt, err := attemptRepo.GetResultReleaseState(attemptID)
+	if err != nil {
 		return nil, err
 	}
 	answers, err := attemptRepo.GetAnswerDetails(attemptID)
@@ -185,6 +193,10 @@ func buildAssignmentResultsResponse(
   if sqiScore.Valid {
     sqiScoreVal = sqiScore.Float64
   }
+  var releasedAtVal interface{}
+  if releasedAt.Valid {
+    releasedAtVal = releasedAt.Time
+  }
 
   return gin.H{
     "student":    gin.H{"id": studentID, "name": studentName, "student_code": studentCode},
@@ -193,6 +205,8 @@ func buildAssignmentResultsResponse(
     "attempt":    gin.H{"id": attemptID, "submitted_at": submittedAtVal},
     "sqi_score":  sqiScoreVal,
     "analysis":   analysis,
-    "answers":    answers,
+    "result_computed": resultComputed,
+    "released_at":     releasedAtVal,
+    "answers":         answers,
   }, nil
 }

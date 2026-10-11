@@ -73,6 +73,7 @@ export type Student = {
   coach_name: string;
   batch_id?: number | null;
   deleted_at?: string | null;
+  email?: string | null;
 };
 
 export type Subject = {
@@ -204,6 +205,10 @@ export type AssignmentDetail = {
   attempt: { id: number; submitted_at: string | null } | null;
   sqi_score: number | null;
   analysis?: SQIAnalysis;
+  // Whether an attempt_results row exists. Distinct from sqi_score being
+  // non-null: a genuine zero score is still releasable.
+  result_computed?: boolean;
+  released_at?: string | null;
   answers: AnswerDetail[];
 };
 

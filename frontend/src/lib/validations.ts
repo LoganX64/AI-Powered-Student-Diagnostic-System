@@ -48,11 +48,23 @@ export const updateCoachSchema = z.object({
   subject_ids: z.array(z.number().int().positive()).min(1, "At least one subject is required"),
 });
 
+// Deliberately permissive: the server re-validates with validStudentEmail, and
+// a stricter client regex tends to reject real addresses (plus-tags, long TLDs)
+// without buying any safety.
+const optionalEmail = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+    message: "Enter a valid email address",
+  })
+  .optional();
+
 export const createStudentSchema = z.object({
   name: z.string().min(1, "Name is required"),
   student_code: z.string().optional(),
   coach_id: z.number().int().positive("Please select a coach").optional(),
   batch_id: z.number().int().nullable().optional(),
+  email: optionalEmail,
 });
 
 export const updateStudentSchema = z.object({
@@ -60,6 +72,7 @@ export const updateStudentSchema = z.object({
   student_code: z.string().optional(),
   coach_id: z.number().int().positive("Please select a coach").optional(),
   batch_id: z.number().int().nullable().optional(),
+  email: optionalEmail,
 });
 
 export const createSubjectSchema = z.object({

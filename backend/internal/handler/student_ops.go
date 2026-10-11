@@ -7,8 +7,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lib/pq"
 )
 
 type CreateStudentRequest struct {
@@ -16,6 +18,7 @@ type CreateStudentRequest struct {
 	StudentCode string `json:"student_code"`
 	CoachID     int    `json:"coach_id"`
 	BatchID     *int   `json:"batch_id"`
+	Email       string `json:"email"`
 }
 
 type UpdateStudentRequest struct {
@@ -23,6 +26,52 @@ type UpdateStudentRequest struct {
 	StudentCode string `json:"student_code"`
 	CoachID     int    `json:"coach_id"`
 	BatchID     *int   `json:"batch_id"`
+	Email       string `json:"email"`
+}
+
+// normalizeStudentEmail trims, lowercases, and maps blank to nil.
+//
+// Lowercasing matters: the unique index is an exact-match text comparison, so
+// "Riya@x.com" and "riya@x.com" would otherwise create two students who should
+// be one. Real mail systems ignore case in the domain, and treating the whole
+// address that way is the safe approximation.
+//
+// A blank email becomes nil rather than "" so the partial unique index's
+// "WHERE email IS NOT NULL" excludes it entirely. A student may only have one
+// empty-string email per tenant otherwise.
+func normalizeStudentEmail(raw string) *string {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// validStudentEmail is a deliberately lenient but real check: exactly one "@",
+// a non-empty local part, a dotted domain, and no whitespace. It rejects what
+// would bounce on send, without trying to out-parse RFC 5322.
+func validStudentEmail(e string) bool {
+	if len(e) > 254 || strings.ContainsAny(e, " \t\r\n") {
+		return false
+	}
+	at := strings.LastIndex(e, "@")
+	if at <= 0 || at == len(e)-1 {
+		return false
+	}
+	local, domain := e[:at], e[at+1:]
+	if strings.Contains(local, "@") {
+		return false
+	}
+	labels := strings.Split(domain, ".")
+	if len(labels) < 2 {
+		return false
+	}
+	for _, l := range labels {
+		if l == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func updateStudentHelper(c *gin.Context, req UpdateStudentRequest, tenantID, coachID int, scopeCoachID *int, studentRepo *repository.StudentRepo, batchRepo *repository.BatchRepo) {
@@ -82,7 +131,31 @@ func updateStudentHelper(c *gin.Context, req UpdateStudentRequest, tenantID, coa
 		}
 	}
 
-	if err := studentRepo.UpdateStudent(tenantID, studentID, req.Name, req.StudentCode, coachID, req.BatchID); err != nil {
+	email := normalizeStudentEmail(req.Email)
+	if email != nil {
+		if !validStudentEmail(*email) {
+			utils.BadRequest(c, "invalid email address")
+			return
+		}
+		// Checked up front for a useful message; the unique index still
+		// enforces it against concurrent writes, and that case is mapped below.
+		taken, err := studentRepo.EmailTakenInTenant(tenantID, *email, studentID)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check email")
+			return
+		}
+		if taken {
+			utils.BadRequest(c, "email already in use for another student in your organization")
+			return
+		}
+	}
+
+	if err := studentRepo.UpdateStudent(tenantID, studentID, req.Name, req.StudentCode, coachID, req.BatchID, email); err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" && pqErr.Constraint == studentEmailIndex {
+			utils.BadRequest(c, "email already in use for another student in your organization")
+			return
+		}
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to update student")
 		return
 	}
@@ -300,8 +373,29 @@ func (h *AdminHandler) CreateStudent(c *gin.Context) {
 		return
 	}
 
-	id, code, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID)
+	email := normalizeStudentEmail(req.Email)
+	if email != nil {
+		if !validStudentEmail(*email) {
+			utils.BadRequest(c, "invalid email address")
+			return
+		}
+		taken, err := h.StudentRepo.EmailTakenInTenant(tenantID, *email, 0)
+		if err != nil {
+			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check email")
+			return
+		}
+		if taken {
+			utils.BadRequest(c, "email already in use for another student in your organization")
+			return
+		}
+	}
+
+	id, code, err := ensureStudentCode(h.StudentRepo, tenantID, req.Name, req.StudentCode, coachID, email)
 	if err != nil {
+		if errors.Is(err, ErrStudentEmailTaken) {
+			utils.BadRequest(c, "email already in use for another student in your organization")
+			return
+		}
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to create student")
 		return
 	}

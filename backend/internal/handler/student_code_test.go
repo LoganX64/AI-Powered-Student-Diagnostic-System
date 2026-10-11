@@ -40,7 +40,7 @@ func TestEnsureStudentCodeUsesProvidedCode(t *testing.T) {
 	f := newHandlerFixture(t)
 	provided := testutil.UniqueCode(t, "given")
 
-	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Provided", provided, f.CoachID)
+	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Provided", provided, f.CoachID, nil)
 	if err != nil {
 		t.Fatalf("ensureStudentCode: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestEnsureStudentCodeUsesProvidedCode(t *testing.T) {
 func TestEnsureStudentCodeAutoGenerates(t *testing.T) {
 	f := newHandlerFixture(t)
 
-	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Auto", "", f.CoachID)
+	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Auto", "", f.CoachID, nil)
 	if err != nil {
 		t.Fatalf("ensureStudentCode: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestEnsureStudentCodeRetriesOnDuplicate(t *testing.T) {
 		return testutil.UniqueCode(t, "fresh")
 	}
 
-	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Retry", "", f.CoachID)
+	id, code, err := ensureStudentCode(f.StudentRepo, f.TenantID, "Retry", "", f.CoachID, nil)
 	if err != nil {
 		t.Fatalf("ensureStudentCode must retry past the collision, got %v", err)
 	}

@@ -38,6 +38,7 @@ export type StudentFormInitial = {
   coach_id: number;
   batch_id: number | null;
   coach_name?: string;
+  email?: string | null;
 };
 
 interface StudentFormDialogProps {
@@ -66,6 +67,9 @@ function StudentFormFields({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [studentCode, setStudentCode] = useState(initial?.student_code ?? "");
+  // Null (no email on file) is distinct from "": the field renders blank in
+  // both cases, but submitting an empty string is how the coach clears it.
+  const [email, setEmail] = useState(initial?.email ?? "");
   const [selectedBatchId, setSelectedBatchId] = useState(
     initial?.batch_id != null ? String(initial.batch_id) : "none"
   );
@@ -181,6 +185,9 @@ const coachReqRef = useRef(0);
     const raw = {
       name: name.trim(),
       student_code: studentCode.trim() || undefined,
+      // Sent as "" when blank so the server stores NULL. Omitting it would be
+      // indistinguishable from "unchanged" on an edit.
+      email: email.trim(),
       // Pass 0 through rather than coercing to undefined, so the schema's
       // "Please select a coach" rule can actually fire. The backend otherwise
       // files the student under the admin's own coach record (student_ops.go:274),
@@ -245,6 +252,23 @@ const coachReqRef = useRef(0);
         {errors.student_code && (
           <p className="text-sm text-destructive">{errors.student_code}</p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="student-email">Email</Label>
+        <Input
+          id="student-email"
+          name="email"
+          type="email"
+          placeholder="student@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <p className="text-xs text-muted-foreground">
+          Results are emailed to this address when released. Must be unique
+          within your organization.
+        </p>
+        {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
       </div>
 
       {isAdmin && (
