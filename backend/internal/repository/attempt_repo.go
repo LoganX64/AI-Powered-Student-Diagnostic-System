@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"github.com/lib/pq"
@@ -189,6 +190,119 @@ func (r *AttemptRepo) GetSQIResult(attemptID int) (sql.NullFloat64, []byte, erro
 		attemptID,
 	).Scan(&sqiScore, &analysisJSON)
 	return sqiScore, analysisJSON, err
+}
+
+// ReleasableResult is everything the release flow needs to state a score to a
+// student: the attempt, its owning assignment, the display names, and the score
+// fields lifted out of analysis_json.
+type ReleasableResult struct {
+	AttemptID   int
+	AssignmentID int
+	StudentID   int
+	StudentName string
+	StudentCode string
+	StudentEmail sql.NullString
+	TestTitle   string
+	RawScore    float64
+	MaxScore    float64
+	Percent     float64
+	ReleasedAt  sql.NullTime
+	// HasResult distinguishes "the SQI job never ran" from "the student scored
+	// zero". Both leave the score fields at zero, so the numeric values cannot
+	// answer this.
+	HasResult   bool
+}
+
+// GetReleasableResult loads the result for an attempt together with the student
+// and test it belongs to.
+//
+// Scoped by assignmentID as well as attemptID so a caller cannot release a
+// result by guessing an attempt id that belongs to a different assignment —
+// the handler has already authorised the student, and this keeps the attempt
+// tied to the assignment that authorisation was granted for.
+//
+// Percent and max score come from analysis_json.exam_summary, which is where the
+// SQI job writes them. A result whose summary lacks them falls back to zero, so
+// the email never renders an empty or NaN score.
+func (r *AttemptRepo) GetReleasableResult(attemptID, assignmentID int) (*ReleasableResult, error) {
+	var out ReleasableResult
+	var summary []byte
+	var resultID sql.NullInt64
+	err := r.DB.QueryRow(`
+		SELECT a.id, a.assignment_id, ass.student_id,
+		       COALESCE(s.name, ''), COALESCE(s.student_code, ''), s.email,
+		       COALESCE(t.title, ''),
+		       COALESCE(r.raw_score, 0), COALESCE(r.analysis_json, '{}'::jsonb),
+		       r.released_at, r.id
+		FROM attempts a
+		JOIN assignments ass ON ass.id = a.assignment_id
+		JOIN students s ON s.id = ass.student_id
+		LEFT JOIN tests t ON t.id = ass.test_id
+		LEFT JOIN attempt_results r ON r.attempt_id = a.id
+		WHERE a.id = $1 AND a.assignment_id = $2
+	`, attemptID, assignmentID).
+		Scan(&out.AttemptID, &out.AssignmentID, &out.StudentID,
+			&out.StudentName, &out.StudentCode, &out.StudentEmail,
+			&out.TestTitle, &out.RawScore, &summary, &out.ReleasedAt, &resultID)
+	if err != nil {
+		return nil, err
+	}
+	out.HasResult = resultID.Valid
+
+	var examSummary examSummaryShape
+	if len(summary) > 0 {
+		var payload struct {
+			ExamSummary examSummaryShape `json:"exam_summary"`
+		}
+		if err := json.Unmarshal(summary, &payload); err == nil {
+			examSummary = payload.ExamSummary
+		}
+	}
+	out.MaxScore = examSummary.MaxPossibleScore
+	out.Percent = examSummary.ScorePercent
+	return &out, nil
+}
+
+// examSummaryShape mirrors just the two score fields needed for the release
+// email, so a change elsewhere in the diagnostic payload cannot break it.
+type examSummaryShape struct {
+	MaxPossibleScore float64 `json:"max_possible_score"`
+	ScorePercent     float64 `json:"score_percent"`
+}
+
+// MarkResultReleased stamps the release audit columns.
+//
+// Conditional on released_at IS NULL so a concurrent or repeated release
+// reports false rather than overwriting the original timestamp and author.
+func (r *AttemptRepo) MarkResultReleased(attemptID, releasedBy int) (bool, error) {
+	res, err := r.DB.Exec(
+		`UPDATE attempt_results SET released_at = NOW(), released_by = $2
+		 WHERE attempt_id = $1 AND released_at IS NULL`,
+		attemptID, releasedBy,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// GetSubmittedAttemptID returns the terminal attempt for an assignment.
+//
+// Picks the latest attempt so a retest (a second assignment for the same test)
+// or any future repeat resolves to the most recent sitting.
+func (r *AttemptRepo) GetSubmittedAttemptID(assignmentID int) (int, error) {
+	var id int
+	err := r.DB.QueryRow(
+		`SELECT id FROM attempts
+		 WHERE assignment_id = $1 AND status IN ('submitted', 'completed')
+		 ORDER BY id DESC LIMIT 1`,
+		assignmentID,
+	).Scan(&id)
+	return id, err
 }
 
 func (r *AttemptRepo) GetAnswerDetails(attemptID int) ([]AnswerDetail, error) {

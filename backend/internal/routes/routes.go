@@ -127,6 +127,10 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 
 	billingHandler := handlers.NewBillingHandler(planRepo, subscriptionRepo, studentRepo, coachRepo, storageBackend, quotaMW)
 
+	resultTokenRepo := repository.NewResultTokenRepo(db)
+	resultReleaseService := services.NewResultReleaseService(attemptRepo, resultTokenRepo, mailer)
+	resultHandler := handlers.NewResultHandler(resultReleaseService, attemptRepo, resultTokenRepo, studentRepo, coachRepo)
+
 	liveviewHub := liveview.NewHub(redisClient)
 	studentWSHandler := liveview.NewStudentWSHandler(liveviewHub, studentRepo, assignmentRepo)
 	viewerWSHandler := liveview.NewViewerWSHandler(liveviewHub, studentRepo, assignmentRepo, coachRepo)
@@ -233,6 +237,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/students/:id", adminHandler.GetStudent)
 		admin.GET("/students/:id/assignments", adminHandler.ListStudentAssignments)
 		admin.GET("/students/:id/assignments/:assignmentId", adminHandler.GetAssignmentResults)
+		admin.POST("/students/:id/assignments/:assignmentId/release-results", resultHandler.ReleaseAssignmentResult)
 		admin.DELETE("/assignments/:id", adminHandler.DeleteAssignment)
 		admin.DELETE("/students/:id", adminHandler.DeleteStudent)
 		admin.PUT("/students/:id", adminHandler.UpdateStudent)
@@ -334,6 +339,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.GET("/students/:id", adminHandler.GetStudent)
 		coach.GET("/students/:id/assignments", adminHandler.ListStudentAssignments)
 		coach.GET("/students/:id/assignments/:assignmentId", coachHandler.GetAssignmentResults)
+		coach.POST("/students/:id/assignments/:assignmentId/release-results", resultHandler.ReleaseAssignmentResult)
 		coach.DELETE("/assignments/:id", coachHandler.DeleteAssignment)
 		coach.DELETE("/students/:id", adminHandler.DeleteStudent)
 		coach.PUT("/students/:id", coachHandler.UpdateStudent)

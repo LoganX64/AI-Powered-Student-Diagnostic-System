@@ -42,6 +42,7 @@ type handlerFixture struct {
 	// SuperAdminHandler own their own files and would otherwise need a second
 	// fixture, which is why they are built here too.
 	Notifications *NotificationHandler
+	Results       *ResultHandler
 	SuperAdmin    *SuperAdminHandler
 
 	// Repos, for the few tests that assert persistence directly.
@@ -134,6 +135,10 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 		q, autosave, st, cfg, quotaMW, notifService)
 
 	f.Notifications = NewNotificationHandler(notifService, f.NotificationRepo)
+
+	resultTokenRepo := repository.NewResultTokenRepo(f.DB)
+	resultReleaseService := services.NewResultReleaseService(f.AttemptRepo, resultTokenRepo, testMailer())
+	f.Results = NewResultHandler(resultReleaseService, f.AttemptRepo, resultTokenRepo, f.StudentRepo, f.CoachRepo)
 	f.SuperAdmin = NewSuperAdminHandler(f.TenantRepo, f.ProfileRepo, authService)
 
 	// Primary tenant.
@@ -156,6 +161,12 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 	f.OtherAssignmentID = testutil.CreateAssignment(t, db, f.OtherStudentID, f.OtherTestID, f.OtherCoachID)
 
 	return f
+}
+
+// testMailer returns a mailer with no SMTP credentials, so release tests log
+// the link instead of dialling a server.
+func testMailer() *services.Mailer {
+	return services.NewMailer("smtp.example", 587, "", "", "from@example.com", "https://app.example")
 }
 
 // ctx builds a gin context pre-seeded with the identity a handler expects.
