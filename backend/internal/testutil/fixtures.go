@@ -146,6 +146,39 @@ func CreateAssignment(t *testing.T, db *sql.DB, studentID, testID, coachID int) 
 	return id
 }
 
+// CreateAttempt inserts a submitted attempt for an assignment and returns its id.
+// Status is set explicitly because 000011 gave the column a 'submitted' default
+// only for pre-existing rows, and result-release tests need a terminal attempt
+// to hang a result off.
+func CreateAttempt(t *testing.T, db *sql.DB, assignmentID int) int {
+	t.Helper()
+	var id int
+	err := db.QueryRow(
+		`INSERT INTO attempts (assignment_id, status, started_at, submitted_at)
+		 VALUES ($1, 'submitted', NOW(), NOW()) RETURNING id`,
+		assignmentID).Scan(&id)
+	if err != nil {
+		t.Fatalf("create attempt: %v", err)
+	}
+	return id
+}
+
+// CreateAttemptResult inserts a computed result for an attempt with a given
+// raw_score, mirroring what the SQI job writes. released_at is left NULL so
+// tests start from the "computed but withheld" state the release flow expects.
+func CreateAttemptResult(t *testing.T, db *sql.DB, attemptID int, rawScore float64) int {
+	t.Helper()
+	var id int
+	err := db.QueryRow(
+		`INSERT INTO attempt_results (attempt_id, sqi_score, raw_score, analysis_json)
+		 VALUES ($1, $2, $3, '{}'::jsonb) RETURNING id`,
+		attemptID, rawScore, rawScore).Scan(&id)
+	if err != nil {
+		t.Fatalf("create attempt result: %v", err)
+	}
+	return id
+}
+
 // CreateQuestion inserts a minimal valid question row for the given test.
 //
 // importance/difficulty/type use the values the current schema constrains
