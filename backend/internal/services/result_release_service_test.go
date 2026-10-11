@@ -8,6 +8,7 @@ import (
 
 	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/testutil"
+	"github.com/lib/pq"
 )
 
 // releaseGraph builds a tenant with one submitted attempt and an optional
@@ -256,12 +257,17 @@ func TestReleaseIsIndependentPerAssignment(t *testing.T) {
 		t.Fatalf("released attempt %d, want the retest's %d", out.AttemptID, secondAttempt)
 	}
 
+	// Scoped to this test's own attempts. A global COUNT(*) passed only while
+	// the shared dev database happened to hold no other tokens, and started
+	// failing once anything else wrote to result_tokens.
 	var tokens int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM result_tokens`).Scan(&tokens); err != nil {
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM result_tokens WHERE attempt_id = ANY($1)`,
+		pq.Array([]int{firstAttempt, secondAttempt})).Scan(&tokens); err != nil {
 		t.Fatalf("count tokens: %v", err)
 	}
 	if tokens != 2 {
-		t.Fatalf("%d tokens, want one per released attempt", tokens)
+		t.Fatalf("%d tokens for this test's attempts, want one per released attempt", tokens)
 	}
 }
 
