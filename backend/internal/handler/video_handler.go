@@ -400,11 +400,6 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 		return fmt.Errorf("ffmpeg merge failed: %s: %w", stderrBuf.String(), err)
 	}
 
-	// Delete chunks FIRST, then upload merged.
-	if err := h.Storage.DeletePrefix(context.Background(), prefix); err != nil {
-		log.Printf("[VIDEO] warning: failed to delete chunks for assignment %d: %v", assignmentID, err)
-	}
-
 	mergedFile, err := os.Open(mergedPath)
 	if err != nil {
 		return fmt.Errorf("open merged file: %w", err)
@@ -414,6 +409,15 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 	mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
 	if _, err := h.Storage.Put(context.Background(), mergedKey, mergedFile); err != nil {
 		return fmt.Errorf("upload merged video: %w", err)
+	}
+
+	// Chunks are deleted only after the merged file is safely stored, so a failed
+	// upload can never lose the recording. Per-key Delete rather than
+	// DeletePrefix: merged.webm lives under the same prefix.
+	for _, key := range chunkKeys {
+		if err := h.Storage.Delete(context.Background(), key); err != nil {
+			log.Printf("[VIDEO] warning: failed to delete chunk %s for assignment %d: %v", key, assignmentID, err)
+		}
 	}
 
 	log.Printf("[VIDEO] merged %d chunks for assignment %d into merged.webm", len(chunkKeys), assignmentID)

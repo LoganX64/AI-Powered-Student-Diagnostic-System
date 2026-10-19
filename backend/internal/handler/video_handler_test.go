@@ -1,9 +1,18 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/storage"
@@ -134,4 +143,112 @@ func TestVideoHandlerFixtureUsesTenantScopedTempDir(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 	_ = testutil.OpenTestDB
+}
+
+// putFailStorage wraps a Storage whose Put always fails, so the merge tests can
+// assert what survives an upload failure.
+type putFailStorage struct {
+	storage.Storage
+}
+
+func (putFailStorage) Put(context.Context, string, io.Reader) (string, error) {
+	return "", errors.New("simulated upload failure")
+}
+
+func enableVideoProctoring(t *testing.T, f *handlerFixture) {
+	t.Helper()
+	if _, err := f.DB.Exec(
+		`UPDATE assignments SET integrity_policy = '{"video_proctoring":true}'::jsonb WHERE id=$1`,
+		f.AssignmentID,
+	); err != nil {
+		t.Fatalf("enable video proctoring: %v", err)
+	}
+}
+
+// seedChunks writes two valid WebM chunks under video/<attemptID>/ so the real
+// ffmpeg merge path runs. Tests skip when ffmpeg is not installed.
+func seedChunks(t *testing.T, f *handlerFixture, attemptID int) {
+	t.Helper()
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not on PATH")
+	}
+	chunkPath := filepath.Join(t.TempDir(), "chunk.webm")
+	var stderr strings.Builder
+	cmd := exec.Command("ffmpeg", "-y",
+		"-f", "lavfi", "-i", "testsrc=duration=1:size=128x96:rate=10",
+		"-c:v", "libvpx", "-an", chunkPath)
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("generate test webm: %v: %s", err, stderr.String())
+	}
+	data, err := os.ReadFile(chunkPath)
+	if err != nil {
+		t.Fatalf("read test webm: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		key := fmt.Sprintf("video/%d/%d.webm", attemptID, i)
+		if _, err := f.Storage.Put(t.Context(), key, bytes.NewReader(data)); err != nil {
+			t.Fatalf("put chunk %d: %v", i, err)
+		}
+	}
+}
+
+func listVideoKeys(t *testing.T, f *handlerFixture, attemptID int) []string {
+	t.Helper()
+	keys, err := f.Storage.List(t.Context(), fmt.Sprintf("video/%d/", attemptID))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	return keys
+}
+
+// TestMergeForAttemptUploadFailurePreservesChunks pins the fix for the data-loss
+// bug where chunks were deleted before the merged upload was confirmed: a failed
+// Put must leave every original chunk intact.
+func TestMergeForAttemptUploadFailurePreservesChunks(t *testing.T) {
+	h, f := newVideoHandlerFixture(t)
+	enableVideoProctoring(t, f)
+	attemptID := testutil.CreateAttempt(t, f.DB, f.AssignmentID)
+	seedChunks(t, f, attemptID)
+
+	h.Storage = putFailStorage{f.Storage}
+
+	if err := h.MergeForAttempt(f.AssignmentID); err == nil {
+		t.Fatal("MergeForAttempt must fail when the merged upload fails")
+	}
+
+	keys := listVideoKeys(t, f, attemptID)
+	want := fmt.Sprintf("video/%d/0.webm", attemptID)
+	want2 := fmt.Sprintf("video/%d/1.webm", attemptID)
+	merged := fmt.Sprintf("video/%d/merged.webm", attemptID)
+	if len(keys) != 2 || keys[0] != want || keys[1] != want2 {
+		t.Fatalf("chunks must survive a failed upload, got %v", keys)
+	}
+	if _, err := f.Storage.Get(t.Context(), merged); err == nil {
+		t.Fatal("merged.webm must not exist after a failed upload")
+	}
+}
+
+// TestMergeForAttemptSuccessKeepsOnlyMerged verifies the success path: the
+// merged file survives the chunk cleanup (DeletePrefix would have removed it).
+func TestMergeForAttemptSuccessKeepsOnlyMerged(t *testing.T) {
+	h, f := newVideoHandlerFixture(t)
+	enableVideoProctoring(t, f)
+	attemptID := testutil.CreateAttempt(t, f.DB, f.AssignmentID)
+	seedChunks(t, f, attemptID)
+
+	if err := h.MergeForAttempt(f.AssignmentID); err != nil {
+		t.Fatalf("MergeForAttempt: %v", err)
+	}
+
+	merged := fmt.Sprintf("video/%d/merged.webm", attemptID)
+	keys := listVideoKeys(t, f, attemptID)
+	if len(keys) != 1 || keys[0] != merged {
+		t.Fatalf("want only merged.webm after success, got %v", keys)
+	}
+	rc, err := f.Storage.Get(t.Context(), merged)
+	if err != nil {
+		t.Fatalf("merged.webm must be retrievable: %v", err)
+	}
+	rc.Close()
 }
