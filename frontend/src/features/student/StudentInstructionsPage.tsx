@@ -226,7 +226,7 @@ export function StudentInstructionsPage() {
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {isAlreadySubmitted
-                ? "This exam has already been submitted. You cannot retake it."
+                ? "This exam has already been submitted. A retake has not been granted — contact your coach or administrator."
                 : isNoQuestions
                   ? "This exam does not have any questions yet. Please contact your instructor."
                   : error}

@@ -70,12 +70,59 @@ func (r *AttemptRepo) SubmitAnswersTx(
 	}
 	defer tx.Rollback()
 
-	var attemptID int
+	// Lock the assignment for the duration of the submission. Without this,
+	// two concurrent submissions both see status 'assigned' and each insert an
+	// attempt now that the single-attempt constraint is gone.
+	var assignmentStatus string
 	err = tx.QueryRow(
-		"INSERT INTO attempts (assignment_id, submitted_at) VALUES ($1, NOW()) RETURNING id",
+		"SELECT status FROM assignments WHERE id = $1 FOR UPDATE",
 		assignmentID,
-	).Scan(&attemptID)
+	).Scan(&assignmentStatus)
+	if err == sql.ErrNoRows {
+		return nil, ErrRetakeNotAllowed
+	}
 	if err != nil {
+		return nil, err
+	}
+	if assignmentStatus == "submitted" {
+		return nil, ErrRetakeNotAllowed
+	}
+
+	// Client-timed exams may already have an in-progress attempt from autosave.
+	// Reuse it instead of inserting a second attempt; otherwise create one, but
+	// only if the assignment has not been submitted and the attempt cap allows.
+	var attemptID int
+	err = tx.QueryRow(`
+		SELECT id FROM attempts
+		WHERE assignment_id = $1 AND status = 'in_progress'
+		ORDER BY id DESC LIMIT 1
+		FOR UPDATE
+	`, assignmentID).Scan(&attemptID)
+	switch {
+	case err == nil:
+		if _, err := tx.Exec(
+			"UPDATE attempts SET status = 'submitted', submitted_at = NOW() WHERE id = $1",
+			attemptID,
+		); err != nil {
+			return nil, err
+		}
+	case err == sql.ErrNoRows:
+		err = tx.QueryRow(`
+			INSERT INTO attempts (assignment_id, status, submitted_at)
+			SELECT $1, 'submitted', NOW()
+			FROM assignments a
+			WHERE a.id = $1
+			  AND a.status <> 'submitted'
+			  AND (SELECT COUNT(*) FROM attempts WHERE assignment_id = $1) < $2
+			RETURNING id
+		`, assignmentID, MaxAttemptsPerAssignment).Scan(&attemptID)
+		if err == sql.ErrNoRows {
+			return nil, ErrRetakeNotAllowed
+		}
+		if err != nil {
+			return nil, err
+		}
+	default:
 		return nil, err
 	}
 
@@ -161,7 +208,7 @@ func (r *AttemptRepo) GetByAssignment(assignmentID int) (int, sql.NullTime, erro
 	var attemptID int
 	var submittedAt sql.NullTime
 	err := r.DB.QueryRow(
-		"SELECT id, submitted_at FROM attempts WHERE assignment_id=$1",
+		"SELECT id, submitted_at FROM attempts WHERE assignment_id=$1 ORDER BY id DESC LIMIT 1",
 		assignmentID,
 	).Scan(&attemptID, &submittedAt)
 	return attemptID, submittedAt, err
@@ -433,6 +480,7 @@ func (r *AttemptRepo) ListReleasedResultsForStudent(studentID, tenantID int) ([]
 		LEFT JOIN tests t ON t.id = ass.test_id
 		JOIN attempt_results r ON r.attempt_id = a.id
 		WHERE ass.student_id = $1 AND s.tenant_id = $2 AND r.released_at IS NOT NULL
+		  AND a.id = (SELECT MAX(a2.id) FROM attempts a2 WHERE a2.assignment_id = a.assignment_id)
 		ORDER BY r.released_at DESC, a.id DESC
 	`, studentID, tenantID)
 	if err != nil {
@@ -624,6 +672,7 @@ func (r *AttemptRepo) GetAverageSQI(studentID int) (float64, error) {
 			JOIN attempts a ON ar.attempt_id = a.id
 			JOIN assignments ass ON a.assignment_id = ass.id
 			WHERE ass.student_id = $1
+			  AND a.id = (SELECT MAX(a2.id) FROM attempts a2 WHERE a2.assignment_id = a.assignment_id)
 			ORDER BY a.id DESC
 			LIMIT 100
 		) sub
@@ -656,6 +705,7 @@ func (r *AttemptRepo) GetStudentSQIMetrics(studentIDs []int, tenantID, coachID i
 			WHERE ass.student_id = ANY($1)
 			  AND s.tenant_id = $2
 			  AND ($3 = 0 OR s.coach_id = $3)
+			  AND a.id = (SELECT MAX(a2.id) FROM attempts a2 WHERE a2.assignment_id = a.assignment_id)
 		) sub
 		WHERE sub.rn <= 100
 		GROUP BY sub.student_id
@@ -691,6 +741,7 @@ func (r *AttemptRepo) GetResults(studentID int, includeAnalysis bool) ([]Attempt
 		JOIN attempts a ON ar.attempt_id = a.id
 		JOIN assignments ass ON a.assignment_id = ass.id
 		WHERE ass.student_id = $1
+		  AND a.id = (SELECT MAX(a2.id) FROM attempts a2 WHERE a2.assignment_id = a.assignment_id)
 		ORDER BY a.id DESC
 		LIMIT 100
 	`

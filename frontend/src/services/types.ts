@@ -210,6 +210,9 @@ export type AssignmentDetail = {
   result_computed?: boolean;
   released_at?: string | null;
   answers: AnswerDetail[];
+  attempts_used: number;
+  max_attempts: number;
+  can_retake: boolean;
 };
 
 // ─── SQI Types ───────────────────────────────────────────────────────────────

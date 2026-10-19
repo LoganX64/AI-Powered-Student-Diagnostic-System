@@ -144,6 +144,12 @@ func TestBuildAssignmentResultsResponseNoAttempt(t *testing.T) {
 	if body["sqi_score"] != nil {
 		t.Fatalf("sqi_score must be null: %v", body["sqi_score"])
 	}
+	if body["attempts_used"] != 0 || body["max_attempts"] != repository.MaxAttemptsPerAssignment {
+		t.Fatalf("attempts_used=%v max_attempts=%v", body["attempts_used"], body["max_attempts"])
+	}
+	if body["can_retake"] != false {
+		t.Fatalf("can_retake=%v, want false before submission", body["can_retake"])
+	}
 }
 
 func TestBuildAssignmentResultsResponseWithAttempt(t *testing.T) {
@@ -175,6 +181,12 @@ func TestBuildAssignmentResultsResponseWithAttempt(t *testing.T) {
 	answers, _ := body["answers"].([]repository.AnswerDetail)
 	if len(answers) != 1 || answers[0].QuestionID != q1 {
 		t.Fatalf("answers=%v", body["answers"])
+	}
+	if body["attempts_used"] != 1 || body["max_attempts"] != repository.MaxAttemptsPerAssignment {
+		t.Fatalf("attempts_used=%v max_attempts=%v", body["attempts_used"], body["max_attempts"])
+	}
+	if body["can_retake"] != true {
+		t.Fatalf("can_retake=%v, want true after first submission", body["can_retake"])
 	}
 }
 

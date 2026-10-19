@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -169,5 +170,157 @@ func TestExpiredInProgressAttempts(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("attempt %d not in expired %v", attemptID, expired)
+	}
+}
+
+// submitFirstAttempt creates and finalizes attempt #1 so the assignment is in
+// the 'submitted' state retakes are granted from.
+func submitFirstAttempt(t *testing.T, r *AttemptRepo, studentID, assignmentID int) int {
+	t.Helper()
+	attemptID, _, err := r.CreateInProgressAttempt(assignmentID)
+	if err != nil {
+		t.Fatalf("create first attempt: %v", err)
+	}
+	if err := r.FinalizeAttemptTx(assignmentID, attemptID, studentID); err != nil {
+		t.Fatalf("finalize first attempt: %v", err)
+	}
+	return attemptID
+}
+
+func TestCreateInProgressAttemptBlockedAfterSubmit(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewAttemptRepo(db)
+	_, _, studentID, _, assignmentID := attemptFixture(t, db)
+	submitFirstAttempt(t, r, studentID, assignmentID)
+
+	if _, _, err := r.CreateInProgressAttempt(assignmentID); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("CreateInProgressAttempt after submit: err=%v, want sql.ErrNoRows", err)
+	}
+	count, err := r.CountAttempts(assignmentID)
+	if err != nil {
+		t.Fatalf("CountAttempts: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count=%d, want 1", count)
+	}
+}
+
+func TestGrantRetakeAllowsAttemptsUpToCap(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewAttemptRepo(db)
+	tenantID, _, studentID, _, assignmentID := attemptFixture(t, db)
+
+	var grantedBy int
+	if err := db.QueryRow("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1", tenantID).Scan(&grantedBy); err != nil {
+		t.Fatalf("pick granting user: %v", err)
+	}
+
+	firstID := submitFirstAttempt(t, r, studentID, assignmentID)
+
+	used, max, err := r.GrantRetake(assignmentID, tenantID, grantedBy, nil)
+	if err != nil {
+		t.Fatalf("GrantRetake #1: %v", err)
+	}
+	if used != 1 || max != MaxAttemptsPerAssignment {
+		t.Fatalf("GrantRetake #1 used=%d max=%d", used, max)
+	}
+
+	var status string
+	var grantedByCol sql.NullInt64
+	if err := db.QueryRow(
+		"SELECT status, retake_granted_by FROM assignments WHERE id = $1", assignmentID,
+	).Scan(&status, &grantedByCol); err != nil {
+		t.Fatalf("read assignment: %v", err)
+	}
+	if status != "assigned" {
+		t.Fatalf("status=%q, want assigned", status)
+	}
+	if !grantedByCol.Valid || int(grantedByCol.Int64) != grantedBy {
+		t.Fatalf("retake_granted_by=%v, want %d", grantedByCol, grantedBy)
+	}
+
+	secondID, _, err := r.CreateInProgressAttempt(assignmentID)
+	if err != nil {
+		t.Fatalf("create second attempt: %v", err)
+	}
+	if secondID == firstID {
+		t.Fatalf("second attempt reused id %d", firstID)
+	}
+	if err := r.FinalizeAttemptTx(assignmentID, secondID, studentID); err != nil {
+		t.Fatalf("finalize second attempt: %v", err)
+	}
+
+	if used, _, err := r.GrantRetake(assignmentID, tenantID, grantedBy, nil); err != nil || used != 2 {
+		t.Fatalf("GrantRetake #2 used=%d err=%v", used, err)
+	}
+	thirdID, _, err := r.CreateInProgressAttempt(assignmentID)
+	if err != nil {
+		t.Fatalf("create third attempt: %v", err)
+	}
+	if err := r.FinalizeAttemptTx(assignmentID, thirdID, studentID); err != nil {
+		t.Fatalf("finalize third attempt: %v", err)
+	}
+
+	used, _, err = r.GrantRetake(assignmentID, tenantID, grantedBy, nil)
+	if !errors.Is(err, ErrRetakeLimitReached) {
+		t.Fatalf("GrantRetake #3 err=%v, want ErrRetakeLimitReached", err)
+	}
+	if used != MaxAttemptsPerAssignment {
+		t.Fatalf("used=%d, want %d", used, MaxAttemptsPerAssignment)
+	}
+
+	count, err := r.CountAttempts(assignmentID)
+	if err != nil {
+		t.Fatalf("CountAttempts: %v", err)
+	}
+	if count != MaxAttemptsPerAssignment {
+		t.Fatalf("count=%d, want %d", count, MaxAttemptsPerAssignment)
+	}
+}
+
+func TestGrantRetakeRejectsUnsubmittedAndInProgress(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewAttemptRepo(db)
+	tenantID, _, _, _, assignmentID := attemptFixture(t, db)
+
+	var grantedBy int
+	if err := db.QueryRow("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1", tenantID).Scan(&grantedBy); err != nil {
+		t.Fatalf("pick granting user: %v", err)
+	}
+
+	// Never attempted and still 'assigned' → no retake to grant.
+	if _, _, err := r.GrantRetake(assignmentID, tenantID, grantedBy, nil); !errors.Is(err, ErrRetakeNotAllowed) {
+		t.Fatalf("GrantRetake on assigned assignment: err=%v, want ErrRetakeNotAllowed", err)
+	}
+
+	if _, _, err := r.CreateInProgressAttempt(assignmentID); err != nil {
+		t.Fatalf("create attempt: %v", err)
+	}
+	if _, _, err := r.GrantRetake(assignmentID, tenantID, grantedBy, nil); !errors.Is(err, ErrRetakeNotAllowed) {
+		t.Fatalf("GrantRetake with in-progress attempt: err=%v, want ErrRetakeNotAllowed", err)
+	}
+}
+
+func TestGrantRetakeScopedToTenantAndCoach(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewAttemptRepo(db)
+	tenantID, coachID, studentID, _, assignmentID := attemptFixture(t, db)
+	var grantedBy int
+	if err := db.QueryRow("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1", tenantID).Scan(&grantedBy); err != nil {
+		t.Fatalf("pick granting user: %v", err)
+	}
+	submitFirstAttempt(t, r, studentID, assignmentID)
+
+	if _, _, err := r.GrantRetake(assignmentID, tenantID+99999, grantedBy, nil); !errors.Is(err, ErrAssignmentNotFound) {
+		t.Fatalf("foreign tenant err=%v, want ErrAssignmentNotFound", err)
+	}
+
+	_, otherCoachID := createCoach(t, db, tenantID)
+	if _, _, err := r.GrantRetake(assignmentID, tenantID, grantedBy, &otherCoachID); !errors.Is(err, ErrAssignmentNotFound) {
+		t.Fatalf("foreign coach err=%v, want ErrAssignmentNotFound", err)
+	}
+
+	if _, _, err := r.GrantRetake(assignmentID, tenantID, grantedBy, &coachID); err != nil {
+		t.Fatalf("owning coach: %v", err)
 	}
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -84,17 +85,9 @@ func (h *StudentHandler) StartExam(c *gin.Context) {
 		return
 	}
 
-	var attemptID int
-	var startedAt time.Time
-	if existingID, t, err := h.AttemptRepo.GetInProgressAttempt(assignmentID); err == nil {
-		attemptID, startedAt = existingID, t
-	} else {
-		id, t, err := h.AttemptRepo.CreateInProgressAttempt(assignmentID)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to start exam")
-			return
-		}
-		attemptID, startedAt = id, t
+	attemptID, startedAt, ok := h.resolveOrCreateAttempt(c, assignmentID)
+	if !ok {
+		return
 	}
 
 	deadline := services.ExamDeadline(startedAt, duration)
@@ -103,6 +96,37 @@ func (h *StudentHandler) StartExam(c *gin.Context) {
 		"deadline":   deadline.Format(time.RFC3339),
 		"server_now": time.Now().Format(time.RFC3339),
 	})
+}
+
+// resolveOrCreateAttempt returns the active attempt for an assignment, creating
+// the first attempt (or the next granted retake) when none exists. Creation only
+// happens on sql.ErrNoRows and is gated in SQL by assignment status and the
+// attempt cap. Any other error is a real failure and must not create a row.
+func (h *StudentHandler) resolveOrCreateAttempt(c *gin.Context, assignmentID int) (int, time.Time, bool) {
+	attemptID, startedAt, err := h.AttemptRepo.GetInProgressAttempt(assignmentID)
+	switch {
+	case err == nil:
+		return attemptID, startedAt, true
+	case !errors.Is(err, sql.ErrNoRows):
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to resolve attempt")
+		return 0, time.Time{}, false
+	}
+
+	id, t, createErr := h.AttemptRepo.CreateInProgressAttempt(assignmentID)
+	if createErr == nil {
+		return id, t, true
+	}
+	// A concurrent request may have won the partial unique index. Prefer the
+	// now-active attempt over surfacing a race as an error.
+	if existingID, existingStarted, getErr := h.AttemptRepo.GetInProgressAttempt(assignmentID); getErr == nil {
+		return existingID, existingStarted, true
+	}
+	if errors.Is(createErr, sql.ErrNoRows) {
+		utils.Conflict(c, "exam already submitted or retake limit reached")
+		return 0, time.Time{}, false
+	}
+	utils.SafeErrorResponse(c, http.StatusInternalServerError, createErr, "failed to start attempt")
+	return 0, time.Time{}, false
 }
 
 // Autosave persists answers to the server (autosave tier).
@@ -135,14 +159,9 @@ func (h *StudentHandler) Autosave(c *gin.Context) {
 		return
 	}
 
-	attemptID, _, err := h.AttemptRepo.GetInProgressAttempt(assignmentID)
-	if err != nil {
-		id, _, err := h.AttemptRepo.CreateInProgressAttempt(assignmentID)
-		if err != nil {
-			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to start attempt")
-			return
-		}
-		attemptID = id
+	attemptID, _, ok := h.resolveOrCreateAttempt(c, assignmentID)
+	if !ok {
+		return
 	}
 
 	if h.AutosaveBuffer != nil {

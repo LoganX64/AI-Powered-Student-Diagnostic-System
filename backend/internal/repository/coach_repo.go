@@ -144,6 +144,7 @@ func (r *CoachRepo) GetCoachStats(coachIDs []int, tenantID int) ([]CoachStatMetr
 				JOIN assignments ass ON a.assignment_id = ass.id
 				JOIN students s2 ON ass.student_id = s2.id
 				WHERE s2.coach_id = ANY($1) AND s2.tenant_id = $2 AND s2.deleted_at IS NULL
+				  AND a.id = (SELECT MAX(a2.id) FROM attempts a2 WHERE a2.assignment_id = a.assignment_id)
 			) main
 			WHERE main.rn <= 100
 			GROUP BY main.student_id

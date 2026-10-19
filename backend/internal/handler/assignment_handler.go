@@ -282,3 +282,65 @@ func releaseAssignmentStorage(subRepo *repository.SubscriptionRepo, quotaMW *mid
 		quotaMW.Invalidate(tenantID)
 	}
 }
+
+// GrantRetake reopens a submitted assignment so the student can sit it again.
+func (h *AdminHandler) GrantRetake(c *gin.Context) {
+	assignmentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid assignment id")
+		return
+	}
+	tenantID, err := resolveTenantID(c)
+	if err != nil {
+		utils.Unauthorized(c, "unauthorized")
+		return
+	}
+
+	used, max, grantErr := h.AttemptRepo.GrantRetake(assignmentID, tenantID, c.GetInt("user_id"), nil)
+	if grantErr != nil {
+		respondRetakeError(c, grantErr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "retake granted",
+		"attempts_used": used,
+		"max_attempts":  max,
+	})
+}
+
+func (h *CoachHandler) GrantRetake(c *gin.Context) {
+	assignmentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid assignment id")
+		return
+	}
+	coachID, tenantID, err := resolveCoachAndTenant(c, h.CoachRepo)
+	if err != nil {
+		utils.Unauthorized(c, "coach not found")
+		return
+	}
+
+	used, max, grantErr := h.AttemptRepo.GrantRetake(assignmentID, tenantID, c.GetInt("user_id"), &coachID)
+	if grantErr != nil {
+		respondRetakeError(c, grantErr)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message":       "retake granted",
+		"attempts_used": used,
+		"max_attempts":  max,
+	})
+}
+
+func respondRetakeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, repository.ErrAssignmentNotFound):
+		utils.NotFound(c, "assignment not found")
+	case errors.Is(err, repository.ErrRetakeNotAllowed):
+		utils.Conflict(c, "assignment is not submitted or an attempt is still in progress")
+	case errors.Is(err, repository.ErrRetakeLimitReached):
+		utils.Conflict(c, "maximum attempts reached for this assignment")
+	default:
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to grant retake")
+	}
+}

@@ -1,19 +1,126 @@
 package repository
 
 import (
+	"database/sql"
+	"errors"
 	"time"
+)
+
+// MaxAttemptsPerAssignment is the hard cap on sittings for one assignment,
+// including the first attempt. Retakes are granted by admin/coach one at a time.
+const MaxAttemptsPerAssignment = 3
+
+var (
+	// ErrAssignmentNotFound means the assignment does not exist in the tenant
+	// (or is not owned by the coach) the caller is scoped to.
+	ErrAssignmentNotFound = errors.New("assignment not found")
+	// ErrRetakeNotAllowed means the assignment is not in a retakable state:
+	// it has not been submitted yet, or an attempt is still in progress.
+	ErrRetakeNotAllowed = errors.New("assignment is not eligible for a retake")
+	// ErrRetakeLimitReached means every allowed attempt has been used.
+	ErrRetakeLimitReached = errors.New("maximum attempts reached")
 )
 
 // CreateInProgressAttempt inserts a new 'in_progress' attempt for an assignment
 // (server-authoritative timing). Returns the attempt id and started_at.
+//
+// The insert is guarded so a submitted assignment or an assignment at the
+// attempt cap cannot silently gain another attempt. It returns sql.ErrNoRows in
+// that case; the unique partial index on in-progress attempts handles
+// concurrent starts.
 func (r *AttemptRepo) CreateInProgressAttempt(assignmentID int) (int, time.Time, error) {
 	var id int
 	var startedAt time.Time
 	err := r.DB.QueryRow(`
 		INSERT INTO attempts (assignment_id, status, started_at)
-		VALUES ($1, 'in_progress', NOW()) RETURNING id, started_at
-	`, assignmentID).Scan(&id, &startedAt)
+		SELECT $1, 'in_progress', NOW()
+		FROM assignments a
+		WHERE a.id = $1
+		  AND a.status <> 'submitted'
+		  AND (SELECT COUNT(*) FROM attempts WHERE assignment_id = $1) < $2
+		RETURNING id, started_at
+	`, assignmentID, MaxAttemptsPerAssignment).Scan(&id, &startedAt)
 	return id, startedAt, err
+}
+
+// CountAttempts returns how many attempts (any status) an assignment has.
+func (r *AttemptRepo) CountAttempts(assignmentID int) (int, error) {
+	var count int
+	err := r.DB.QueryRow(
+		"SELECT COUNT(*) FROM attempts WHERE assignment_id = $1", assignmentID,
+	).Scan(&count)
+	return count, err
+}
+
+// GrantRetake reopens a submitted assignment for one more sitting. It is
+// transactional and row-locks the assignment so concurrent grants cannot push
+// the attempt count past MaxAttemptsPerAssignment or grant while an attempt is
+// still in progress.
+//
+// grantedBy is the user id recorded in the audit columns; coachID, when set,
+// additionally requires the assignment to belong to that coach.
+func (r *AttemptRepo) GrantRetake(assignmentID, tenantID, grantedBy int, coachID *int) (attemptsUsed, maxAttempts int, err error) {
+	tx, err := r.DB.Begin()
+	if err != nil {
+		return 0, MaxAttemptsPerAssignment, err
+	}
+	defer tx.Rollback()
+
+	query := `
+		SELECT a.status
+		FROM assignments a
+		JOIN students s ON s.id = a.student_id
+		WHERE a.id = $1 AND s.tenant_id = $2`
+	args := []interface{}{assignmentID, tenantID}
+	if coachID != nil {
+		query += " AND a.coach_id = $3"
+		args = append(args, *coachID)
+	}
+	query += " FOR UPDATE OF a"
+
+	var status string
+	if err := tx.QueryRow(query, args...).Scan(&status); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, MaxAttemptsPerAssignment, ErrAssignmentNotFound
+		}
+		return 0, MaxAttemptsPerAssignment, err
+	}
+	if status != "submitted" {
+		return 0, MaxAttemptsPerAssignment, ErrRetakeNotAllowed
+	}
+
+	var inProgress int
+	if err := tx.QueryRow(
+		"SELECT COUNT(*) FROM attempts WHERE assignment_id = $1 AND status = 'in_progress'",
+		assignmentID,
+	).Scan(&inProgress); err != nil {
+		return 0, MaxAttemptsPerAssignment, err
+	}
+	if inProgress > 0 {
+		return 0, MaxAttemptsPerAssignment, ErrRetakeNotAllowed
+	}
+
+	if err := tx.QueryRow(
+		"SELECT COUNT(*) FROM attempts WHERE assignment_id = $1", assignmentID,
+	).Scan(&attemptsUsed); err != nil {
+		return 0, MaxAttemptsPerAssignment, err
+	}
+	if attemptsUsed >= MaxAttemptsPerAssignment {
+		return attemptsUsed, MaxAttemptsPerAssignment, ErrRetakeLimitReached
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE assignments
+		SET status = 'assigned', retake_granted_at = NOW(), retake_granted_by = $2
+		WHERE id = $1
+	`, assignmentID, grantedBy); err != nil {
+		return attemptsUsed, MaxAttemptsPerAssignment, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return attemptsUsed, MaxAttemptsPerAssignment, err
+	}
+	return attemptsUsed, MaxAttemptsPerAssignment, nil
 }
 
 // GetInProgressAttempt returns the active (in_progress) attempt for an assignment.

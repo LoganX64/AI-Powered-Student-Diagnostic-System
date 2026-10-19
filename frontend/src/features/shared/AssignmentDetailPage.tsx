@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon, SendIcon, CheckIcon, CopyIcon } from "lucide-react";
+import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon, SendIcon, CheckIcon, CopyIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
@@ -34,6 +34,7 @@ import {
   getAssignmentDetail,
   computeSQI,
   releaseResults,
+  grantRetake,
   type AssignmentDetail,
 } from "@/services/dashboard.service";
 import { formatDateDDMMYYYY, parseRouteId } from "@/lib/utils";
@@ -54,6 +55,8 @@ export function AssignmentDetailPage() {
   const [videoDeleted, setVideoDeleted] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [retakeOpen, setRetakeOpen] = useState(false);
+  const [granting, setGranting] = useState(false);
   // Set when the release succeeded but no email went out, so the coach can
   // copy the link manually.
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -108,6 +111,21 @@ export function AssignmentDetailPage() {
     }
   };
 
+  const handleGrantRetake = async () => {
+    if (parsedAssignmentId === null) return;
+    try {
+      setGranting(true);
+      await grantRetake(parsedAssignmentId);
+      toast.success("Retake granted. The student can start the exam again.");
+      setRetakeOpen(false);
+      reload();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setGranting(false);
+    }
+  };
+
   if (studentId === null || parsedAssignmentId === null) {
     return (
       <DashboardLayout title="Assignment Not Found">
@@ -139,6 +157,8 @@ export function AssignmentDetailPage() {
   }
 
   const { student, test, assignment, attempt, sqi_score, answers } = data;
+  const attemptsUsed = data.attempts_used;
+  const maxAttempts = data.max_attempts;
 
   const totalQuestions = answers.length;
   const correctCount = answers.filter((a) => a.is_correct).length;
@@ -178,6 +198,12 @@ export function AssignmentDetailPage() {
             <div>
               <span className="text-muted-foreground">Assigned: </span>
               <span className="font-medium">{formatDateDDMMYYYY(assignment.assigned_at)}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Attempt: </span>
+              <span className="font-medium">
+                {attemptsUsed} of {maxAttempts}
+              </span>
             </div>
             {attempt && attempt.submitted_at && (
               <div>
@@ -242,7 +268,15 @@ export function AssignmentDetailPage() {
           computePending={computeJobId !== null}
           onOpen={() => setReleaseOpen(true)}
         />
-        <span className="text-sm text-muted-foreground">
+        {data.can_retake && (
+          <Button
+            variant="outline"
+            className="w-fit gap-2"
+            onClick={() => setRetakeOpen(true)}
+          >
+            <RotateCcwIcon className="size-4" /> Grant retake
+          </Button>
+        )}        <span className="text-sm text-muted-foreground">
           <ClockIcon className="size-3.5 inline mr-1" />
           Total time: {Math.floor(totalTime / 60)}m {Math.round(totalTime % 60)}s
         </span>
@@ -265,6 +299,31 @@ export function AssignmentDetailPage() {
             </Button>
             <Button onClick={handleRelease} disabled={releasing}>
               {releasing ? "Releasing..." : "Release result"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={retakeOpen} onOpenChange={setRetakeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Grant a retake to {student.name}?</DialogTitle>
+            <DialogDescription>
+              This reopens the assignment and lets {student.name} start attempt{" "}
+              {attemptsUsed + 1} of {maxAttempts}. The previous attempt is kept
+              for audit but is no longer shown in results.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRetakeOpen(false)}
+              disabled={granting}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleGrantRetake} disabled={granting}>
+              {granting ? "Granting..." : "Grant retake"}
             </Button>
           </DialogFooter>
         </DialogContent>

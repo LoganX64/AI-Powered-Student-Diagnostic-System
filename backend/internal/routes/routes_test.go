@@ -107,6 +107,7 @@ func TestSetupRouterRegistersCoreRoutes(t *testing.T) {
 		{"PUT", "/admin/tests/:id/reactivate"},
 		{"PUT", "/admin/subjects/:id/reactivate"},
 		{"POST", "/admin/assignments"},
+		{"POST", "/admin/assignments/:id/retake"},
 		{"DELETE", "/admin/assignments/:id"},
 		{"GET", "/admin/coaches"},
 		{"GET", "/admin/batches"},

@@ -9,8 +9,6 @@ import (
 	"errors"
 	"log"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 // ErrStudentNotFound is returned when the student does not exist within the
@@ -88,8 +86,7 @@ func (s *AttemptService) SubmitAnswers(assignmentID, studentID int, answers []An
 		return s.AssignmentRepo.MarkSubmittedTx(tx, assignmentID, studentID)
 	})
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		if errors.Is(err, repository.ErrRetakeNotAllowed) {
 			return nil, &SubmitAnswersError{Status: 409, Message: "assignment already submitted"}
 		}
 		return nil, &SubmitAnswersError{Status: 500, Message: "failed to submit answers"}

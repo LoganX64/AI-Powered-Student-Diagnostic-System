@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"ai-student-diagnostic/backend/internal/repository"
 	"ai-student-diagnostic/backend/internal/testutil"
 )
 
@@ -163,4 +164,74 @@ func TestListAndDeleteAssignment(t *testing.T) {
 			t.Fatal("assignment still exists in DB after deletion")
 		}
 	})
+}
+
+func markAssignmentSubmitted(t *testing.T, f *handlerFixture, assignmentID, studentID int) int {
+	t.Helper()
+	attemptID, _, err := f.AttemptRepo.CreateInProgressAttempt(assignmentID)
+	if err != nil {
+		t.Fatalf("create attempt: %v", err)
+	}
+	if err := f.AttemptRepo.FinalizeAttemptTx(assignmentID, attemptID, studentID); err != nil {
+		t.Fatalf("finalize attempt: %v", err)
+	}
+	return attemptID
+}
+
+func TestAdminGrantRetakeHandler(t *testing.T) {
+	f := newHandlerFixture(t)
+	markAssignmentSubmitted(t, f, f.AssignmentID, f.StudentID)
+
+	c, w := f.ctx(t, "admin")
+	withParam(c, "id", strconv.Itoa(f.AssignmentID))
+	f.Admin.GrantRetake(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("grant code=%d body=%s", w.Code, w.Body.String())
+	}
+	var body struct {
+		AttemptsUsed int `json:"attempts_used"`
+		MaxAttempts  int `json:"max_attempts"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body.AttemptsUsed != 1 || body.MaxAttempts != repository.MaxAttemptsPerAssignment {
+		t.Fatalf("attempts_used=%d max_attempts=%d", body.AttemptsUsed, body.MaxAttempts)
+	}
+
+	// The assignment is now 'assigned' (not submitted), so a second grant is
+	// refused instead of stacking retakes.
+	c, w = f.ctx(t, "admin")
+	withParam(c, "id", strconv.Itoa(f.AssignmentID))
+	f.Admin.GrantRetake(c)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("second grant code=%d body=%s, want 409", w.Code, w.Body.String())
+	}
+
+	// A foreign tenant's assignment must look missing, not forbidden.
+	c, w = f.ctx(t, "admin")
+	withParam(c, "id", strconv.Itoa(f.OtherAssignmentID))
+	f.Admin.GrantRetake(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("foreign grant code=%d body=%s, want 404", w.Code, w.Body.String())
+	}
+}
+
+func TestCoachGrantRetakeScopedToOwnAssignments(t *testing.T) {
+	f := newHandlerFixture(t)
+	markAssignmentSubmitted(t, f, f.AssignmentID, f.StudentID)
+
+	c, w := f.ctxAsCoach(t)
+	withParam(c, "id", strconv.Itoa(f.AssignmentID))
+	f.Coach.GrantRetake(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("coach grant code=%d body=%s", w.Code, w.Body.String())
+	}
+
+	c, w = f.ctxAsCoach(t)
+	withParam(c, "id", strconv.Itoa(f.OtherAssignmentID))
+	f.Coach.GrantRetake(c)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("foreign coach grant code=%d body=%s, want 404", w.Code, w.Body.String())
+	}
 }

@@ -294,20 +294,21 @@ func (r *AssignmentRepo) GetOwnerAndTest(assignmentID int) (AssignmentOwnerRow, 
 }
 
 type AssignmentStudentDetailRow struct {
-	OwnerID  int
-	TestID   int
+	OwnerID   int
+	TestID    int
 	TestTitle string
-	Duration int
-	ExamDate sql.NullTime
+	Duration  int
+	ExamDate  sql.NullTime
+	Status    string
 }
 
 func (r *AssignmentRepo) GetDetailForStudent(assignmentID int) (AssignmentStudentDetailRow, error) {
 	var row AssignmentStudentDetailRow
 	err := r.DB.QueryRow(`
-		SELECT ass.student_id, ass.test_id, t.title, COALESCE(t.duration, 0), t.exam_date
+		SELECT ass.student_id, ass.test_id, t.title, COALESCE(t.duration, 0), t.exam_date, ass.status
 		FROM assignments ass JOIN tests t ON ass.test_id = t.id
 		WHERE ass.id = $1
-	`, assignmentID).Scan(&row.OwnerID, &row.TestID, &row.TestTitle, &row.Duration, &row.ExamDate)
+	`, assignmentID).Scan(&row.OwnerID, &row.TestID, &row.TestTitle, &row.Duration, &row.ExamDate, &row.Status)
 	return row, err
 }
 

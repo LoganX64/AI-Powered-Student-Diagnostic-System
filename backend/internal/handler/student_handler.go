@@ -166,12 +166,9 @@ func (h *StudentHandler) GetAssignmentQuestions(c *gin.Context) {
 		return
 	}
 
-	existsAttempt, err := h.AttemptRepo.HasSubmittedAttempt(assignmentID)
-	if err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check assignment status")
-		return
-	}
-	if existsAttempt {
+	// A submitted assignment is closed unless staff have granted a retake, which
+	// flips the status back to 'assigned'. Older submitted attempts may exist.
+	if detail.Status == "submitted" {
 		utils.Conflict(c, "assignment already submitted")
 		return
 	}

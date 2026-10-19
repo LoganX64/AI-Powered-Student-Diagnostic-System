@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/testutil"
@@ -153,5 +154,94 @@ func TestGetByAssignment(t *testing.T) {
 	}
 	if id != res.AttemptID || !submittedAt.Valid {
 		t.Fatalf("GetByAssignment=(%d,%v)", id, submittedAt)
+	}
+}
+
+// markSubmitted mirrors what AttemptService does inside the submit transaction.
+func markSubmitted(assignmentID int) func(*sql.Tx) error {
+	return func(tx *sql.Tx) error {
+		_, err := tx.Exec("UPDATE assignments SET status = 'submitted' WHERE id = $1", assignmentID)
+		return err
+	}
+}
+
+func TestSubmitAnswersTxRejectsSecondSubmission(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewAttemptRepo(db)
+	_, _, _, _, assignmentID := attemptFixture(t, db)
+
+	if _, err := r.SubmitAnswersTx(assignmentID, map[int]string{}, []AnswerInput{}, markSubmitted(assignmentID)); err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+	if _, err := r.SubmitAnswersTx(assignmentID, map[int]string{}, []AnswerInput{}, markSubmitted(assignmentID)); !errors.Is(err, ErrRetakeNotAllowed) {
+		t.Fatalf("second submit: err=%v, want ErrRetakeNotAllowed", err)
+	}
+
+	count, err := r.CountAttempts(assignmentID)
+	if err != nil {
+		t.Fatalf("CountAttempts: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count=%d, want 1 (no duplicate attempt)", count)
+	}
+}
+
+func TestRetakeLatestAttemptDrivesResultsAndAverage(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	r := NewAttemptRepo(db)
+	tenantID, _, studentID, _, assignmentID := attemptFixture(t, db)
+
+	var grantedBy int
+	if err := db.QueryRow("SELECT id FROM users WHERE tenant_id = $1 LIMIT 1", tenantID).Scan(&grantedBy); err != nil {
+		t.Fatalf("pick granting user: %v", err)
+	}
+
+	first, err := r.SubmitAnswersTx(assignmentID, map[int]string{}, []AnswerInput{}, markSubmitted(assignmentID))
+	if err != nil {
+		t.Fatalf("first submit: %v", err)
+	}
+	if err := r.StoreResult(first.AttemptID, 40, 10, []byte(`{"attempt":1}`), "v2"); err != nil {
+		t.Fatalf("store first result: %v", err)
+	}
+
+	if _, _, err := r.GrantRetake(assignmentID, tenantID, grantedBy, nil); err != nil {
+		t.Fatalf("grant retake: %v", err)
+	}
+	second, err := r.SubmitAnswersTx(assignmentID, map[int]string{}, []AnswerInput{}, markSubmitted(assignmentID))
+	if err != nil {
+		t.Fatalf("second submit: %v", err)
+	}
+	if second.AttemptID == first.AttemptID {
+		t.Fatalf("second attempt reused id %d", first.AttemptID)
+	}
+	if err := r.StoreResult(second.AttemptID, 90, 30, []byte(`{"attempt":2}`), "v2"); err != nil {
+		t.Fatalf("store second result: %v", err)
+	}
+
+	id, _, err := r.GetByAssignment(assignmentID)
+	if err != nil {
+		t.Fatalf("GetByAssignment: %v", err)
+	}
+	if id != second.AttemptID {
+		t.Fatalf("latest attempt id=%d, want %d", id, second.AttemptID)
+	}
+
+	results, err := r.GetResults(studentID, false)
+	if err != nil {
+		t.Fatalf("GetResults: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results)=%d, want 1 (latest attempt only)", len(results))
+	}
+	if results[0].AttemptID != second.AttemptID || !results[0].SQI.Valid || results[0].SQI.Float64 != 90 {
+		t.Fatalf("result=%+v", results[0])
+	}
+
+	avg, err := r.GetAverageSQI(studentID)
+	if err != nil {
+		t.Fatalf("GetAverageSQI: %v", err)
+	}
+	if avg != 90 {
+		t.Fatalf("avg=%v, want 90 (latest attempt only)", avg)
 	}
 }

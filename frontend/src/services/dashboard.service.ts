@@ -442,6 +442,18 @@ export const releaseResults = (studentId: number, assignmentId: number) =>
     { method: "POST" },
   );
 
+export type GrantRetakeResponse = {
+  message: string;
+  attempts_used: number;
+  max_attempts: number;
+};
+
+export const grantRetake = (assignmentId: number) =>
+  apiFetch<GrantRetakeResponse>(
+    `${getPrefix()}/assignments/${assignmentId}/retake`,
+    { method: "POST" },
+  );
+
 // ─── SQI endpoint (role-aware) ────────────────────────────────────────────
 
 export const getStudentSQI = (

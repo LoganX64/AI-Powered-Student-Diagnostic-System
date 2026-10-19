@@ -148,6 +148,12 @@ func buildAssignmentResultsResponse(
 	studentName, studentCode string,
 	testID int, testTitle, status, assignedAt string,
 ) (gin.H, error) {
+	attemptsUsed, err := attemptRepo.CountAttempts(assignmentID)
+	if err != nil {
+		return nil, err
+	}
+	canRetake := status == "submitted" && attemptsUsed < repository.MaxAttemptsPerAssignment
+
 	attemptID, submittedAt, err := attemptRepo.GetByAssignment(assignmentID)
 	if err != nil {
 		return gin.H{
@@ -161,6 +167,9 @@ func buildAssignmentResultsResponse(
 			"result_computed": false,
 			"released_at":     nil,
 			"answers":         []interface{}{},
+			"attempts_used":   attemptsUsed,
+			"max_attempts":    repository.MaxAttemptsPerAssignment,
+			"can_retake":      canRetake,
 		}, nil
 	}
 
@@ -208,5 +217,8 @@ func buildAssignmentResultsResponse(
     "result_computed": resultComputed,
     "released_at":     releasedAtVal,
     "answers":         answers,
+    "attempts_used":   attemptsUsed,
+    "max_attempts":    repository.MaxAttemptsPerAssignment,
+    "can_retake":      canRetake,
   }, nil
 }

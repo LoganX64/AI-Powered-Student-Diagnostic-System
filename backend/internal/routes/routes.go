@@ -229,7 +229,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		admin.POST("/assignments", adminHandler.CreateAssignment)
 		admin.POST("/assignments/batch", adminHandler.CreateBatchAssignment)
-
+		admin.POST("/assignments/:id/retake", adminHandler.GrantRetake)
 		admin.PUT("/tests/:id", adminHandler.UpdateTest)
 		admin.PUT("/tests/:id/questions/:qid", adminHandler.UpdateQuestion)
 		admin.PUT("/tests/:id/reactivate", adminHandler.ReactivateTest)
@@ -329,6 +329,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.POST("/tests/:id/questions", adminHandler.CreateQuestion)
 		coach.POST("/assignments", coachHandler.CreateAssignment)
 		coach.POST("/assignments/batch", coachHandler.CreateBatchAssignment)
+		coach.POST("/assignments/:id/retake", coachHandler.GrantRetake)
 		coach.POST("/subjects", adminHandler.CreateSubject)
 
 		coach.PUT("/tests/:id", adminHandler.UpdateTest)
