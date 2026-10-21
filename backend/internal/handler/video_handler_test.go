@@ -28,7 +28,7 @@ import (
 func newVideoHandlerFixture(t *testing.T) (*VideoHandler, *handlerFixture) {
 	t.Helper()
 	f := newHandlerFixture(t)
-	h := NewVideoHandler(f.AttemptRepo, f.AssignmentRepo, f.StudentRepo, f.CoachRepo, f.Storage)
+	h := NewVideoHandler(f.AttemptRepo, f.AssignmentRepo, f.StudentRepo, f.CoachRepo, f.Storage, nil)
 	return h, f
 }
 
@@ -251,4 +251,43 @@ func TestMergeForAttemptSuccessKeepsOnlyMerged(t *testing.T) {
 		t.Fatalf("merged.webm must be retrievable: %v", err)
 	}
 	rc.Close()
+}
+
+func TestMergeForAttemptDoesNotReMergeIfAlreadyMerged(t *testing.T) {
+	h, f := newVideoHandlerFixture(t)
+	enableVideoProctoring(t, f)
+	attemptID := testutil.CreateAttempt(t, f.DB, f.AssignmentID)
+	seedChunks(t, f, attemptID)
+
+	// First merge
+	if err := h.MergeForAttempt(f.AssignmentID); err != nil {
+		t.Fatalf("First MergeForAttempt: %v", err)
+	}
+
+	// Second merge must return nil immediately without errors
+	if err := h.MergeForAttempt(f.AssignmentID); err != nil {
+		t.Fatalf("Second MergeForAttempt should do nothing and return nil: %v", err)
+	}
+}
+
+func TestVideoStatusReportsReadyWhenMerged(t *testing.T) {
+	h, f := newVideoHandlerFixture(t)
+	enableVideoProctoring(t, f)
+	attemptID := testutil.CreateAttempt(t, f.DB, f.AssignmentID)
+	seedChunks(t, f, attemptID)
+
+	if err := h.MergeForAttempt(f.AssignmentID); err != nil {
+		t.Fatalf("MergeForAttempt: %v", err)
+	}
+
+	c, w := f.ctx(t, "admin")
+	withParam(c, "id", strconv.Itoa(f.AssignmentID))
+
+	h.VideoStatus(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("code=%d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"status":"ready"`) {
+		t.Fatalf("expected status:ready in body: %s", w.Body.String())
+	}
 }

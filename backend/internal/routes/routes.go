@@ -135,7 +135,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	liveviewHub := liveview.NewHub(redisClient)
 	studentWSHandler := liveview.NewStudentWSHandler(liveviewHub, studentRepo, assignmentRepo)
 	viewerWSHandler := liveview.NewViewerWSHandler(liveviewHub, studentRepo, assignmentRepo, coachRepo)
-	videoHandler := handlers.NewVideoHandler(attemptRepo, assignmentRepo, studentRepo, coachRepo, storageBackend)
+	videoHandler := handlers.NewVideoHandler(attemptRepo, assignmentRepo, studentRepo, coachRepo, storageBackend, redisClient)
 	studentHandler.VideoHandler = videoHandler
 
 	superAdminHandler := handlers.NewSuperAdminHandler(tenantRepo, profileRepo, authService)
@@ -276,6 +276,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/jobs/:id", adminHandler.GetJob)
 
 		admin.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), videoHandler.ListVideoChunks)
+		admin.GET("/assignments/:id/video-status", quotaMW.CheckVideoProctoringAccess(), videoHandler.VideoStatus)
 		admin.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamVideoChunk)
 		admin.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), videoHandler.GenerateVideoToken)
 		admin.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), videoHandler.DeleteVideo)
@@ -306,6 +307,12 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	videoStream.Use(middleware.VideoTokenMiddleware())
 	{
 		videoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamMergedVideo)
+	}
+
+	coachVideoStream := r.Group("/coach")
+	coachVideoStream.Use(middleware.VideoTokenMiddleware())
+	{
+		coachVideoStream.GET("/assignments/:id/video-merged", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamMergedVideo)
 	}
 
 	view := r.Group("/view")
@@ -358,6 +365,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.PUT("/subjects/:id/reactivate", adminHandler.ReactivateSubject)
 		coach.GET("/assignments", adminHandler.ListAssignments)
 		coach.GET("/assignments/:id/video-chunks", quotaMW.CheckVideoProctoringAccess(), videoHandler.ListVideoChunks)
+		coach.GET("/assignments/:id/video-status", quotaMW.CheckVideoProctoringAccess(), videoHandler.VideoStatus)
 		coach.GET("/assignments/:id/video-chunk/:index", quotaMW.CheckVideoProctoringAccess(), videoHandler.StreamVideoChunk)
 		coach.POST("/assignments/:id/video-token", quotaMW.CheckVideoProctoringAccess(), videoHandler.GenerateVideoToken)
 		coach.DELETE("/assignments/:id/video", quotaMW.CheckVideoProctoringAccess(), videoHandler.DeleteVideo)

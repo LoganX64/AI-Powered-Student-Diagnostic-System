@@ -16,9 +16,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
+
+var inMemoryVideoMergeStatus sync.Map // map[int]string
 
 type VideoHandler struct {
 	AttemptRepo    *repository.AttemptRepo
@@ -26,6 +31,7 @@ type VideoHandler struct {
 	StudentRepo    *repository.StudentRepo
 	CoachRepo      *repository.CoachRepo
 	Storage        storage.Storage
+	RDB            *redis.Client
 }
 
 func NewVideoHandler(
@@ -34,6 +40,7 @@ func NewVideoHandler(
 	studentRepo *repository.StudentRepo,
 	coachRepo *repository.CoachRepo,
 	storageBackend storage.Storage,
+	rdb *redis.Client,
 ) *VideoHandler {
 	return &VideoHandler{
 		AttemptRepo:    attemptRepo,
@@ -41,7 +48,56 @@ func NewVideoHandler(
 		StudentRepo:    studentRepo,
 		CoachRepo:      coachRepo,
 		Storage:        storageBackend,
+		RDB:            rdb,
 	}
+}
+
+func (h *VideoHandler) getMergeStatus(attemptID int) string {
+	if h.RDB != nil {
+		val, err := h.RDB.Get(context.Background(), fmt.Sprintf("video:merge:status:%d", attemptID)).Result()
+		if err == nil {
+			return val
+		}
+	}
+	if val, ok := inMemoryVideoMergeStatus.Load(attemptID); ok {
+		return val.(string)
+	}
+	return ""
+}
+
+func (h *VideoHandler) setMergeStatus(attemptID int, status string) {
+	if h.RDB != nil {
+		ttl := 15 * time.Minute
+		if status == "ready" {
+			ttl = 24 * time.Hour
+		}
+		_ = h.RDB.Set(context.Background(), fmt.Sprintf("video:merge:status:%d", attemptID), status, ttl).Err()
+	}
+	inMemoryVideoMergeStatus.Store(attemptID, status)
+}
+
+func (h *VideoHandler) StartMergeAsync(assignmentID, attemptID int) {
+	if h.getMergeStatus(attemptID) == "processing" {
+		return
+	}
+	h.setMergeStatus(attemptID, "processing")
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[VIDEO] panic in async merge for assignment %d: %v", assignmentID, r)
+				h.setMergeStatus(attemptID, "failed")
+			}
+		}()
+
+		if err := h.MergeForAttempt(assignmentID); err != nil {
+			log.Printf("[VIDEO] async merge failed for assignment %d: %v", assignmentID, err)
+			h.setMergeStatus(attemptID, "failed")
+			return
+		}
+
+		h.setMergeStatus(attemptID, "ready")
+	}()
 }
 
 func (h *VideoHandler) resolveOwnership(c *gin.Context, assignmentID int, role string) (int, error) {
@@ -231,7 +287,122 @@ func (h *VideoHandler) GenerateVideoToken(c *gin.Context) {
 	})
 }
 
-// StreamMergedVideo serves the merged video. Merges on first request if not already done.
+// VideoStatus returns the status of an assignment's video merge.
+// If not yet merged and chunks exist, it starts a background merge and returns 202.
+func (h *VideoHandler) VideoStatus(c *gin.Context) {
+	role, ok := getRoleFromContext(c)
+	if !ok {
+		utils.Unauthorized(c, "unauthorized")
+		return
+	}
+	if role != "admin" && role != "coach" {
+		utils.Unauthorized(c, "admin or coach role required")
+		return
+	}
+
+	assignmentID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		utils.BadRequest(c, "invalid assignment_id")
+		return
+	}
+
+	if _, err := h.resolveOwnership(c, assignmentID, role); err != nil {
+		utils.Forbidden(c, err.Error())
+		return
+	}
+
+	attemptID, _, err := h.AttemptRepo.GetByAssignment(assignmentID)
+	if err != nil {
+		utils.NotFound(c, "no attempt found for this assignment")
+		return
+	}
+
+	mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
+
+	// 1. Check if already merged
+	if rc, err := h.Storage.Get(c.Request.Context(), mergedKey); err == nil {
+		rc.Close()
+		h.setMergeStatus(attemptID, "ready")
+		c.JSON(http.StatusOK, gin.H{
+			"assignment_id": assignmentID,
+			"attempt_id":    attemptID,
+			"status":        "ready",
+			"has_merged":    true,
+		})
+		return
+	}
+
+	// 2. Check if chunks exist
+	prefix := fmt.Sprintf("video/%d/", attemptID)
+	keys, err := h.Storage.List(c.Request.Context(), prefix)
+	if err != nil {
+		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to check video chunks")
+		return
+	}
+
+	var chunkCount int
+	for _, key := range keys {
+		idx := strings.TrimPrefix(key, prefix)
+		idx = strings.TrimSuffix(idx, ".webm")
+		if idx != "" && idx != "merged" {
+			chunkCount++
+		}
+	}
+
+	if chunkCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"assignment_id": assignmentID,
+			"attempt_id":    attemptID,
+			"status":        "none",
+			"has_merged":    false,
+			"chunks_count":  0,
+		})
+		return
+	}
+
+	// 3. Check current processing status
+	status := h.getMergeStatus(attemptID)
+	retry := c.Query("retry") == "true"
+
+	if status == "processing" {
+		c.JSON(http.StatusAccepted, gin.H{
+			"assignment_id": assignmentID,
+			"attempt_id":    attemptID,
+			"status":        "processing",
+			"has_merged":    false,
+			"chunks_count":  chunkCount,
+			"message":       "video merge in progress",
+		})
+		return
+	}
+
+	if status == "failed" && !retry {
+		c.JSON(http.StatusOK, gin.H{
+			"assignment_id": assignmentID,
+			"attempt_id":    attemptID,
+			"status":        "failed",
+			"has_merged":    false,
+			"chunks_count":  chunkCount,
+			"message":       "video merge failed; retry available",
+		})
+		return
+	}
+
+	// 4. Trigger merge in background
+	h.StartMergeAsync(assignmentID, attemptID)
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"assignment_id": assignmentID,
+		"attempt_id":    attemptID,
+		"status":        "processing",
+		"has_merged":    false,
+		"chunks_count":  chunkCount,
+		"message":       "video merge started in background",
+	})
+}
+
+// StreamMergedVideo serves the merged video. If not merged, it triggers an async
+// merge and returns 202 Accepted instead of blocking the Gin handler goroutine.
 func (h *VideoHandler) StreamMergedVideo(c *gin.Context) {
 	role, ok := getRoleFromContext(c)
 	if !ok {
@@ -274,25 +445,18 @@ func (h *VideoHandler) StreamMergedVideo(c *gin.Context) {
 		return
 	}
 
-	// Merged file doesn't exist — merge now.
-	if err := h.MergeForAttempt(assignmentID); err != nil {
-		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to process video")
-		return
+	// Merged file doesn't exist — kick off async merge without blocking HTTP handler.
+	if h.getMergeStatus(attemptID) != "processing" {
+		h.StartMergeAsync(assignmentID, attemptID)
 	}
 
-	// Serve the newly merged file.
-	rc, err = h.Storage.Get(c.Request.Context(), mergedKey)
-	if err != nil {
-		utils.NotFound(c, "merged video not found after processing")
-		return
-	}
-	defer rc.Close()
-
-	c.Header("Content-Type", "video/webm")
-	c.Header("Cache-Control", "public, max-age=3600")
-	if _, err := io.Copy(c.Writer, rc); err != nil {
-		log.Printf("[VIDEO] stream merged error: %v", err)
-	}
+	c.Header("Retry-After", "5")
+	c.JSON(http.StatusAccepted, gin.H{
+		"assignment_id": assignmentID,
+		"attempt_id":    attemptID,
+		"status":        "processing",
+		"message":       "video merge in progress, poll /assignments/:id/video-status",
+	})
 }
 
 // hasVideoProctoring checks whether an assignment has video_proctoring enabled.
@@ -311,6 +475,7 @@ func (h *VideoHandler) hasVideoProctoring(assignmentID int) (bool, error) {
 }
 
 // MergeForAttempt merges video chunks into a single merged.webm. Safe to call from a goroutine.
+// It verifies the merged file before deleting any original chunks. If already merged, it does nothing.
 func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 	hasVP, err := h.hasVideoProctoring(assignmentID)
 	if err != nil {
@@ -323,6 +488,15 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 	attemptID, _, err := h.AttemptRepo.GetByAssignment(assignmentID)
 	if err != nil {
 		return fmt.Errorf("no attempt found for assignment %d", assignmentID)
+	}
+
+	mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
+
+	// Do not merge video which is already merged.
+	if rc, err := h.Storage.Get(context.Background(), mergedKey); err == nil {
+		rc.Close()
+		h.setMergeStatus(attemptID, "ready")
+		return nil
 	}
 
 	prefix := fmt.Sprintf("video/%d/", attemptID)
@@ -341,10 +515,6 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 	}
 
 	if len(chunkKeys) == 0 {
-		mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
-		if _, err := h.Storage.Get(context.Background(), mergedKey); err == nil {
-			return nil
-		}
 		return fmt.Errorf("no video chunks found")
 	}
 
@@ -400,27 +570,50 @@ func (h *VideoHandler) MergeForAttempt(assignmentID int) error {
 		return fmt.Errorf("ffmpeg merge failed: %s: %w", stderrBuf.String(), err)
 	}
 
+	// Verification 1: Confirm merged file on disk exists and is non-empty
+	fi, err := os.Stat(mergedPath)
+	if err != nil {
+		return fmt.Errorf("stat merged video failed: %w", err)
+	}
+	if fi.Size() == 0 {
+		return fmt.Errorf("merged video file on disk is empty (0 bytes)")
+	}
+
+	// Upload to storage
 	mergedFile, err := os.Open(mergedPath)
 	if err != nil {
 		return fmt.Errorf("open merged file: %w", err)
 	}
 	defer mergedFile.Close()
 
-	mergedKey := fmt.Sprintf("video/%d/merged.webm", attemptID)
 	if _, err := h.Storage.Put(context.Background(), mergedKey, mergedFile); err != nil {
 		return fmt.Errorf("upload merged video: %w", err)
 	}
 
-	// Chunks are deleted only after the merged file is safely stored, so a failed
-	// upload can never lose the recording. Per-key Delete rather than
-	// DeletePrefix: merged.webm lives under the same prefix.
+	// Verification 2: Read-back confirmation from storage before deleting chunks
+	verifyRC, err := h.Storage.Get(context.Background(), mergedKey)
+	if err != nil {
+		return fmt.Errorf("verification failed: could not retrieve %s after upload: %w", mergedKey, err)
+	}
+	var testBuf [1]byte
+	n, readErr := verifyRC.Read(testBuf[:])
+	verifyRC.Close()
+	if readErr != nil && readErr != io.EOF {
+		return fmt.Errorf("verification failed: cannot read uploaded video %s: %w", mergedKey, readErr)
+	}
+	if n == 0 && readErr == io.EOF {
+		return fmt.Errorf("verification failed: uploaded video %s is 0 bytes", mergedKey)
+	}
+
+	// Safe Deletion: Chunks are deleted ONLY after the merged file has passed all checks.
 	for _, key := range chunkKeys {
 		if err := h.Storage.Delete(context.Background(), key); err != nil {
 			log.Printf("[VIDEO] warning: failed to delete chunk %s for assignment %d: %v", key, assignmentID, err)
 		}
 	}
 
-	log.Printf("[VIDEO] merged %d chunks for assignment %d into merged.webm", len(chunkKeys), assignmentID)
+	h.setMergeStatus(attemptID, "ready")
+	log.Printf("[VIDEO] verified merged video and deleted %d chunks for assignment %d into merged.webm", len(chunkKeys), assignmentID)
 	return nil
 }
 
