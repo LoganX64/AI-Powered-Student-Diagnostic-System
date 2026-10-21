@@ -43,21 +43,32 @@ const PaginationLink = ({
   className,
   isActive,
   size = "icon",
+  tabIndex,
+  "aria-disabled": ariaDisabled,
   ...props
-}: PaginationLinkProps) => (
-  <button
-    type="button"
-    aria-current={isActive ? "page" : undefined}
-    className={cn(
-      buttonVariants({
-        variant: isActive ? "outline" : "ghost",
-        size,
-      }),
-      className
-    )}
-    {...props}
-  />
-)
+}: PaginationLinkProps) => {
+  const isBoundaryDisabled =
+    ariaDisabled === true ||
+    ariaDisabled === "true" ||
+    (typeof className === "string" && className.includes("pointer-events-none"))
+
+  return (
+    <button
+      type="button"
+      aria-current={isActive ? "page" : undefined}
+      aria-disabled={isBoundaryDisabled ? true : undefined}
+      tabIndex={isBoundaryDisabled ? -1 : tabIndex}
+      className={cn(
+        buttonVariants({
+          variant: isActive ? "outline" : "ghost",
+          size,
+        }),
+        className
+      )}
+      {...props}
+    />
+  )
+}
 PaginationLink.displayName = "PaginationLink"
 
 const PaginationPrevious = ({

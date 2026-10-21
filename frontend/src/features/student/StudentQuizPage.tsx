@@ -754,9 +754,11 @@ export function StudentQuizPage() {
             <div className="space-y-3">
               {(["A", "B", "C", "D"] as Option[]).map((opt) => {
                 const isSelected = currentRecord?.selected_answer === opt;
+                const optId = `q${currentQuestion.id}-${opt}`;
                 return (
                   <label
                     key={opt}
+                    htmlFor={optId}
                     className={cn(
                       "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition-colors",
                       isSelected
@@ -765,6 +767,7 @@ export function StudentQuizPage() {
                     )}
                   >
                     <input
+                      id={optId}
                       type="radio"
                       name={`question-${currentQuestion.id}`}
                       value={opt}
@@ -831,6 +834,7 @@ export function StudentQuizPage() {
                 return (
                   <button
                     key={q.id}
+                    type="button"
                     onClick={() => handleNavigate(index)}
                     aria-label={`Go to question ${index + 1}`}
                     className={cn(

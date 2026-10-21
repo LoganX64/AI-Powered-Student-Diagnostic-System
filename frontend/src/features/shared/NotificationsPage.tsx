@@ -318,12 +318,16 @@ export function NotificationsPage() {
                     <PaginationItem>
                       <PaginationPrevious
                         onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                        aria-disabled={offset === 0}
+                        tabIndex={offset === 0 ? -1 : undefined}
                         className={offset === 0 ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>
                     <PaginationItem>
                       <PaginationNext
                         onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                        aria-disabled={offset + PAGE_SIZE >= total}
+                        tabIndex={offset + PAGE_SIZE >= total ? -1 : undefined}
                         className={offset + PAGE_SIZE >= total ? "pointer-events-none opacity-50" : ""}
                       />
                     </PaginationItem>

@@ -468,6 +468,8 @@ export function TestDetailPage() {
                               Math.max(0, o - PAGE_SIZE),
                             )
                           }
+                          aria-disabled={assignmentOffset === 0}
+                          tabIndex={assignmentOffset === 0 ? -1 : undefined}
                           className={
                             assignmentOffset === 0
                               ? "pointer-events-none opacity-50"
@@ -479,6 +481,14 @@ export function TestDetailPage() {
                         <PaginationNext
                           onClick={() =>
                             setAssignmentOffset((o) => o + PAGE_SIZE)
+                          }
+                          aria-disabled={
+                            assignmentOffset + PAGE_SIZE >= assignmentTotal
+                          }
+                          tabIndex={
+                            assignmentOffset + PAGE_SIZE >= assignmentTotal
+                              ? -1
+                              : undefined
                           }
                           className={
                             assignmentOffset + PAGE_SIZE >= assignmentTotal
@@ -586,6 +596,8 @@ export function TestDetailPage() {
                           onClick={() =>
                             setQuestionOffset((o) => Math.max(0, o - PAGE_SIZE))
                           }
+                          aria-disabled={questionOffset === 0}
+                          tabIndex={questionOffset === 0 ? -1 : undefined}
                           className={
                             questionOffset === 0
                               ? "pointer-events-none opacity-50"
@@ -597,6 +609,14 @@ export function TestDetailPage() {
                         <PaginationNext
                           onClick={() =>
                             setQuestionOffset((o) => o + PAGE_SIZE)
+                          }
+                          aria-disabled={
+                            questionOffset + PAGE_SIZE >= questionTotal
+                          }
+                          tabIndex={
+                            questionOffset + PAGE_SIZE >= questionTotal
+                              ? -1
+                              : undefined
                           }
                           className={
                             questionOffset + PAGE_SIZE >= questionTotal
