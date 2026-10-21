@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -167,10 +168,17 @@ func (b *AutosaveBuffer) flushAll() {
 		return
 	}
 	ctx := context.Background()
-	// Scan attempt keys; cap work per tick to avoid long pauses.
-	iter := b.rdb.Scan(ctx, 0, "autosave:*", 50).Iterator()
+	const maxKeysPerTick = 50
+	processed := 0
+
+	// Scan attempt keys; cap work per tick explicitly after the scan to avoid long pauses.
+	iter := b.rdb.Scan(ctx, 0, "autosave:*", int64(maxKeysPerTick)).Iterator()
 	for iter.Next(ctx) {
 		key := iter.Val()
+		// Skip auxiliary hash and dead-letter keys
+		if strings.HasSuffix(key, ":fails") || strings.HasSuffix(key, ":dead") {
+			continue
+		}
 		items, err := b.rdb.LRange(ctx, key, 0, int64(b.maxBatch-1)).Result()
 		if err != nil {
 			log.Printf("[AUTOSAVE] LRange failed for %s: %v", key, err)
@@ -180,6 +188,10 @@ func (b *AutosaveBuffer) flushAll() {
 			continue
 		}
 		b.flushBatch(ctx, key, items)
+		processed++
+		if processed >= maxKeysPerTick {
+			break
+		}
 	}
 	if err := iter.Err(); err != nil {
 		log.Printf("[AUTOSAVE] scan failed, possible unflushed keys: %v", err)
