@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 )
@@ -290,9 +291,12 @@ func (s *AttemptService) GetStudentSQIBatch(studentIDs []int, tenantID, coachID 
 }
 
 func (s *AttemptService) calculateAttemptSQIAnalysis(attemptID, testID int) (types.DiagnosticPayloadV2, error) {
-	questionRows, _, err := s.TestPaperRepo.ListQuestions(testID, 1000, 0)
+	questionRows, total, err := s.TestPaperRepo.ListQuestions(testID, 1000, 0)
 	if err != nil {
 		return types.DiagnosticPayloadV2{}, err
+	}
+	if total > len(questionRows) {
+		return types.DiagnosticPayloadV2{}, fmt.Errorf("test %d has %d questions, exceeding maximum SQI calculation limit of %d", testID, total, len(questionRows))
 	}
 
 	subjectName, err := s.TestPaperRepo.GetSubjectName(testID)
