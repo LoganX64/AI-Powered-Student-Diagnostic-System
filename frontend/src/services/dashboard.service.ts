@@ -421,10 +421,12 @@ export const getVideoToken = (assignmentId: number) =>
 
 // ─── Assignment Detail endpoint (role-aware) ───────────────────────────────
 
-export const getAssignmentDetail = (studentId: number, assignmentId: number) =>
+export const getAssignmentDetail = (studentId: number, assignmentId: number, signal?: AbortSignal) =>
   apiFetch<AssignmentDetail>(
     `${getPrefix()}/students/${studentId}/assignments/${assignmentId}`,
+    signal ? { signal } : {},
   );
+
 
 export type ReleaseResultsResponse = {
   message: string;

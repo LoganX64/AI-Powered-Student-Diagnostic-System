@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle, RefreshCw } from "lucide-react";
 import { Button } from "../../components/ui/button";
-import { submitAnswers } from "../../services/student.service";
+import { submitExam } from "../../services/student.service";
 import type { AnswerPayload } from "../../services/student.service";
 import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 
@@ -79,7 +79,7 @@ export function StudentSubmittedPage() {
     setRetryError(null);
 
     try {
-      await submitAnswers(
+      await submitExam(
         pending.assignment_id,
         pending.answers,
         pending.auto_submit === true,

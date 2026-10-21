@@ -10,6 +10,7 @@ import {
   CalculatorIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -440,7 +441,9 @@ export function TestDetailPage() {
                             className="gap-1"
                             onClick={(e) => {
                               e.stopPropagation();
-                              toast.info("SQI details coming soon");
+                              navigate(
+                                `${prefix}/students/${a.student_id}/assignments/${a.id}`,
+                              );
                             }}
                           >
                             <BarChartIcon className="size-3.5" /> SQI Score

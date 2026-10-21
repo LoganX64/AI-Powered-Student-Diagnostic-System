@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, BarChart3Icon, CheckCircleIcon, XCircleIcon, ClockIcon, EyeIcon, SendIcon, CheckIcon, CopyIcon, RotateCcwIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -61,12 +61,23 @@ export function AssignmentDetailPage() {
   // copy the link manually.
   const [shareLink, setShareLink] = useState<string | null>(null);
 
+  // Abort any in-flight getAssignmentDetail request before issuing a new one.
+  // Without this, a stale slow response can clobber a fresher one (e.g. when
+  // computeSQI's onDone fires rapid back-to-back reloads).
+  const abortRef = useRef<AbortController | null>(null);
+
   const reload = useCallback(() => {
     if (studentId === null || parsedAssignmentId === null) return;
-    getAssignmentDetail(studentId, parsedAssignmentId)
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
-      .finally(() => setLoading(false));
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    getAssignmentDetail(studentId, parsedAssignmentId, controller.signal)
+      .then((d) => { if (!controller.signal.aborted) setData(d); })
+      .catch((err) => {
+        if (!controller.signal.aborted)
+          setError(err instanceof Error ? err.message : "Failed to load");
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
   }, [studentId, parsedAssignmentId]);
 
   const handleCompute = async () => {
@@ -83,10 +94,16 @@ export function AssignmentDetailPage() {
   useEffect(() => {
     if (studentId === null || parsedAssignmentId === null) return;
     setLoading(true);
-    getAssignmentDetail(studentId, parsedAssignmentId)
-      .then(setData)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
-      .finally(() => setLoading(false));
+    const controller = new AbortController();
+    abortRef.current = controller;
+    getAssignmentDetail(studentId, parsedAssignmentId, controller.signal)
+      .then((d) => { if (!controller.signal.aborted) setData(d); })
+      .catch((err) => {
+        if (!controller.signal.aborted)
+          setError(err instanceof Error ? err.message : "Failed to load");
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, [studentId, parsedAssignmentId]);
 
   const handleRelease = async () => {

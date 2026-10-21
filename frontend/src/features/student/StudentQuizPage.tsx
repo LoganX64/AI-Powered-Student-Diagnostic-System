@@ -116,6 +116,21 @@ export function StudentQuizPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showOverDurationDialog, setShowOverDurationDialog] = useState(false);
+  // Captured in state at mount so they are stable across re-renders and
+  // immune to mid-exam mutations from another tab clearing localStorage.
+  const [examStarted] = useState(
+    () => localStorage.getItem("exam_started") === "true",
+  );
+  const [examStartedAt] = useState<number | null>(() => {
+    const raw = localStorage.getItem("exam_started_at");
+    return raw ? Number(raw) : null;
+  });
+  const [examDuration] = useState(
+    () => Number(localStorage.getItem("exam_duration") || "60") * 60,
+  );
+  // Payload to submit once the over-duration dialog is confirmed.
+  const overDurationPayloadRef = useRef<ReturnType<typeof getPayload> | null>(null);
   const isAutoSubmitRef = useRef(false);
 
   // Tiered-exam (server-timing) state
@@ -253,65 +268,72 @@ export function StudentQuizPage() {
     // either way — time_spent feeds SQI analytics, it does not decide the score — so
     // the threshold is the real duration, not an arbitrary multiple of it.
     const totalTimeSeconds = payload.reduce((sum, p) => sum + p.time_spent, 0);
-    const examDurationSeconds =
-      Number(localStorage.getItem("exam_duration") || "60") * 60;
-    if (totalTimeSeconds > examDurationSeconds) {
-      const proceed = window.confirm(
-        `Total time spent (${(totalTimeSeconds / 60).toFixed(1)} min) exceeds exam duration (${(examDurationSeconds / 60).toFixed(1)} min). Submit anyway?`,
-      );
-      if (!proceed) {
-        setSubmitting(false);
-        return;
-      }
+    if (totalTimeSeconds > examDuration) {
+      // window.confirm is suppressed in cross-origin iframes, some mobile browsers
+      // and fullscreen mode. Use AlertDialog instead; stash the payload and bail
+      // here — performSubmitWithPayload resumes once the user confirms.
+      overDurationPayloadRef.current = payload;
+      setShowOverDurationDialog(true);
+      setSubmitting(false);
+      return;
     }
 
-    try {
-      const result: SubmitResponse = await submitExam(
-        assignmentId,
-        payload,
-        isAutoSubmitRef.current,
-      );
-      clearExamStorage(assignmentId);
-      localStorage.removeItem("exam_ctx_" + assignmentId);
-      navigate("/submitted", {
-        replace: true,
-        state: { submitResult: result },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("already submitted")) {
-        clearExamStorage(assignmentId);
-        navigate("/submitted", { replace: true });
-        return;
-      }
-      localStorage.setItem(
-        "pending_submission",
-        JSON.stringify({
-          assignment_id: assignmentId,
-          answers: payload,
-          queued_at: Date.now(),
-          // Carried so the retry below is still labelled as an auto-submit.
-          // Without it a retried auto-submit would revert to "Exam Submitted".
-          auto_submit: isAutoSubmitRef.current,
-        }),
-      );
-      // Deliberately not clearing exam storage here. pending_submission is a copy,
-      // and if the retry below also fails the per-assignment records are the only
-      // remaining copy of this attempt.
-      navigate("/submitted", {
-        replace: true,
-        state: { submitFailed: true, submitError: msg },
-      });
-    }
+    await performSubmitWithPayload(payload);
   }, [
     submitting,
     stopTracking,
     flushAutosave,
     getPayload,
     questionIds,
-    navigate,
+    examDuration,
     assignmentId,
   ]);
+
+  // Separated so the over-duration AlertDialog can invoke it directly after
+  // the user confirms, without rebuilding the full performSubmit closure.
+  const performSubmitWithPayload = useCallback(
+    async (payload: ReturnType<typeof getPayload>) => {
+      try {
+        const result: SubmitResponse = await submitExam(
+          assignmentId,
+          payload,
+          isAutoSubmitRef.current,
+        );
+        clearExamStorage(assignmentId);
+        localStorage.removeItem("exam_ctx_" + assignmentId);
+        navigate("/submitted", {
+          replace: true,
+          state: { submitResult: result },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("already submitted")) {
+          clearExamStorage(assignmentId);
+          navigate("/submitted", { replace: true });
+          return;
+        }
+        localStorage.setItem(
+          "pending_submission",
+          JSON.stringify({
+            assignment_id: assignmentId,
+            answers: payload,
+            queued_at: Date.now(),
+            // Carried so the retry below is still labelled as an auto-submit.
+            // Without it a retried auto-submit would revert to "Exam Submitted".
+            auto_submit: isAutoSubmitRef.current,
+          }),
+        );
+        // Deliberately not clearing exam storage here. pending_submission is a copy,
+        // and if the retry below also fails the per-assignment records are the only
+        // remaining copy of this attempt.
+        navigate("/submitted", {
+          replace: true,
+          state: { submitFailed: true, submitError: msg },
+        });
+      }
+    },
+    [assignmentId, navigate, getPayload],
+  );
 
   const handleManualSubmit = () => {
     isAutoSubmitRef.current = false;
@@ -327,12 +349,8 @@ export function StudentQuizPage() {
   // Timer
   // ---------------------------------------------------------------------------
 
-  const examStarted = localStorage.getItem("exam_started") === "true";
-  const examStartedAtRaw = localStorage.getItem("exam_started_at");
-  const examStartedAt = examStartedAtRaw ? Number(examStartedAtRaw) : null;
-  // Backend stores duration in minutes; convert to seconds for useExamTimer
-  const examDuration =
-    Number(localStorage.getItem("exam_duration") || "60") * 60;
+  // examStarted, examStartedAt, examDuration are read from localStorage once at
+  // mount via useState (see top of component). Using them here as stable values.
 
   const timerTimeLeft = useExamTimer(
     examDuration,
@@ -425,6 +443,7 @@ export function StudentQuizPage() {
   }, [policy, assignmentId]);
 
   // Autosave (debounced interval) while the exam is in progress.
+  // examStarted is the mount-time snapshot from useState — stable reference.
   useEffect(() => {
     if (!policy?.autosave || !examStarted || submitting) return;
     const id = setInterval(() => {
@@ -951,9 +970,54 @@ export function StudentQuizPage() {
           autoPlay
           muted
           playsInline
-          className="fixed bottom-4 right-4 w-37.5 h-28 rounded-lg border border-border shadow-md object-cover z-50"
+          className="fixed bottom-4 right-4 w-[150px] h-28 rounded-lg border border-border shadow-md object-cover z-50"
         />
       )}
+
+      {/* Over-duration confirmation dialog (replaces window.confirm which is
+          suppressed in iframes, some mobile browsers and fullscreen mode) */}
+      <AlertDialog
+        open={showOverDurationDialog}
+        onOpenChange={setShowOverDurationDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Time Discrepancy Detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              The total time recorded across all questions (
+              {overDurationPayloadRef.current
+                ? `${((overDurationPayloadRef.current.reduce((s, p) => s + p.time_spent, 0)) / 60).toFixed(1)} min`
+                : "—"}
+              ) exceeds the exam duration (
+              {`${(examDuration / 60).toFixed(1)} min`}). This can happen after
+              a clock reset or extended idle time. Your answers will still be
+              submitted and graded normally.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                overDurationPayloadRef.current = null;
+              }}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const payload = overDurationPayloadRef.current;
+                overDurationPayloadRef.current = null;
+                if (payload) {
+                  setSubmitting(true);
+                  performSubmitWithPayload(payload);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Submit Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -121,20 +121,7 @@ export async function getAssignmentQuestions(
   );
 }
 
-export async function submitAnswers(
-  assignmentId: number,
-  answers: AnswerPayload[],
-  autoSubmit = false,
-): Promise<SubmitResponse> {
-  return apiFetch<SubmitResponse>(
-    `/student/submit/${assignmentId}`,
-    {
-      method: "POST",
-      body: JSON.stringify({ answers, auto_submit: autoSubmit }),
-    },
-    "student"
-  );
-}
+
 
 export async function startExam(
   assignmentId: number,
