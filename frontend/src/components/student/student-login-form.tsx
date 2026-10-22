@@ -52,7 +52,7 @@ export function StudentLoginForm({
 
   return (
     <motion.div
-      className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      className={cn("flex w-full max-w-md flex-col gap-4 sm:gap-6", className)}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -84,6 +84,9 @@ export function StudentLoginForm({
                   name="student_code"
                   type="text"
                   placeholder="Enter your student code"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  className="h-10 md:h-8"
                   required
                 />
                 {errors.student_code && (
@@ -92,7 +95,7 @@ export function StudentLoginForm({
               </Field>
 
               <Field>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="h-10 w-full md:h-8" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
                 </Button>
               </Field>

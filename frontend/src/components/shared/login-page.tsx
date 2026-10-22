@@ -87,7 +87,7 @@ export function LoginPage({
 
   return (
     <motion.div
-      className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      className={cn("flex w-full max-w-md flex-col gap-4 sm:gap-6", className)}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -116,6 +116,9 @@ export function LoginPage({
                   id="email"
                   type="email"
                   placeholder={emailPlaceholder}
+                  autoComplete="email"
+                  inputMode="email"
+                  className="h-10 md:h-8"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -128,7 +131,7 @@ export function LoginPage({
                 )}
               </Field>
               <Field>
-                <div className="flex items-center">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <FieldLabel htmlFor="password">Password</FieldLabel>
                   <Link
                     to="/forgot-password"
@@ -141,6 +144,8 @@ export function LoginPage({
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    className="h-10 pr-10 md:h-8"
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value);
@@ -151,7 +156,8 @@ export function LoginPage({
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -162,7 +168,7 @@ export function LoginPage({
                 )}
               </Field>
               <Field>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="h-10 w-full md:h-8" disabled={loading}>
                   {loading ? "Logging in..." : "Login"}
                 </Button>
                 {footerLinks.map((link, index) => (
@@ -183,7 +189,7 @@ export function LoginPage({
           </form>
         </CardContent>
       </Card>
-      <FieldDescription className="px-6 text-center">
+      <FieldDescription className="px-2 text-center sm:px-6">
         By clicking continue, you agree to our{" "}
         <Link to="/terms" className="underline hover:no-underline">Terms of Service</Link>{" "}
         and{" "}

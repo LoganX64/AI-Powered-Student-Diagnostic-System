@@ -36,7 +36,7 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh w-full items-center justify-center px-4 py-8 sm:py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Reset your password</CardTitle>
@@ -52,9 +52,18 @@ export function ForgotPasswordPage() {
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="email">Email</FieldLabel>
-                  <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    className="h-10 md:h-8"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 </Field>
-                <Button type="submit" disabled={loading} className="w-full">
+                <Button type="submit" disabled={loading} className="h-10 w-full md:h-8">
                   {loading ? "Sending..." : "Send reset link"}
                 </Button>
                 {error && <p className="text-sm text-destructive">{error}</p>}

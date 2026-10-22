@@ -42,7 +42,7 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh w-full items-center justify-center px-4 py-8 sm:py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Choose a new password</CardTitle>
@@ -60,13 +60,29 @@ export function ResetPasswordPage() {
               <FieldGroup>
                 <Field>
                   <FieldLabel htmlFor="pw">New password</FieldLabel>
-                  <Input id="pw" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <Input
+                    id="pw"
+                    type="password"
+                    autoComplete="new-password"
+                    className="h-10 md:h-8"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="confirm">Confirm password</FieldLabel>
-                  <Input id="confirm" type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+                  <Input
+                    id="confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    className="h-10 md:h-8"
+                    required
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                  />
                 </Field>
-                <Button type="submit" disabled={loading} className="w-full">
+                <Button type="submit" disabled={loading} className="h-10 w-full md:h-8">
                   {loading ? "Updating..." : "Update password"}
                 </Button>
                 {error && <p className="text-sm text-destructive">{error}</p>}

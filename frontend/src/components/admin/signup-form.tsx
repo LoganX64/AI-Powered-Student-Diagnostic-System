@@ -59,7 +59,7 @@ export function AdminSignupForm({ className }: { className?: string }) {
 
   return (
     <motion.div
-      className={cn("flex w-full max-w-md flex-col gap-6", className)}
+      className={cn("flex w-full max-w-md flex-col gap-4 sm:gap-6", className)}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -87,6 +87,8 @@ export function AdminSignupForm({ className }: { className?: string }) {
                   id="name"
                   type="text"
                   placeholder="Innovative Academy"
+                  autoComplete="organization"
+                  className="h-10 md:h-8"
                   value={orgName}
                   onChange={(e) => {
                     setOrgName(e.target.value);
@@ -104,6 +106,9 @@ export function AdminSignupForm({ className }: { className?: string }) {
                   id="email"
                   type="email"
                   placeholder="m@example.com"
+                  autoComplete="email"
+                  inputMode="email"
+                  className="h-10 md:h-8"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);
@@ -116,13 +121,15 @@ export function AdminSignupForm({ className }: { className?: string }) {
                 )}
               </Field>
               <Field>
-                <Field className="grid grid-cols-2 gap-4">
+                <Field className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="password">Password</FieldLabel>
                     <div className="relative">
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        className="h-10 pr-10 md:h-8"
                         value={password}
                         onChange={(e) => {
                           setPassword(e.target.value);
@@ -133,7 +140,8 @@ export function AdminSignupForm({ className }: { className?: string }) {
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                         tabIndex={-1}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -151,6 +159,8 @@ export function AdminSignupForm({ className }: { className?: string }) {
                       <Input
                         id="confirm-password"
                         type={showConfirmPassword ? "text" : "password"}
+                        autoComplete="new-password"
+                        className="h-10 pr-10 md:h-8"
                         value={confirmPassword}
                         onChange={(e) => {
                           setConfirmPassword(e.target.value);
@@ -161,7 +171,8 @@ export function AdminSignupForm({ className }: { className?: string }) {
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        className="absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                         tabIndex={-1}
                       >
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -177,7 +188,7 @@ export function AdminSignupForm({ className }: { className?: string }) {
                 </FieldDescription>
               </Field>
               <Field>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" className="h-10 md:h-8" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}
                 </Button>
                 <FieldDescription className="text-center">
@@ -194,7 +205,7 @@ export function AdminSignupForm({ className }: { className?: string }) {
           </form>
         </CardContent>
       </Card>
-      <FieldDescription className="px-6 text-center">
+      <FieldDescription className="px-2 text-center sm:px-6">
         By clicking continue, you agree to our <Link to="/terms">Terms of Service</Link>{" "}
         and <Link to="/privacy">Privacy Policy</Link>.
       </FieldDescription>

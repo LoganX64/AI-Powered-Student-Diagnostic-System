@@ -26,7 +26,7 @@ export function StudentLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh w-full items-center justify-center px-4 py-8 sm:py-12">
       <StudentLoginForm onSubmit={handleLogin} loading={loading} error={error} />
     </div>
   );
