@@ -255,40 +255,6 @@ export function StudentQuizPage() {
     autosaveAnswers(assignmentId, payload).catch(() => {});
   }, [policy, assignmentId, getAutosavePayload]);
 
-  const performSubmit = useCallback(async () => {
-    if (submitting) return;
-    setSubmitting(true);
-    stopTracking();
-    flushAutosave();
-
-    const payload = getPayload(questionIds);
-
-    // Heads-up only: the summed per-question time is above the exam duration, which
-    // means time was lost to idling or a clock reset. The submission is recorded
-    // either way — time_spent feeds SQI analytics, it does not decide the score — so
-    // the threshold is the real duration, not an arbitrary multiple of it.
-    const totalTimeSeconds = payload.reduce((sum, p) => sum + p.time_spent, 0);
-    if (totalTimeSeconds > examDuration) {
-      // window.confirm is suppressed in cross-origin iframes, some mobile browsers
-      // and fullscreen mode. Use AlertDialog instead; stash the payload and bail
-      // here — performSubmitWithPayload resumes once the user confirms.
-      overDurationPayloadRef.current = payload;
-      setShowOverDurationDialog(true);
-      setSubmitting(false);
-      return;
-    }
-
-    await performSubmitWithPayload(payload);
-  }, [
-    submitting,
-    stopTracking,
-    flushAutosave,
-    getPayload,
-    questionIds,
-    examDuration,
-    assignmentId,
-  ]);
-
   // Separated so the over-duration AlertDialog can invoke it directly after
   // the user confirms, without rebuilding the full performSubmit closure.
   const performSubmitWithPayload = useCallback(
@@ -332,8 +298,42 @@ export function StudentQuizPage() {
         });
       }
     },
-    [assignmentId, navigate, getPayload],
+    [assignmentId, navigate],
   );
+
+  const performSubmit = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    stopTracking();
+    flushAutosave();
+
+    const payload = getPayload(questionIds);
+
+    // Heads-up only: the summed per-question time is above the exam duration, which
+    // means time was lost to idling or a clock reset. The submission is recorded
+    // either way — time_spent feeds SQI analytics, it does not decide the score — so
+    // the threshold is the real duration, not an arbitrary multiple of it.
+    const totalTimeSeconds = payload.reduce((sum, p) => sum + p.time_spent, 0);
+    if (totalTimeSeconds > examDuration) {
+      // window.confirm is suppressed in cross-origin iframes, some mobile browsers
+      // and fullscreen mode. Use AlertDialog instead; stash the payload and bail
+      // here — performSubmitWithPayload resumes once the user confirms.
+      overDurationPayloadRef.current = payload;
+      setShowOverDurationDialog(true);
+      setSubmitting(false);
+      return;
+    }
+
+    await performSubmitWithPayload(payload);
+  }, [
+    submitting,
+    stopTracking,
+    flushAutosave,
+    getPayload,
+    questionIds,
+    examDuration,
+    performSubmitWithPayload,
+  ]);
 
   const handleManualSubmit = () => {
     isAutoSubmitRef.current = false;
