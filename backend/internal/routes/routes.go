@@ -153,6 +153,12 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		authRoute.POST("/reset-password", authHandler.ResetPassword)
 	}
 
+	// Public session discovery is called once per page load by the SPA. It is
+	// deliberately outside the LoginLimit group: it is not a login attempt, and
+	// five requests/minute would make normal navigation page through 429s.
+	sessionHandler := handlers.NewSessionHandler(userRepo, studentRepo)
+	r.GET("/auth/session", sessionHandler.GetSession)
+
 	student := r.Group("/student")
 	{
 		student.POST("/login", middleware.NewRateLimiter(redisClient, middleware.LoginLimit), studentHandler.StudentLogin)

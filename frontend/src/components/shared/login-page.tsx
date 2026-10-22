@@ -19,6 +19,7 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useSession } from "@/contexts/SessionContext";
 import { login } from "@/services/auth.service";
 
 export interface FooterLink {
@@ -45,6 +46,7 @@ export function LoginPage({
   className,
 }: LoginPageProps) {
   const navigate = useNavigate();
+  const { refresh } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -68,6 +70,7 @@ export function LoginPage({
         email: result.data.email.trim(),
         password: result.data.password,
       });
+      await refresh();
       navigate(dashboardPath);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";

@@ -21,6 +21,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom"
 import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
 import { apiFetch } from "@/lib/api"
+import { useSession } from "@/contexts/SessionContext"
 import { toast } from "sonner"
 
 export function NavUser({
@@ -34,6 +35,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
+  const { refresh } = useSession()
   const { pathname } = useLocation()
   const prefix = pathname.startsWith("/super-admin")
     ? "/super-admin"
@@ -54,8 +56,9 @@ export function NavUser({
       toast.error(
         `Sign out failed: ${err instanceof Error ? err.message : "unknown error"}. ` +
           "The session cookie may still be valid.",
-      );
+      )
     }
+    await refresh()
     navigate(
       prefix === "/admin"
         ? "/admin-signin"

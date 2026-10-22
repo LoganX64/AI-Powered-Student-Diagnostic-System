@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BarChart3Icon, LayoutDashboardIcon } from "lucide-react";
 import { dashboardForRole } from "@/config/routes";
-import { probeSession, type Session } from "@/lib/token";
+import { useSession } from "@/contexts/SessionContext";
+import type { Role } from "@/lib/session";
 
-const ROLE_LABEL: Record<Session["role"], string> = {
+const ROLE_LABEL: Record<Role, string> = {
   admin: "Admin",
   coach: "Coach",
   super_admin: "Super Admin",
@@ -13,12 +13,7 @@ const ROLE_LABEL: Record<Session["role"], string> = {
 };
 
 export function PublicHeader() {
-  const [session, setSession] = useState<Session | null>(null);
-
-  useEffect(() => {
-    probeSession().then(setSession);
-  }, []);
-
+  const { session } = useSession();
   const dashboard = session ? dashboardForRole(session.role) : null;
 
   return (

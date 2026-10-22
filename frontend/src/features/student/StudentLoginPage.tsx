@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { StudentLoginForm } from "../../components/student/student-login-form";
 import { loginStudent, type StudentLoginPayload } from "../../services/auth.service";
+import { useSession } from "@/contexts/SessionContext";
 
 export function StudentLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { refresh } = useSession();
 
   const handleLogin = async (data: StudentLoginPayload) => {
     try {
@@ -14,6 +16,7 @@ export function StudentLoginPage() {
       setLoading(true);
       await loginStudent(data);
       localStorage.setItem("student_code", data.student_code);
+      await refresh();
       navigate("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

@@ -81,6 +81,7 @@ func TestSetupRouterRegistersCoreRoutes(t *testing.T) {
 		{"POST", "/auth/logout"},
 		{"POST", "/auth/forgot-password"},
 		{"POST", "/auth/reset-password"},
+		{"GET", "/auth/session"},
 		// profile (live PUT /auth/password)
 		{"GET", "/auth/profile"},
 		{"PUT", "/auth/profile"},
@@ -149,6 +150,24 @@ func TestSetupRouterHealthOK(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "healthy") {
 		t.Fatalf("/health body=%q", w.Body.String())
+	}
+}
+
+// TestSetupRouterSessionRouteIsPublic proves session discovery stays reachable
+// for signed-out visitors and does not sit behind the login rate limiter.
+func TestSetupRouterSessionRouteIsPublic(t *testing.T) {
+	r := setupRouter(t)
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/auth/session", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("/auth/session = %d, want 200 (body=%s)", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control=%q, want no-store", got)
+	}
+	if !strings.Contains(w.Body.String(), `"authenticated":false`) {
+		t.Fatalf("/auth/session body=%q, want anonymous payload", w.Body.String())
 	}
 }
 

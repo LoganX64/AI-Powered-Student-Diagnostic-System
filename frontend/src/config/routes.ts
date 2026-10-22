@@ -1,4 +1,4 @@
-import type { Role } from "@/lib/token";
+import type { Role } from "@/lib/session";
 
 export const STUDENT_ROUTES = ["/dashboard", "/instructions", "/quiz", "/submitted"] as const;
 

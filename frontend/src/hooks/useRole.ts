@@ -1,6 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { roleFromPath } from "@/config/routes";
-import type { Role } from "@/lib/token";
+import type { Role } from "@/lib/session";
 
 export type { Role };
 

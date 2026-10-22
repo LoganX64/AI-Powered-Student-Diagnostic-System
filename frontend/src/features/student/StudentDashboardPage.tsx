@@ -12,7 +12,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { getStudentAssignments, getMyResults } from "../../services/student.service";
 import type { Assignment, StudentResult } from "../../services/student.service";
-import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
+import { useSession } from "@/contexts/SessionContext";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -20,6 +20,7 @@ import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
 
 export function StudentDashboardPage() {
   const navigate = useNavigate();
+  const { refresh } = useSession();
 
   const [studentCode] = useState(
     () => localStorage.getItem("student_code") || "",
@@ -88,17 +89,22 @@ export function StudentDashboardPage() {
     navigate("/instructions");
   };
 
-  const handleLogout = () => {
-    void fetch(`${import.meta.env.VITE_BACKEND_URL}/student/logout`, {
-      method: "POST",
-      credentials: "include",
-    }).catch(() => {});
+  const handleLogout = async () => {
+    try {
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/student/logout`, {
+        method: "POST",
+        credentials: "include",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      // Clear the local state anyway; the user can retry from the sign-in page.
+    }
     localStorage.removeItem("student_code");
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
       if (k && k.startsWith("exam_ctx_")) localStorage.removeItem(k);
     }
-    window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
+    await refresh();
     navigate("/", { replace: true });
   };
 

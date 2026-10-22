@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { landingPageText } from "@/types/static/landing";
 import { HoverEffect } from "@/components/ui/card-hover-effect";
 import { SvgIcon } from "@/components/ui/svg-icon";
 import { PublicHeader } from "./PublicHeader";
-import { probeSession, type Session } from "@/lib/token";
+import { useSession } from "@/contexts/SessionContext";
 import { dashboardForRole } from "@/config/routes";
 
 const t = landingPageText;
@@ -87,13 +86,7 @@ function HeroIllustration() {
 }
 
 export function LandingPage() {
-  // Probe on mount; a render-time async read is not possible.
-  const [session, setSession] = useState<Session | null>(null);
-
-  useEffect(() => {
-    probeSession().then(setSession);
-  }, []);
-
+  const { session } = useSession();
   const dashboard = session ? dashboardForRole(session.role) : null;
 
   return (

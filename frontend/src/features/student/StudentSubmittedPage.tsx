@@ -5,14 +5,20 @@ import { Button } from "../../components/ui/button";
 import { submitExam } from "../../services/student.service";
 import type { AnswerPayload } from "../../services/student.service";
 import { ROLE_CHANGE_EVENT } from "../../hooks/useRole";
+import { invalidateSession } from "@/lib/session";
 
 const REDIRECT_AFTER_SECONDS = 120; // 2 minutes
 
-function clearStudentSession() {
-  void fetch(`${import.meta.env.VITE_BACKEND_URL}/student/logout`, {
-    method: "POST",
-    credentials: "include",
-  }).catch(() => {});
+async function clearStudentSession() {
+  try {
+    await fetch(`${import.meta.env.VITE_BACKEND_URL}/student/logout`, {
+      method: "POST",
+      credentials: "include",
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch {
+    // Clear the local state anyway; the user can retry from the sign-in page.
+  }
   localStorage.removeItem("student_code");
   localStorage.removeItem("assignment_id");
   localStorage.removeItem("exam_started");
@@ -32,6 +38,7 @@ function clearStudentSession() {
       if (k && k.startsWith(prefix)) localStorage.removeItem(k);
     }
   }
+  invalidateSession();
   window.dispatchEvent(new Event(ROLE_CHANGE_EVENT));
 }
 
@@ -134,13 +141,19 @@ export function StudentSubmittedPage() {
   // updater stays pure (StrictMode invokes updaters twice).
   useEffect(() => {
     if (countdown > 0 || hasPendingSubmission) return;
-    clearStudentSession();
-    navigate("/", { replace: true });
+    let cancelled = false;
+    void clearStudentSession().then(() => {
+      if (!cancelled) navigate("/", { replace: true });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [countdown, hasPendingSubmission, navigate]);
 
   const handleRedirectNow = () => {
-    clearStudentSession();
-    navigate("/", { replace: true });
+    void clearStudentSession().then(() => {
+      navigate("/", { replace: true });
+    });
   };
 
   const minutes = Math.floor(countdown / 60);

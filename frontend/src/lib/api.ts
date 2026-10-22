@@ -1,4 +1,4 @@
-import type { Role } from "@/lib/token";
+import type { Role } from "@/lib/session";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 

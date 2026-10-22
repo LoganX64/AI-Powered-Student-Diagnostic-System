@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/api";
-import type { Role } from "@/lib/token";
+import type { Role } from "@/lib/session";
 import { currentPrefix } from "@/config/routes";
 
 export type Profile = {

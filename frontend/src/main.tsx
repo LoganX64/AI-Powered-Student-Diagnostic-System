@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router-dom";
 import router from "../routes/routes";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
+import { SessionProvider } from "./contexts/SessionContext";
 import "./index.css";
 
 const OG_DESCRIPTION =
@@ -41,10 +42,12 @@ applyRuntimeMetadata();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <TooltipProvider>
-      <RouterProvider router={router} />
-      <Toaster richColors position="top-right" />
-    </TooltipProvider>
+    <SessionProvider>
+      <TooltipProvider>
+        <RouterProvider router={router} />
+        <Toaster richColors position="top-right" />
+      </TooltipProvider>
+    </SessionProvider>
   </StrictMode>,
 );
 
