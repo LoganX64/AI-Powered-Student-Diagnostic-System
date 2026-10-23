@@ -257,7 +257,7 @@ func (h *CoachHandler) CreateTest(c *gin.Context) {
 	}
 
 	if h.NotificationService != nil {
-		if err := h.NotificationService.NotifyCoachActivity(tenantID, coachID, "created test", req.Title); err != nil {
+		if err := h.NotificationService.NotifyCoachActivity(tenantID, coachID, "created test", req.Title, "coach_activity:created_test:"+strconv.Itoa(id)); err != nil {
 			log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
 		}
 	}
@@ -292,7 +292,7 @@ func (h *CoachHandler) CreateAssignment(c *gin.Context) {
 
 	if h.NotificationService != nil {
 		if coachID, tID, rerr := resolveCoachAndTenant(c, h.CoachRepo); rerr == nil {
-			if err := h.NotificationService.NotifyCoachActivity(tID, coachID, "assigned exam", "exam assigned"); err != nil {
+			if err := h.NotificationService.NotifyCoachActivity(tID, coachID, "assigned exam", "exam assigned", "coach_activity:assigned_exam:"+strconv.Itoa(id)); err != nil {
 				log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
 			}
 		}

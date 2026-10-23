@@ -70,7 +70,7 @@ func (h *AdminHandler) CreateTest(c *gin.Context) {
 	}
 
 	if h.NotificationService != nil {
-		if err := h.NotificationService.NotifyCoachActivity(tenantID, coachID, "created test", req.Title); err != nil {
+		if err := h.NotificationService.NotifyCoachActivity(tenantID, coachID, "created test", req.Title, fmt.Sprintf("coach_activity:created_test:%d", id)); err != nil {
 			log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
 		}
 	}
@@ -435,5 +435,3 @@ func (h *AdminHandler) DeleteQuestion(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "question deleted successfully"})
 }
-
-

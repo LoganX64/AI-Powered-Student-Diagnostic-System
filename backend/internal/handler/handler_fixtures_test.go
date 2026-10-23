@@ -140,7 +140,7 @@ func newHandlerFixture(t *testing.T) *handlerFixture {
 	resultReleaseService := services.NewResultReleaseService(f.AttemptRepo, resultTokenRepo, testMailer())
 	resultViewService := services.NewResultViewService(f.AttemptRepo, resultTokenRepo)
 	f.Results = NewResultHandler(resultReleaseService, resultViewService, f.AttemptRepo, resultTokenRepo, f.StudentRepo, f.CoachRepo)
-	f.SuperAdmin = NewSuperAdminHandler(f.TenantRepo, f.ProfileRepo, authService)
+	f.SuperAdmin = NewSuperAdminHandler(f.TenantRepo, f.ProfileRepo, authService, notifService)
 
 	// Primary tenant.
 	f.TenantID = testutil.CreateTenant(t, db)

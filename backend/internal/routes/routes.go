@@ -125,7 +125,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	coachHandler := handlers.NewCoachHandler(studentRepo, coachRepo, testPaperRepo, assignmentRepo, attemptRepo, batchRepo, jobRepo, attemptService, assignmentService, jobService, subscriptionRepo, jobQueue, cfg, quotaMW, notifService)
 	studentHandler := handlers.NewStudentHandler(studentRepo, assignmentRepo, attemptRepo, testPaperRepo, attemptService, loginAttemptRepo, subscriptionRepo, jobQueue, autosaveBuffer, storageBackend, cfg, quotaMW, notifService)
 
-	billingHandler := handlers.NewBillingHandler(planRepo, subscriptionRepo, studentRepo, coachRepo, storageBackend, quotaMW)
+	billingHandler := handlers.NewBillingHandler(planRepo, subscriptionRepo, studentRepo, coachRepo, tenantRepo, storageBackend, quotaMW, notifService)
 
 	resultTokenRepo := repository.NewResultTokenRepo(db)
 	resultReleaseService := services.NewResultReleaseService(attemptRepo, resultTokenRepo, mailer)
@@ -138,7 +138,7 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 	videoHandler := handlers.NewVideoHandler(attemptRepo, assignmentRepo, studentRepo, coachRepo, storageBackend, redisClient)
 	studentHandler.VideoHandler = videoHandler
 
-	superAdminHandler := handlers.NewSuperAdminHandler(tenantRepo, profileRepo, authService)
+	superAdminHandler := handlers.NewSuperAdminHandler(tenantRepo, profileRepo, authService, notifService)
 	profileHandler := handlers.NewProfileHandler(profileRepo, userRepo)
 	tenantSettingsHandler := handlers.NewTenantSettingsHandler(tenantRepo)
 	notifHandler := handlers.NewNotificationHandler(notifService, notifRepo)

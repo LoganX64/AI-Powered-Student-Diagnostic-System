@@ -3,8 +3,10 @@ package handlers
 import (
 	"ai-student-diagnostic/backend/internal/middleware"
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/internal/storage"
 	"ai-student-diagnostic/backend/utils"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -29,12 +31,14 @@ func overageCostPaise(overageBytes int64) int64 {
 }
 
 type BillingHandler struct {
-	PlanRepo         *repository.PlanRepo
-	SubscriptionRepo *repository.SubscriptionRepo
-	StudentRepo      *repository.StudentRepo
-	CoachRepo        *repository.CoachRepo
-	Storage          storage.Storage
-	QuotaMW          *middleware.QuotaMiddleware
+	PlanRepo            *repository.PlanRepo
+	SubscriptionRepo    *repository.SubscriptionRepo
+	StudentRepo         *repository.StudentRepo
+	CoachRepo           *repository.CoachRepo
+	TenantRepo          *repository.TenantRepo
+	Storage             storage.Storage
+	QuotaMW             *middleware.QuotaMiddleware
+	NotificationService *services.NotificationService
 }
 
 func NewBillingHandler(
@@ -42,16 +46,20 @@ func NewBillingHandler(
 	subscriptionRepo *repository.SubscriptionRepo,
 	studentRepo *repository.StudentRepo,
 	coachRepo *repository.CoachRepo,
+	tenantRepo *repository.TenantRepo,
 	storageBackend storage.Storage,
 	quotaMW *middleware.QuotaMiddleware,
+	notifService *services.NotificationService,
 ) *BillingHandler {
 	return &BillingHandler{
-		PlanRepo:         planRepo,
-		SubscriptionRepo: subscriptionRepo,
-		StudentRepo:      studentRepo,
-		CoachRepo:        coachRepo,
-		Storage:          storageBackend,
-		QuotaMW:          quotaMW,
+		PlanRepo:            planRepo,
+		SubscriptionRepo:    subscriptionRepo,
+		StudentRepo:         studentRepo,
+		CoachRepo:           coachRepo,
+		TenantRepo:          tenantRepo,
+		Storage:             storageBackend,
+		QuotaMW:             quotaMW,
+		NotificationService: notifService,
 	}
 }
 
@@ -138,7 +146,35 @@ func (h *BillingHandler) AssignPlan(c *gin.Context) {
 	if h.QuotaMW != nil {
 		h.QuotaMW.Invalidate(tenantID)
 	}
+	h.notifyPlanChanged(tenantID, req.PlanID)
 	c.JSON(http.StatusOK, gin.H{"message": "plan assigned"})
+}
+
+// notifyPlanChanged tells the platform inbox that a tenant's plan moved. The
+// names are cosmetic, so a failed lookup falls back to the stored ids.
+func (h *BillingHandler) notifyPlanChanged(tenantID, planID int) {
+	if h.NotificationService == nil {
+		return
+	}
+	tenantName := ""
+	if h.TenantRepo != nil {
+		if tenant, err := h.TenantRepo.GetByID(tenantID); err != nil {
+			log.Printf("[NOTIFICATION] tenant lookup failed for plan change %d: %v", tenantID, err)
+		} else if tenant != nil {
+			tenantName = tenant.Name
+		}
+	}
+	planName := ""
+	if h.PlanRepo != nil {
+		if plan, err := h.PlanRepo.GetByID(planID); err != nil {
+			log.Printf("[NOTIFICATION] plan lookup failed for plan change %d: %v", planID, err)
+		} else if plan != nil {
+			planName = plan.Name
+		}
+	}
+	if err := h.NotificationService.NotifyPlanChanged(tenantID, tenantName, planID, planName); err != nil {
+		log.Printf("[NOTIFICATION] plan changed notify failed for tenant %d: %v", tenantID, err)
+	}
 }
 
 // GET /admin/subscription

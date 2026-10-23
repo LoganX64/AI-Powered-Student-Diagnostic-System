@@ -218,3 +218,25 @@ func (r *UserRepo) ListIDsByTenantRoles(tenantID int, roles []string) ([]int, er
 	}
 	return out, nil
 }
+
+// ListIDsByRole returns the user IDs holding one role. Platform notifications
+// use it to address every super admin, who have no tenant_id to scope by.
+func (r *UserRepo) ListIDsByRole(role string) ([]int, error) {
+	rows, err := r.DB.Query("SELECT id FROM users WHERE role = $1 ORDER BY id", role)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []int{}
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

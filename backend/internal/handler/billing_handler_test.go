@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"ai-student-diagnostic/backend/internal/repository"
+	"ai-student-diagnostic/backend/internal/services"
 	"ai-student-diagnostic/backend/internal/testutil"
 
 	"github.com/gin-gonic/gin"
@@ -17,11 +18,14 @@ import (
 )
 
 func newBillingHandler(db *sql.DB) *BillingHandler {
+	userRepo := repository.NewUserRepo(db)
 	return NewBillingHandler(
 		repository.NewPlanRepo(db),
 		repository.NewSubscriptionRepo(db),
-		nil, nil, nil,
-		nil,
+		nil, nil,
+		repository.NewTenantRepo(db),
+		nil, nil,
+		services.NewNotificationService(repository.NewNotificationRepo(db), userRepo),
 	)
 }
 

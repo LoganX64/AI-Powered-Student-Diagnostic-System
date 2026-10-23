@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -13,20 +14,51 @@ import (
 )
 
 type SuperAdminHandler struct {
-	TenantRepo  *repository.TenantRepo
-	ProfileRepo *repository.ProfileRepo
-	AuthService *services.AuthService
+	TenantRepo          *repository.TenantRepo
+	ProfileRepo         *repository.ProfileRepo
+	AuthService         *services.AuthService
+	NotificationService *services.NotificationService
 }
 
 func NewSuperAdminHandler(
 	tenantRepo *repository.TenantRepo,
 	profileRepo *repository.ProfileRepo,
 	authService *services.AuthService,
+	notifService *services.NotificationService,
 ) *SuperAdminHandler {
 	return &SuperAdminHandler{
-		TenantRepo:  tenantRepo,
-		ProfileRepo: profileRepo,
-		AuthService: authService,
+		TenantRepo:          tenantRepo,
+		ProfileRepo:         profileRepo,
+		AuthService:         authService,
+		NotificationService: notifService,
+	}
+}
+
+// tenantName resolves the display name used in platform notifications. The name
+// is cosmetic: a failed lookup logs and falls back to the tenant id.
+func (h *SuperAdminHandler) tenantName(tenantID int) string {
+	if h.TenantRepo == nil {
+		return ""
+	}
+	tenant, err := h.TenantRepo.GetByID(tenantID)
+	if err != nil {
+		log.Printf("[NOTIFICATION] tenant lookup failed for %d: %v", tenantID, err)
+		return ""
+	}
+	if tenant == nil {
+		return ""
+	}
+	return tenant.Name
+}
+
+// notify keeps platform notification failures from changing the response of the
+// action that triggered them.
+func (h *SuperAdminHandler) notify(description string, fn func() error) {
+	if h.NotificationService == nil {
+		return
+	}
+	if err := fn(); err != nil {
+		log.Printf("[NOTIFICATION] %s: %v", description, err)
 	}
 }
 
@@ -80,6 +112,10 @@ func (h *SuperAdminHandler) CreateTenant(c *gin.Context) {
 		utils.InternalError(c, err, "failed to create tenant")
 		return
 	}
+
+	h.notify("tenant created", func() error {
+		return h.NotificationService.NotifyTenantCreated(tenantID, req.Name)
+	})
 
 	c.JSON(http.StatusCreated, gin.H{"tenant_id": tenantID, "user_id": userID})
 }
@@ -144,6 +180,10 @@ func (h *SuperAdminHandler) SuspendTenant(c *gin.Context) {
 		utils.InternalError(c, err, "failed to suspend tenant")
 		return
 	}
+	name := h.tenantName(tenantID)
+	h.notify("tenant suspended", func() error {
+		return h.NotificationService.NotifyTenantSuspended(tenantID, name)
+	})
 	c.JSON(http.StatusOK, gin.H{"message": "tenant suspended"})
 }
 
@@ -162,6 +202,10 @@ func (h *SuperAdminHandler) ReactivateTenant(c *gin.Context) {
 		utils.InternalError(c, err, "failed to reactivate tenant")
 		return
 	}
+	name := h.tenantName(tenantID)
+	h.notify("tenant reactivated", func() error {
+		return h.NotificationService.NotifyTenantReactivated(tenantID, name)
+	})
 	c.JSON(http.StatusOK, gin.H{"message": "tenant reactivated"})
 }
 

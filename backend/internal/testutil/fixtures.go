@@ -3,6 +3,7 @@ package testutil
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -42,24 +43,26 @@ var seq atomic.Int64
 // enough: a fixture that creates two users in the same test (primary tenant +
 // foreign tenant) would otherwise collide on the unique email index.
 // t.Name() can also contain spaces and slashes (subtests), which are not valid
-// in an email local part.
+// in an email local part. The timestamp keeps reruns working even when an
+// earlier failed run left a row behind, since the sequence restarts per process.
 func UniqueEmail(t *testing.T, prefix string) string {
 	name := strings.NewReplacer(" ", "_", "/", "_").Replace(t.Name())
 	if len(name) > 30 {
 		name = name[:30]
 	}
-	return fmt.Sprintf("%s-%s-%d@fixtures.local", prefix, name, seq.Add(1))
+	return fmt.Sprintf("%s-%s-%d-%d@fixtures.local", prefix, name, seq.Add(1), time.Now().UnixNano())
 }
 
 // UniqueCode builds a short unique identifier for the columns that cap at 50
 // characters (students.student_code). Uses the same sequence as UniqueEmail so
-// repeated calls in one test stay distinct.
+// repeated calls in one test stay distinct, plus a base36 timestamp so a rerun
+// cannot collide with a row an earlier failed run left behind.
 func UniqueCode(t *testing.T, prefix string) string {
 	name := strings.NewReplacer(" ", "_", "/", "_").Replace(t.Name())
 	if len(name) > 20 {
 		name = name[:20]
 	}
-	return fmt.Sprintf("%s-%s-%d", prefix, name, seq.Add(1))
+	return fmt.Sprintf("%s-%s-%d-%s", prefix, name, seq.Add(1), strconv.FormatInt(time.Now().UnixNano(), 36))
 }
 
 func CreateUser(t *testing.T, db *sql.DB, tenantID int, email, role string) int {
@@ -76,6 +79,19 @@ func CreateUser(t *testing.T, db *sql.DB, tenantID int, email, role string) int 
 func CreateAdmin(t *testing.T, db *sql.DB, tenantID int) int {
 	t.Helper()
 	return CreateUser(t, db, tenantID, UniqueEmail(t, "admin"), "admin")
+}
+
+// CreateSuperAdmin inserts a platform user. Super admins have no tenant_id,
+// which is what lets platform notifications stay outside tenant scoping.
+func CreateSuperAdmin(t *testing.T, db *sql.DB) int {
+	t.Helper()
+	var uid int
+	err := db.QueryRow(`INSERT INTO users (tenant_id, email, password, role) VALUES (NULL, $1, 'x', 'super_admin') RETURNING id`,
+		UniqueEmail(t, "superadmin")).Scan(&uid)
+	if err != nil {
+		t.Fatalf("create super admin: %v", err)
+	}
+	return uid
 }
 
 // CreateCoach returns the coach's user id and coach row id.

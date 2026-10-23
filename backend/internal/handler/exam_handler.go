@@ -275,7 +275,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 	// uses; the server has no way to derive it, because a student still on the
 	// last question when the clock runs out is indistinguishable from one who
 	// never got to it. Defaults false, so a plain submit is unchanged.
-	notifyExamSubmitted := func(autoSubmit bool) {
+	notifyExamSubmitted := func(autoSubmit bool, attemptID int) {
 		if h.NotificationService == nil {
 			return
 		}
@@ -285,7 +285,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			log.Printf("[NOTIFICATION] failed to resolve student name for %d: %v", studentID, nerr)
 			name = "Unknown"
 		}
-		if err := h.NotificationService.NotifyExamSubmitted(tenantID, studentID, assignmentID, name, autoSubmit); err != nil {
+		if err := h.NotificationService.NotifyExamSubmitted(tenantID, studentID, assignmentID, attemptID, name, autoSubmit); err != nil {
 			log.Printf("[NOTIFICATION] exam submitted notify failed: %v", err)
 		}
 	}
@@ -326,7 +326,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 				utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to enqueue finalization")
 				return
 			}
-			notifyExamSubmitted(req.AutoSubmit)
+			notifyExamSubmitted(req.AutoSubmit, attemptID)
 			c.JSON(http.StatusAccepted, gin.H{
 				"attempt_id":       attemptID,
 				"status":           "queued",
@@ -346,7 +346,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 			utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 			return
 		}
-		notifyExamSubmitted(req.AutoSubmit)
+		notifyExamSubmitted(req.AutoSubmit, res.AttemptID)
 		c.JSON(http.StatusOK, gin.H{
 			"attempt_id":       res.AttemptID,
 			"total_time_spent": res.TotalTimeSpent,
@@ -365,7 +365,7 @@ func (h *StudentHandler) SubmitExam(c *gin.Context) {
 		utils.SafeErrorResponse(c, http.StatusInternalServerError, err, "failed to submit")
 		return
 	}
-	notifyExamSubmitted(req.AutoSubmit)
+	notifyExamSubmitted(req.AutoSubmit, res.AttemptID)
 	c.JSON(http.StatusOK, gin.H{
 		"attempt_id":       res.AttemptID,
 		"total_time_spent": res.TotalTimeSpent,

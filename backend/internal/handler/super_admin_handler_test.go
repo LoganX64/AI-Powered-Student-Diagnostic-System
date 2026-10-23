@@ -29,11 +29,8 @@ import (
 // first and the user second, with no transaction between them, so when the user
 // insert fails (a duplicate email, which CreateTenant lets through as a 500) the
 // tenant row is already committed and orphaned. Those orphans accumulate in dev
-// data on every run and, because testutil.UniqueEmail is deterministic per
-// process, they eventually collide with a later run's generated address.
-//
-// The name must therefore be unique per test — hence the seq suffix rather than a
-// literal like "Second Org".
+// data on every run. The name must therefore be unique per test — hence the seq
+// suffix rather than a literal like "Second Org".
 func orphanTenants(t *testing.T, f *handlerFixture, name string) {
 	t.Helper()
 	t.Cleanup(func() {

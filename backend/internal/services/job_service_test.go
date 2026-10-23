@@ -16,11 +16,11 @@ func TestTerminalStatus(t *testing.T) {
 		done, failed int
 		want         string
 	}{
-		{0, 0, "completed"},   // nothing failed
-		{5, 0, "completed"},   // all succeeded
-		{0, 3, "failed"},      // none succeeded
-		{2, 3, "partial"},     // mixed
-		{1, 1, "partial"},     // one of each
+		{0, 0, "completed"}, // nothing failed
+		{5, 0, "completed"}, // all succeeded
+		{0, 3, "failed"},    // none succeeded
+		{2, 3, "partial"},   // mixed
+		{1, 1, "partial"},   // one of each
 	}
 	for _, c := range cases {
 		if got := terminalStatus(c.done, c.failed); got != c.want {
@@ -191,6 +191,75 @@ func TestJobProcessUnknownAttemptFails(t *testing.T) {
 	job, _ := jobRepo.Get(jobID, tenantID)
 	if job.Status != "failed" {
 		t.Fatalf("status=%q done=%d failed=%d, want failed", job.Status, job.Done, job.Failed)
+	}
+}
+
+// A failed SQI run must now notify the admin instead of dying silently.
+func TestJobProcessFailureNotifiesAdmin(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tenantID, _ := jobGraph(t, db)
+	adminID := testutil.CreateAdmin(t, db, tenantID)
+
+	jobRepo := repository.NewJobRepo(db)
+	payload, _ := json.Marshal(computeJobPayload{AttemptIDs: []int{999999999}})
+	jobID, _ := jobRepo.Create(tenantID, "compute_sqi", payload, 1)
+
+	attemptService := NewAttemptService(repository.NewAttemptRepo(db), repository.NewAssignmentRepo(db),
+		repository.NewStudentRepo(db), repository.NewTestPaperRepo(db))
+	nr := repository.NewNotificationRepo(db)
+	js := NewJobService(jobRepo, attemptService, 100, NewNotificationService(nr, repository.NewUserRepo(db)))
+	if err := js.Process(jobID, tenantID); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	got := notifyRecipients(t, db, tenantID, "sqi_complete")
+	if !got[adminID] {
+		t.Fatalf("admin %d must be notified of a failed SQI job, got %v", adminID, got)
+	}
+	rows, _, err := nr.List(tenantID, &adminID, repository.ScopeOwn, "sqi_complete", "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 SQI notification, got %d", len(rows))
+	}
+	if rows[0].Title != "SQI Computation Failed" || rows[0].Priority != "warning" {
+		t.Fatalf("title=%q priority=%q, want failed/warning", rows[0].Title, rows[0].Priority)
+	}
+}
+
+// A partially successful run must also notify, with a warning when the failure
+// share is high enough to matter.
+func TestJobProcessPartialNotifiesAdmin(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tenantID, attemptIDs := jobGraph(t, db)
+	adminID := testutil.CreateAdmin(t, db, tenantID)
+
+	jobRepo := repository.NewJobRepo(db)
+	payload, _ := json.Marshal(computeJobPayload{AttemptIDs: []int{attemptIDs[0], 999999999}})
+	jobID, _ := jobRepo.Create(tenantID, "compute_sqi", payload, 2)
+
+	attemptService := NewAttemptService(repository.NewAttemptRepo(db), repository.NewAssignmentRepo(db),
+		repository.NewStudentRepo(db), repository.NewTestPaperRepo(db))
+	nr := repository.NewNotificationRepo(db)
+	js := NewJobService(jobRepo, attemptService, 100, NewNotificationService(nr, repository.NewUserRepo(db)))
+	if err := js.Process(jobID, tenantID); err != nil {
+		t.Fatalf("Process: %v", err)
+	}
+
+	got := notifyRecipients(t, db, tenantID, "sqi_complete")
+	if !got[adminID] {
+		t.Fatalf("admin %d must be notified of a partial SQI job, got %v", adminID, got)
+	}
+	rows, _, err := nr.List(tenantID, &adminID, repository.ScopeOwn, "sqi_complete", "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("expected 1 SQI notification, got %d", len(rows))
+	}
+	if rows[0].Title != "SQI Computation Partial" || rows[0].Priority != "warning" {
+		t.Fatalf("title=%q priority=%q, want partial/warning", rows[0].Title, rows[0].Priority)
 	}
 }
 

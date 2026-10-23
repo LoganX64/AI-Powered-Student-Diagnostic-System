@@ -64,22 +64,13 @@ func (s *JobService) Process(jobID, tenantID int) error {
 
 	var pld computeJobPayload
 	if err := json.Unmarshal(job.Payload, &pld); err != nil {
-		if err := s.JobRepo.SetStatus(jobID, tenantID, "failed"); err != nil {
-			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
-		}
+		s.finishJob(jobID, tenantID, "failed", 0, 0)
 		return nil
 	}
 
 	total := len(pld.AttemptIDs)
 	if total == 0 {
-		if err := s.JobRepo.SetStatus(jobID, tenantID, "completed"); err != nil {
-			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
-		}
-		if s.NotificationService != nil {
-			if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, 0, 0); err != nil {
-				log.Printf("[JOB] notify SQI complete failed for job %d: %v", jobID, err)
-			}
-		}
+		s.finishJob(jobID, tenantID, "completed", 0, 0)
 		return nil
 	}
 
@@ -115,26 +106,23 @@ func (s *JobService) Process(jobID, tenantID int) error {
 		}
 	}
 
-	switch terminalStatus(done, failed) {
-	case "completed":
-		if err := s.JobRepo.SetStatus(jobID, tenantID, "completed"); err != nil {
-			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
-		}
-		if s.NotificationService != nil {
-			if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, done, failed); err != nil {
-				log.Printf("[JOB] notify SQI complete failed for job %d: %v", jobID, err)
-			}
-		}
-	case "failed":
-		if err := s.JobRepo.SetStatus(jobID, tenantID, "failed"); err != nil {
-			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
-		}
-	default:
-		if err := s.JobRepo.SetStatus(jobID, tenantID, "partial"); err != nil {
-			log.Printf("[JOB] set status failed for job %d: %v", jobID, err)
-		}
-	}
+	s.finishJob(jobID, tenantID, terminalStatus(done, failed), done, failed)
 	return nil
+}
+
+// finishJob records a terminal status and notifies the admin. Notifications are
+// sent for completed, failed, and partial runs alike: a batch where every attempt
+// failed previously left the admin with no signal at all.
+func (s *JobService) finishJob(jobID, tenantID int, status string, done, failed int) {
+	if err := s.JobRepo.SetStatus(jobID, tenantID, status); err != nil {
+		log.Printf("[JOB] set status %s for job %d: %v", status, jobID, err)
+	}
+	if s.NotificationService == nil {
+		return
+	}
+	if err := s.NotificationService.NotifySQIComplete(tenantID, jobID, status, done, failed); err != nil {
+		log.Printf("[JOB] notify SQI %s failed for job %d: %v", status, jobID, err)
+	}
 }
 
 // TestIDForAttempt is a thin wrapper so the worker can resolve a test for an attempt.

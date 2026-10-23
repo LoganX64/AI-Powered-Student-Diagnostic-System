@@ -45,7 +45,7 @@ func (s *Sweeper) RunOnce(ctx context.Context) {
 			Answers:      nil,
 		})
 		if s.NotificationService != nil {
-			if err := s.NotificationService.NotifyStudentExamLogout(e.TenantID, e.StudentID, e.AssignmentID, e.StudentName); err != nil {
+			if err := s.NotificationService.NotifyStudentExamLogout(e.TenantID, e.StudentID, e.AssignmentID, e.AttemptID, e.StudentName); err != nil {
 				log.Printf("[SWEEPER] notify student exam logout failed for attempt %d: %v", e.AttemptID, err)
 			}
 		}

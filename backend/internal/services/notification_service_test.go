@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -28,7 +29,7 @@ func notifTenant(t *testing.T, db *sql.DB) (tid int, a, b, c, d int, assignmentI
 		t.Fatalf("create tenant: %v", err)
 	}
 	// One admin and three coaches. Admin count matters: sqi_complete resolves to
-// every admin, so a second admin would change the expected recipient set.
+	// every admin, so a second admin would change the expected recipient set.
 	a = testutil.CreateAdmin(t, db, tid)
 	// CreateCoach inserts the users row and the coaches row together, which is
 	// what targeting resolves through.
@@ -82,6 +83,27 @@ func notifyRecipients(t *testing.T, db *sql.DB, tid int, eventType string) map[i
 
 // Exam submission reaches the admin and the coach who owns the student, and
 // nobody else — coach C has no students and must not be told.
+func platformRecipients(t *testing.T, db *sql.DB, eventType string) map[int]bool {
+	t.Helper()
+	rows, err := db.Query(`SELECT user_id FROM notifications WHERE scope = 'platform' AND event_type = $1`, eventType)
+	if err != nil {
+		t.Fatalf("platform recipients query: %v", err)
+	}
+	defer rows.Close()
+	got := map[int]bool{}
+	for rows.Next() {
+		var uid int
+		if err := rows.Scan(&uid); err != nil {
+			t.Fatalf("scan platform recipient: %v", err)
+		}
+		got[uid] = true
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate platform recipients: %v", err)
+	}
+	return got
+}
+
 func TestNotifyExamSubmittedTargetsOwningCoach(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 	tid, a, b, c, d, assignmentID := notifTenant(t, db)
@@ -90,7 +112,7 @@ func TestNotifyExamSubmittedTargetsOwningCoach(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", false); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, 1001, "Bob", false); err != nil {
 		t.Fatalf("NotifyExamSubmitted: %v", err)
 	}
 
@@ -150,7 +172,7 @@ func TestNotifySQICompleteIsAdminOnly(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifySQIComplete(tid, 7, 120, 0); err != nil {
+	if err := svc.NotifySQIComplete(tid, 7, "completed", 120, 0); err != nil {
 		t.Fatalf("NotifySQIComplete: %v", err)
 	}
 
@@ -180,7 +202,7 @@ func TestNotifyCoachActivityTargetsActingCoach(t *testing.T) {
 	if err != nil {
 		t.Fatalf("coach id: %v", err)
 	}
-	if err := svc.NotifyCoachActivity(tid, actingCoachID, "created test", "Patent exam"); err != nil {
+	if err := svc.NotifyCoachActivity(tid, actingCoachID, "created test", "Patent exam", "coach_activity:created_test:1"); err != nil {
 		t.Fatalf("NotifyCoachActivity: %v", err)
 	}
 
@@ -208,7 +230,7 @@ func TestNotifyStudentExamLogoutTargetsOwningCoach(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyStudentExamLogout(tid, 42, assignmentID, "Bob"); err != nil {
+	if err := svc.NotifyStudentExamLogout(tid, 42, assignmentID, 1002, "Bob"); err != nil {
 		t.Fatalf("NotifyStudentExamLogout: %v", err)
 	}
 
@@ -244,10 +266,10 @@ func TestNotifyExamSubmittedAutoSubmitWording(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", false); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, 2001, "Bob", false); err != nil {
 		t.Fatalf("manual: %v", err)
 	}
-	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", true); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, 2002, "Bob", true); err != nil {
 		t.Fatalf("auto: %v", err)
 	}
 
@@ -312,6 +334,121 @@ func TestNotifyExamSubmittedAutoSubmitWording(t *testing.T) {
 	}
 }
 
+// A replayed submission must not produce a second row for either recipient.
+func TestNotifyExamSubmittedIsIdempotent(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid, a, _, _, d, assignmentID := notifTenant(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+
+	for i := 0; i < 2; i++ {
+		if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, 4001, "Bob", false); err != nil {
+			t.Fatalf("NotifyExamSubmitted attempt %d: %v", i+1, err)
+		}
+	}
+
+	got := notifyRecipients(t, db, tid, "exam_submitted")
+	if len(got) != 2 || !got[a] || !got[d] {
+		t.Fatalf("expected exactly admin %d and coach %d, got %v", a, d, got)
+	}
+
+	var rows int
+	if err := db.QueryRow(`
+		SELECT COUNT(*) FROM notifications
+		WHERE tenant_id = $1 AND event_type = 'exam_submitted' AND event_key = $2
+	`, tid, "exam_submitted:attempt:4001").Scan(&rows); err != nil {
+		t.Fatalf("count rows: %v", err)
+	}
+	if rows != 2 {
+		t.Fatalf("expected one row per recipient after retry, got %d", rows)
+	}
+}
+
+func TestIsValidEventType(t *testing.T) {
+	valid := []string{
+		EventExamSubmitted, EventCoachActivity, EventSQIComplete, EventStudentExamLogout,
+		EventTenantCreated, EventTenantSuspended, EventTenantReactivated, EventPlanChanged,
+	}
+	for _, eventType := range valid {
+		if !IsValidEventType(eventType) {
+			t.Errorf("IsValidEventType(%q) = false, want true", eventType)
+		}
+	}
+	for _, eventType := range []string{"", "system_alert", "storage_warning", "not_an_event"} {
+		if IsValidEventType(eventType) {
+			t.Errorf("IsValidEventType(%q) = true, want false", eventType)
+		}
+	}
+}
+
+// Platform events go to super admins only, with scope=platform and no tenant.
+func TestNotifyPlatformEventsTargetSuperAdmins(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid := testutil.CreateTenant(t, db)
+	admin := testutil.CreateAdmin(t, db, tid)
+	superA := testutil.CreateSuperAdmin(t, db)
+	superB := testutil.CreateSuperAdmin(t, db)
+	defer func() {
+		db.Exec(`DELETE FROM notifications WHERE scope = 'platform' AND metadata->>'tenant_id' = $1`, fmt.Sprintf("%d", tid))
+		db.Exec(`DELETE FROM users WHERE id IN ($1, $2)`, superA, superB)
+		db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+	}()
+
+	nr := repository.NewNotificationRepo(db)
+	svc := NewNotificationService(nr, repository.NewUserRepo(db))
+
+	if err := svc.NotifyTenantCreated(tid, "Acme"); err != nil {
+		t.Fatalf("NotifyTenantCreated: %v", err)
+	}
+	// tenant_created has a fixed event key; a retry is suppressed per recipient.
+	if err := svc.NotifyTenantCreated(tid, "Acme"); err != nil {
+		t.Fatalf("NotifyTenantCreated retry: %v", err)
+	}
+
+	created := platformRecipients(t, db, EventTenantCreated)
+	if !created[superA] || !created[superB] {
+		t.Fatalf("both super admins must receive tenant_created, got %v", created)
+	}
+	if created[admin] {
+		t.Fatalf("tenant admin %d must not receive a platform event, got %v", admin, created)
+	}
+
+	var createdRows int
+	if err := db.QueryRow(`
+		SELECT COUNT(*) FROM notifications
+		WHERE event_type = $1 AND event_key = $2 AND scope = 'platform' AND tenant_id IS NULL
+		  AND user_id IN ($3, $4)
+	`, EventTenantCreated, fmt.Sprintf("tenant_created:%d", tid), superA, superB).Scan(&createdRows); err != nil {
+		t.Fatalf("count tenant_created: %v", err)
+	}
+	if createdRows != 2 {
+		t.Fatalf("expected one tenant_created row per super admin, got %d", createdRows)
+	}
+
+	events := []struct {
+		eventType string
+		notify    func() error
+	}{
+		{EventTenantSuspended, func() error { return svc.NotifyTenantSuspended(tid, "Acme") }},
+		{EventTenantReactivated, func() error { return svc.NotifyTenantReactivated(tid, "Acme") }},
+		{EventPlanChanged, func() error { return svc.NotifyPlanChanged(tid, "Acme", 2, "Starter") }},
+	}
+	for _, e := range events {
+		if err := e.notify(); err != nil {
+			t.Fatalf("%s: %v", e.eventType, err)
+		}
+		got := platformRecipients(t, db, e.eventType)
+		if !got[superA] || !got[superB] {
+			t.Fatalf("%s must reach both super admins, got %v", e.eventType, got)
+		}
+		if got[admin] {
+			t.Fatalf("%s must not reach tenant admin %d, got %v", e.eventType, admin, got)
+		}
+	}
+}
+
 // The per-recipient preference gate still applies after targeting: an admin who
 // disabled the event is skipped while the owning coach still receives it.
 func TestNotifyTargetedRespectsPreferences(t *testing.T) {
@@ -323,7 +460,7 @@ func TestNotifyTargetedRespectsPreferences(t *testing.T) {
 
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
-	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, "Bob", false); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, assignmentID, 1001, "Bob", false); err != nil {
 		t.Fatalf("NotifyExamSubmitted: %v", err)
 	}
 
@@ -349,7 +486,7 @@ func TestNotifyExamSubmittedFallsBackToAdminWhenCoachUnknown(t *testing.T) {
 	nr := repository.NewNotificationRepo(db)
 	svc := NewNotificationService(nr, repository.NewUserRepo(db))
 
-	if err := svc.NotifyExamSubmitted(tid, 42, 9999999, "Bob", false); err != nil {
+	if err := svc.NotifyExamSubmitted(tid, 42, 9999999, 3001, "Bob", false); err != nil {
 		t.Fatalf("NotifyExamSubmitted must not fail on an unresolvable coach: %v", err)
 	}
 

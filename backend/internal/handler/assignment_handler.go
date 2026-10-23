@@ -57,7 +57,7 @@ func (h *AdminHandler) CreateAssignment(c *gin.Context) {
 	}
 
 	if h.NotificationService != nil {
-		if err := h.NotificationService.NotifyCoachActivity(c.GetInt("tenant_id"), req.CoachID, "assigned exam", "exam assigned"); err != nil {
+		if err := h.NotificationService.NotifyCoachActivity(c.GetInt("tenant_id"), req.CoachID, "assigned exam", "exam assigned", "coach_activity:assigned_exam:"+strconv.Itoa(id)); err != nil {
 			log.Printf("[NOTIFICATION] coach activity notify failed: %v", err)
 		}
 	}
