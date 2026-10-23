@@ -25,6 +25,7 @@ export function roleFromPath(pathname: string): Role | null {
 /** Returns the API path prefix for a role. */
 export function prefixForRole(role: Role | null): string {
   if (role === "coach") return "/coach";
+  if (role === "super_admin") return "/super-admin";
   return "/admin";
 }
 

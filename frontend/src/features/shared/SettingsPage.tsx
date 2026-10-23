@@ -28,12 +28,14 @@ import {
 } from "@/services/settings.service";
 import { useRole } from "@/hooks/useRole";
 
+// Only live event types are listed. system_alert and storage_warning were
+// retired with the notification overhaul: nothing emits them and the backend now
+// rejects them as preferences. Platform events (tenant lifecycle, plan changes)
+// default to enabled and are not exposed here yet.
 const NOTIFICATION_EVENTS: { event_type: string; label: string; description: string }[] = [
   { event_type: "exam_submitted", label: "Exam Submitted", description: "When a student submits an exam" },
   { event_type: "coach_activity", label: "Coach Activity", description: "Test and assignment activity by coaches" },
-  { event_type: "system_alert", label: "System Alerts", description: "Warnings about storage and system health" },
   { event_type: "sqi_complete", label: "SQI Complete", description: "When an SQI computation job finishes" },
-  { event_type: "storage_warning", label: "Storage Warning", description: "Storage quota warning and critical alerts" },
   { event_type: "student_exam_logout", label: "Student Exam Logout", description: "When a student logs out during an active exam" },
 ];
 
@@ -305,7 +307,7 @@ export function SettingsPage() {
                         <p className="text-sm text-muted-foreground">{evt.description}</p>
                       </div>
                       <Switch
-                        checked={prefs[evt.event_type] ?? false}
+                        checked={prefs[evt.event_type] ?? true}
                         onCheckedChange={(checked) =>
                           setPrefs((prev) => ({ ...prev, [evt.event_type]: checked }))
                         }

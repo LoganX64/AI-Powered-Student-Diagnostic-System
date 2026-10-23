@@ -17,20 +17,19 @@ import {
   InfoIcon,
   AlertCircleIcon,
   CheckIcon,
+  CheckCheckIcon,
   Trash2Icon,
 } from "lucide-react";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
 import { apiFetch } from "@/lib/api";
 import { currentPrefix } from "@/config/routes";
+import { useRole } from "@/hooks/useRole";
 import { toast } from "sonner";
 
 const PAGE_SIZE = 20;
 
-// Severity tabs are the only tabs besides All/Unread, and they map straight onto
-// the backend's priority filter. "Alert" was removed: nothing emits that
-// priority — only storage_warning can, and it has no producer — so the tab could
-// never hold a row. The priority stays valid in the type and in the row
-// rendering, so a stored alert would still display correctly under All.
+// Server-backed tabs. Info and Warning map straight onto the backend's priority
+// filter. "Alert" is still renderable but has no tab: no producer emits it.
 const SEVERITY_TABS = ["info", "warning"] as const;
 
 function formatEventType(eventType: string): string {
@@ -63,10 +62,23 @@ function getPriorityBadge(priority: Notification["priority"]) {
 }
 
 export function NotificationsPage() {
-  // The shared store stays pinned to page 1: the header bell needs the newest
-  // rows regardless of which page this list is showing. It supplies the
-  // offset-independent facts — the org-wide unread count and the viewer's own id.
-  const { unreadCount, viewerUserId, refetch: refetchFeed } = useNotifications();
+  const role = useRole();
+  // A super-admin gets the platform layout; admin and coach share the regular
+  // one. Row scoping is handled by the role-derived API prefix and the backend.
+  const layoutVariant = role === "super_admin" ? "super-admin" : "admin";
+
+  // The shared store supplies the header counts and viewer id; this page keeps
+  // its own page of rows so filtering and paging stay server-side.
+  const {
+    unreadCount,
+    unseenCount,
+    viewerUserId,
+    markSeen,
+    markRead,
+    markAllRead,
+    markAllSeen,
+    deleteNotification,
+  } = useNotifications();
 
   const [rows, setRows] = useState<Notification[]>([]);
   const [total, setTotal] = useState(0);
@@ -76,105 +88,122 @@ export function NotificationsPage() {
 
   const reqIdRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  // Rows this page already sent a seen request for. Without it, paging back and
+  // forth re-sends /seen for rows whose local copy predates the store update.
+  const markedSeenRef = useRef<Set<number>>(new Set());
 
   // Filtering happens server-side. Doing it in the browser would only ever see
   // the current page, so a tab could report "no results" while matches sat on
   // page 2 — and the pager's total would describe a different set entirely.
-  const fetchPage = useCallback(async (off: number, tab: string) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const reqId = ++reqIdRef.current;
+  const fetchPage = useCallback(
+    async (off: number, tab: string) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const reqId = ++reqIdRef.current;
 
-    const params = new URLSearchParams({
-      limit: String(PAGE_SIZE),
-      offset: String(off),
-    });
-    if (tab === "unread") params.set("unread", "true");
-    else if ((SEVERITY_TABS as readonly string[]).includes(tab)) {
-      params.set("priority", tab);
-    }
-
-    // Only the first load blanks the list. Paging keeps the current rows on
-    // screen so the list does not flash empty between pages.
-    if (off === 0) setLoading(true);
-
-    try {
-      const res = await apiFetch<{
-        total: number;
-        data: Notification[];
-      }>(`${currentPrefix()}/notifications?${params}`, {
-        signal: controller.signal,
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(off),
       });
-      // A newer request has started, so this response is stale.
-      if (reqId !== reqIdRef.current) return;
-
-      // Deleting the last row of the last page strands the user on an offset
-      // past the end. Step back rather than showing a blank page.
-      if (off > 0 && (res.data?.length ?? 0) === 0 && off >= res.total) {
-        setOffset(Math.max(0, off - PAGE_SIZE));
-        return;
+      if (tab === "unread") params.set("unread", "true");
+      else if (tab === "read") params.set("read", "true");
+      else if ((SEVERITY_TABS as readonly string[]).includes(tab)) {
+        params.set("priority", tab);
       }
 
-      setRows(res.data ?? []);
-      setTotal(res.total);
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") return;
-      toast.error((err as Error).message || "Failed to load notifications");
-    } finally {
-      if (reqId === reqIdRef.current) setLoading(false);
-    }
-  }, []);
+      // Only the first load blanks the list. Paging keeps the current rows on
+      // screen so the list does not flash empty between pages.
+      if (off === 0) setLoading(true);
+
+      try {
+        const res = await apiFetch<{
+          total: number;
+          data: Notification[];
+        }>(`${currentPrefix()}/notifications?${params}`, {
+          signal: controller.signal,
+        });
+        // A newer request has started, so this response is stale.
+        if (reqId !== reqIdRef.current) return;
+
+        // Deleting the last row of the last page strands the user on an offset
+        // past the end. Step back rather than showing a blank page.
+        if (off > 0 && (res.data?.length ?? 0) === 0 && off >= res.total) {
+          setOffset(Math.max(0, off - PAGE_SIZE));
+          return;
+        }
+
+        const data = res.data ?? [];
+        setRows(data);
+        setTotal(res.total);
+
+        // A visible row counts as seen: clear the badge for this page without
+        // touching read state. Deduped so polling does not repeat requests.
+        const unseenIds = data
+          .filter((n) => !n.seen_at && !markedSeenRef.current.has(n.id))
+          .map((n) => n.id);
+        if (unseenIds.length > 0) {
+          unseenIds.forEach((id) => markedSeenRef.current.add(id));
+          void markSeen(unseenIds).catch((err) =>
+            toast.error((err as Error).message),
+          );
+        }
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        toast.error((err as Error).message || "Failed to load notifications");
+      } finally {
+        if (reqId === reqIdRef.current) setLoading(false);
+      }
+    },
+    [markSeen],
+  );
 
   useEffect(() => {
     fetchPage(offset, activeTab);
     return () => abortRef.current?.abort();
   }, [offset, activeTab, fetchPage]);
 
-  // The admin sees every row in the organization, but MarkRead and Delete are
-  // owner-scoped server-side, so acting on a coach's notification would 404.
-  // Only offer the actions on rows the viewer owns; until the id resolves, show
-  // none rather than buttons that cannot work.
+  // Every scope is owner-scoped, so every visible row is actionable. The check
+  // stays as a guard against a future wide read scope reintroducing read-only
+  // rows, but the UI no longer advertises that case.
   const canActOn = (n: Notification) =>
     viewerUserId !== null && n.user_id === viewerUserId;
 
-  // True when the unread badge counts rows this viewer cannot clear, i.e. the
-  // admin looking at org-wide unread. Coaches only ever see their own.
-  const ownsEveryVisibleRow =
-    viewerUserId !== null && rows.every((n) => n.user_id === viewerUserId);
+  const refresh = () => void fetchPage(offset, activeTab);
 
-  // Both sides refresh: this page's rows, and the store's count and viewer id.
-  const refreshAll = () => {
-    void fetchPage(offset, activeTab);
-    void refetchFeed();
-  };
-
-  const markAsRead = async (id: number) => {
-    const prefix = currentPrefix();
+  const handleMarkRead = async (id: number) => {
     try {
-      await apiFetch(`${prefix}/notifications/${id}/read`, { method: "PUT" });
-      refreshAll();
+      await markRead(id);
+      refresh();
     } catch (err) {
       toast.error((err as Error).message);
     }
   };
 
-  const markAllAsRead = async () => {
-    const prefix = currentPrefix();
+  const handleMarkAllRead = async () => {
     try {
-      await apiFetch(`${prefix}/notifications/read-all`, { method: "PUT" });
-      refreshAll();
+      await markAllRead();
+      refresh();
       toast.success("All marked as read");
     } catch (err) {
       toast.error((err as Error).message);
     }
   };
 
-  const deleteNotification = async (id: number) => {
-    const prefix = currentPrefix();
+  const handleMarkAllSeen = async () => {
     try {
-      await apiFetch(`${prefix}/notifications/${id}`, { method: "DELETE" });
-      refreshAll();
+      await markAllSeen();
+      refresh();
+      toast.success("All marked as seen");
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteNotification(id);
+      refresh();
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -187,7 +216,7 @@ export function NotificationsPage() {
   };
 
   return (
-    <DashboardLayout title="Notifications">
+    <DashboardLayout title="Notifications" variant={layoutVariant}>
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader>
@@ -202,26 +231,27 @@ export function NotificationsPage() {
                 </CardTitle>
                 <CardDescription>
                   Stay updated with the latest activity and alerts.
-                  {unreadCount > 0 && !ownsEveryVisibleRow && (
-                    <span className="mt-1 block">
-                      The unread count covers the whole organization. &ldquo;Mark all
-                      as read&rdquo; clears only your own notifications; each
-                      user clears their own.
-                    </span>
-                  )}
                 </CardDescription>
               </div>
-              {unreadCount > 0 && (
-                <Button variant="outline" onClick={markAllAsRead}>
-                  <CheckIcon className="size-4 mr-1" />
-                  Mark all as read
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {unseenCount > 0 && (
+                  <Button variant="outline" onClick={handleMarkAllSeen}>
+                    <CheckCheckIcon className="size-4 mr-1" />
+                    Mark all seen
+                  </Button>
+                )}
+                {unreadCount > 0 && (
+                  <Button variant="outline" onClick={handleMarkAllRead}>
+                    <CheckIcon className="size-4 mr-1" />
+                    Mark all as read
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={handleTabChange}>
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="unread">
                   Unread
@@ -229,6 +259,7 @@ export function NotificationsPage() {
                     <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{unreadCount}</Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="read">Read</TabsTrigger>
                 <TabsTrigger value="info">Info</TabsTrigger>
                 <TabsTrigger value="warning">Warning</TabsTrigger>
               </TabsList>
@@ -263,6 +294,12 @@ export function NotificationsPage() {
                             <Badge variant="outline" className="text-xs">
                               {formatEventType(notification.event_type)}
                             </Badge>
+                            {!notification.seen_at && (
+                              <span
+                                className="h-2 w-2 rounded-full bg-blue-500"
+                                title="New"
+                              />
+                            )}
                             {!notification.read_at && (
                               <div className="h-2 w-2 rounded-full bg-primary" />
                             )}
@@ -270,11 +307,6 @@ export function NotificationsPage() {
                           <p className="text-sm text-muted-foreground">{notification.message}</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             {new Date(notification.created_at).toLocaleString()}
-                            {!canActOn(notification) && (
-                              <span className="ml-2">
-                                Read-only — belongs to another user
-                              </span>
-                            )}
                           </p>
                         </div>
                         {canActOn(notification) && (
@@ -284,7 +316,7 @@ export function NotificationsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="size-8"
-                                onClick={() => markAsRead(notification.id)}
+                                onClick={() => handleMarkRead(notification.id)}
                               >
                                 <CheckIcon className="size-4" />
                               </Button>
@@ -293,7 +325,7 @@ export function NotificationsPage() {
                               variant="ghost"
                               size="icon"
                               className="size-8 text-destructive"
-                              onClick={() => deleteNotification(notification.id)}
+                              onClick={() => handleDelete(notification.id)}
                             >
                               <Trash2Icon className="size-4" />
                             </Button>

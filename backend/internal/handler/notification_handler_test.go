@@ -167,6 +167,28 @@ func TestNotificationListReadSeenFilters(t *testing.T) {
 	}
 }
 
+// An unrecognised priority is dropped rather than passed through, so a typo or
+// a stale client returns the unfiltered list instead of a permanently empty
+// page. A valid priority still filters.
+func TestNotificationListInvalidPriorityIgnored(t *testing.T) {
+	f := newHandlerFixture(t)
+	uid := f.AdminUserID
+	testutil.CreateNotification(t, f.DB, f.TenantID, &uid, "exam_submitted", "Priority Row", false)
+
+	body, code := notifGet(t, f, "priority=critical")
+	if code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	if !strings.Contains(body, "Priority Row") {
+		t.Fatalf("invalid priority should be ignored, but it filtered rows: %s", body)
+	}
+
+	filtered, _ := notifGet(t, f, "priority=alert")
+	if strings.Contains(filtered, "Priority Row") {
+		t.Fatalf("valid priority=alert leaked an info row: %s", filtered)
+	}
+}
+
 func TestNotificationMarkRead(t *testing.T) {
 	f := newHandlerFixture(t)
 	uid := f.AdminUserID

@@ -187,6 +187,41 @@ Notes:
 | GET | `/coach/subjects` | List tenant subjects (paginated) |
 | GET | `/coach/assignments` | List assignments (paginated, filterable by `test_id`) |
 
+### Super Admin Routes (`/super-admin`) - _Requires Super Admin role_
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/super-admin/stats` | Platform-wide aggregated metrics |
+| GET | `/super-admin/tenants` | List tenants |
+| POST | `/super-admin/tenants` | Create a tenant |
+| GET | `/super-admin/tenants/:id` | Tenant details |
+| PUT | `/super-admin/tenants/:id` | Update a tenant |
+| PUT | `/super-admin/tenants/:id/suspend` | Suspend a tenant |
+| PUT | `/super-admin/tenants/:id/reactivate` | Reactivate a tenant |
+| GET | `/super-admin/tenants/:id/admins` | List tenant admins |
+| POST | `/super-admin/tenants/:id/admins` | Create a tenant admin |
+| GET | `/super-admin/plans` | List subscription plans |
+| POST | `/super-admin/plans` | Create a plan |
+| PUT | `/super-admin/plans/:id` | Update a plan |
+| DELETE | `/super-admin/plans/:id` | Delete a plan |
+| PUT | `/super-admin/tenants/:id/subscription` | Assign a plan to a tenant |
+
+### Notification Routes (`/admin`, `/coach`, `/super-admin`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/{role}/notifications` | List own notifications (filters: `event_type`, `priority`, `read`, `seen`, `unread`, `limit`, `offset`) |
+| GET | `/{role}/notifications/unread-count` | Returns `unread_count` and `unseen_count` |
+| PUT | `/{role}/notifications/:id/read` | Mark one own row read (also marks it seen) |
+| PUT | `/{role}/notifications/read-all` | Mark all own rows read |
+| PUT | `/{role}/notifications/:id/seen` | Clear one row's badge without reading it |
+| PUT | `/{role}/notifications/seen-all` | Clear the badge for all own rows |
+| DELETE | `/{role}/notifications/:id` | Delete one own row |
+| GET | `/{role}/notifications/preferences` | List the caller's event preferences |
+| PUT | `/{role}/notifications/preferences` | Upsert the caller's event preferences |
+
+**Notification model.** One row per recipient (`user_id` required); `tenant_id` is nullable and `scope` is either `tenant` or `platform`. Admin and coach reads and mutations are owner-scoped (`ScopeOwn`); super-admin reads and mutations are platform-scoped (`scope = 'platform' AND tenant_id IS NULL`) and receive tenant lifecycle (created, suspended, reactivated) and plan-change events. `seen_at` drives the bell badge and is stamped when rows are displayed; `read_at` drives the Unread tab and is stamped only on an explicit read. Marking read stamps both, so state can only diverge in the seen-but-unread direction. Producers pass an `event_key` and the repository inserts idempotently, so a replayed queue message or retried request cannot duplicate a row. `system_alert` and `storage_warning` were retired and preference updates now reject unknown event types.
+
 ## 🧠 SQI Engine (Student Quotient Index)
 
 The SQI engine (`internal/services/sqi_engine_v2.go`) is the core diagnostic calculation system. It analyzes student performance across multiple dimensions:

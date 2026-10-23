@@ -22,7 +22,6 @@ import { SuperAdminDashboardPage } from "../src/features/super-admin/SuperAdminD
 import { SuperAdminTenantsPage } from "../src/features/super-admin/SuperAdminTenantsPage.tsx";
 import { SuperAdminTenantDetailPage } from "../src/features/super-admin/SuperAdminTenantDetailPage.tsx";
 import { SuperAdminPlansPage } from "../src/features/super-admin/SuperAdminPlansPage.tsx";
-import { SuperAdminNotificationsPage } from "../src/features/super-admin/SuperAdminNotificationsPage.tsx";
 import { NotFoundPage } from "../src/features/shared/NotFoundPage.tsx";
 
   // Unified pages
@@ -124,7 +123,7 @@ const router = createBrowserRouter([
           { path: "super-admin/plans", Component: SuperAdminPlansPage },
           { path: "super-admin/settings", Component: SettingsPage },
           { path: "super-admin/accounts", Component: AccountsPage },
-          { path: "super-admin/notifications", Component: SuperAdminNotificationsPage },
+          { path: "super-admin/notifications", Component: NotificationsPage },
 
           // Student flow
           { path: "dashboard", Component: StudentDashboardPage },

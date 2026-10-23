@@ -4,13 +4,20 @@ import { currentPrefix } from "@/config/routes";
 
 export type Notification = {
   id: number;
-  tenant_id: number;
+  // NULL for platform notifications, which belong to no tenant.
+  tenant_id: number | null;
   user_id: number | null;
+  // "tenant" rows are addressed to a user inside one tenant; "platform" rows
+  // are addressed to a super admin and carry no tenant_id.
+  scope: "tenant" | "platform";
   event_type: string;
+  // Stable dedupe key. NULL for older rows and events that have no natural key.
+  event_key: string | null;
   title: string;
   message: string;
   priority: "info" | "warning" | "alert";
   read_at: string | null;
+  seen_at: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
 };
@@ -23,6 +30,7 @@ const DEFAULT_POLL_INTERVAL = 10000;
 type Snapshot = {
   notifications: Notification[];
   unreadCount: number;
+  unseenCount: number;
   viewerUserId: number | null;
   loading: boolean;
 };
@@ -30,6 +38,7 @@ type Snapshot = {
 const EMPTY: Snapshot = {
   notifications: [],
   unreadCount: 0,
+  unseenCount: 0,
   viewerUserId: null,
   loading: true,
 };
@@ -90,9 +99,15 @@ async function fetchNow() {
   store.abort = controller;
   const reqId = ++store.reqId;
   const prefix = currentPrefix();
-  // A role change swaps the API prefix (see start()); recording it here keeps
-  // the next fetch pointed at the same role.
-  store.prefix = prefix;
+
+  // A role or prefix change swaps the whole feed. Clearing first means a coach
+  // never sees the admin's rows (or counts) while the new role's request is in
+  // flight; recording the prefix keeps the next fetch pointed at the same role.
+  if (store.prefix !== prefix) {
+    store.prefix = prefix;
+    store.state = { ...EMPTY };
+    publish();
+  }
 
   try {
     const [notifRes, countRes] = await Promise.all([
@@ -100,9 +115,10 @@ async function fetchNow() {
         `${prefix}/notifications?limit=20`,
         { signal: controller.signal },
       ),
-      apiFetch<{ unread_count: number }>(`${prefix}/notifications/unread-count`, {
-        signal: controller.signal,
-      }),
+      apiFetch<{ unread_count: number; unseen_count: number }>(
+        `${prefix}/notifications/unread-count`,
+        { signal: controller.signal },
+      ),
     ]);
     // A newer request has started, so this response is stale.
     if (reqId !== store.reqId) return;
@@ -110,6 +126,7 @@ async function fetchNow() {
       ...store.state,
       notifications: notifRes.data ?? [],
       unreadCount: countRes.unread_count,
+      unseenCount: countRes.unseen_count,
       viewerUserId: notifRes.viewer_user_id ?? null,
       loading: false,
     };
@@ -119,6 +136,9 @@ async function fetchNow() {
     // failure. Leaving state untouched either way: blanking the list on a
     // transient error is what made notifications appear to vanish.
     if ((err as Error)?.name === "AbortError") return;
+    // Anything else is a real failure worth surfacing; mutations rethrow so
+    // their callers can toast, and the poller reports to the console.
+    console.error("[notifications] failed to refresh", err);
   } finally {
     if (reqId === store.reqId) {
       store.inFlight = false;
@@ -166,6 +186,152 @@ function subscribe(cb: () => void, interval: number) {
   };
 }
 
+/**
+ * Applies an optimistic change, then confirms it against the server and refetches
+ * so pagination totals and counts come from the source of truth. On failure the
+ * pre-mutation snapshot is restored (the next poll would correct it anyway) and
+ * the error is rethrown for the caller to toast.
+ */
+async function mutate(
+  apply: () => void,
+  request: (prefix: string) => Promise<unknown>,
+) {
+  const previous = store.state;
+  apply();
+  publish();
+  try {
+    await request(currentPrefix());
+  } catch (err) {
+    store.state = previous;
+    publish();
+    void fetchNow();
+    throw err;
+  }
+  void fetchNow();
+}
+
+function markRowsSeen(ids: number[]) {
+  const wanted = new Set(ids);
+  let cleared = 0;
+  const notifications = store.state.notifications.map((n) => {
+    if (!wanted.has(n.id) || n.seen_at) return n;
+    cleared++;
+    return { ...n, seen_at: new Date().toISOString() };
+  });
+  store.state = {
+    ...store.state,
+    notifications,
+    unseenCount: Math.max(0, store.state.unseenCount - cleared),
+  };
+  publish();
+}
+
+/**
+ * Clears the badge for specific rows. The bell calls this with the rows it is
+ * showing when the dropdown opens; marking read is a separate, explicit action.
+ */
+export function markSeen(ids: number[]) {
+  if (ids.length === 0) return Promise.resolve();
+  return mutate(
+    () => markRowsSeen(ids),
+    (prefix) =>
+      Promise.all(
+        ids.map((id) =>
+          apiFetch(`${prefix}/notifications/${id}/seen`, { method: "PUT" }),
+        ),
+      ),
+  );
+}
+
+export function markAllSeen() {
+  return mutate(
+    () => {
+      store.state = {
+        ...store.state,
+        notifications: store.state.notifications.map((n) =>
+          n.seen_at ? n : { ...n, seen_at: new Date().toISOString() },
+        ),
+        unseenCount: 0,
+      };
+      publish();
+    },
+    (prefix) =>
+      apiFetch(`${prefix}/notifications/seen-all`, { method: "PUT" }),
+  );
+}
+
+/**
+ * Marks one row read. Read implies seen: the server stamps both, so the badge
+ * and the Unread tab stay consistent for a row the user acted on.
+ */
+export function markRead(id: number) {
+  return mutate(
+    () => {
+      const target = store.state.notifications.find((n) => n.id === id);
+      if (!target) return;
+      const now = new Date().toISOString();
+      store.state = {
+        ...store.state,
+        notifications: store.state.notifications.map((n) =>
+          n.id === id ? { ...n, read_at: n.read_at ?? now, seen_at: n.seen_at ?? now } : n,
+        ),
+        unreadCount: target.read_at
+          ? store.state.unreadCount
+          : Math.max(0, store.state.unreadCount - 1),
+        unseenCount: target.seen_at
+          ? store.state.unseenCount
+          : Math.max(0, store.state.unseenCount - 1),
+      };
+      publish();
+    },
+    (prefix) =>
+      apiFetch(`${prefix}/notifications/${id}/read`, { method: "PUT" }),
+  );
+}
+
+export function markAllRead() {
+  return mutate(
+    () => {
+      const now = new Date().toISOString();
+      store.state = {
+        ...store.state,
+        notifications: store.state.notifications.map((n) => ({
+          ...n,
+          read_at: n.read_at ?? now,
+          seen_at: n.seen_at ?? now,
+        })),
+        unreadCount: 0,
+        unseenCount: 0,
+      };
+      publish();
+    },
+    (prefix) =>
+      apiFetch(`${prefix}/notifications/read-all`, { method: "PUT" }),
+  );
+}
+
+export function deleteNotification(id: number) {
+  return mutate(
+    () => {
+      const target = store.state.notifications.find((n) => n.id === id);
+      store.state = {
+        ...store.state,
+        notifications: store.state.notifications.filter((n) => n.id !== id),
+        unreadCount:
+          target && !target.read_at
+            ? Math.max(0, store.state.unreadCount - 1)
+            : store.state.unreadCount,
+        unseenCount:
+          target && !target.seen_at
+            ? Math.max(0, store.state.unseenCount - 1)
+            : store.state.unseenCount,
+      };
+      publish();
+    },
+    (prefix) => apiFetch(`${prefix}/notifications/${id}`, { method: "DELETE" }),
+  );
+}
+
 const getSnapshot = () => snapshot;
 const getServerSnapshot = () => EMPTY;
 // Stable reference: a subscribe function recreated on every render makes React
@@ -187,8 +353,10 @@ if (import.meta.hot) {
 /**
  * Subscribes to the shared notification feed.
  *
- * `enabled=false` keeps the subscription dormant for roles with no endpoint
- * (super_admin) rather than firing requests that cannot succeed.
+ * All staff roles are supported now that /super-admin exposes the same
+ * endpoints; the store resets as soon as the role-derived prefix changes, so
+ * switching roles never mixes feeds. `enabled=false` keeps the subscription
+ * dormant for callers without an endpoint (hooks must still run).
  */
 export function useNotifications(pollInterval = DEFAULT_POLL_INTERVAL, enabled = true) {
   const subscribeCb = useCallback(
@@ -205,5 +373,10 @@ export function useNotifications(pollInterval = DEFAULT_POLL_INTERVAL, enabled =
   return {
     ...current,
     refetch: fetchNow,
+    markSeen,
+    markAllSeen,
+    markRead,
+    markAllRead,
+    deleteNotification,
   };
 }
