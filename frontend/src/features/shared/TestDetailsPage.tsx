@@ -51,7 +51,7 @@ export function TestDetailsPage() {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loaded, setLoaded] = useState(false);
-  const [filter, setFilter] = useState<"active" | "all" | "submitted">("active");
+  const [filter, setFilter] = useState<"active" | "all" | "submitted">("all");
 
   const [search, setSearch] = useState("");
   const [year, setYear] = useState("");
@@ -115,7 +115,7 @@ export function TestDetailsPage() {
     setYear("");
     setSubjectId("");
     setCoachId("");
-    setFilter("active");
+    setFilter("all");
     setOffset(0);
   };
 
@@ -206,6 +206,13 @@ export function TestDetailsPage() {
             <div className="flex rounded-md border p-0.5 text-sm">
               <button
                 type="button"
+                onClick={() => { setFilter("all"); setOffset(0); }}
+                className={`rounded px-2.5 py-1 ${filter === "all" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
+              >
+                All
+              </button>
+              <button
+                type="button"
                 onClick={() => { setFilter("active"); setOffset(0); }}
                 className={`rounded px-2.5 py-1 ${filter === "active" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
               >
@@ -217,13 +224,6 @@ export function TestDetailsPage() {
                 className={`rounded px-2.5 py-1 ${filter === "submitted" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
               >
                 Submitted
-              </button>
-              <button
-                type="button"
-                onClick={() => { setFilter("all"); setOffset(0); }}
-                className={`rounded px-2.5 py-1 ${filter === "all" ? "bg-secondary font-medium" : "text-muted-foreground"}`}
-              >
-                All
               </button>
             </div>
             <Badge variant="secondary">{total}</Badge>
