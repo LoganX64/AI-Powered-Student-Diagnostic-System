@@ -212,7 +212,7 @@ backend/
 │   ├── storage/                  # Object storage drivers (Cloudinary & Local FS)
 │   ├── testutil/                 # Mock databases, fixtures & assertions for unit tests
 │   └── types/                    # Domain model definitions
-├── migrations/                   # 20 sequential database migration files (.up.sql & .down.sql)
+├── migrations/                   # 25 sequential database migration files (.up.sql & .down.sql)
 ├── utils/                        # Shared utilities (JWT, Safe responses, Passwords)
 ├── docker-compose.yml            # Local development orchestration (Postgres + Redis)
 └── go.mod                        # Go module specifications & dependencies
@@ -222,7 +222,7 @@ backend/
 
 ## Database Schema & Migrations
 
-The system relies on 20 versioned migrations managed via `golang-migrate` and automatically executed upon server startup:
+The system relies on 25 versioned migrations managed via `golang-migrate` and automatically executed upon server startup:
 
 | Migration | Name | Purpose |
 | :--- | :--- | :--- |
@@ -246,6 +246,11 @@ The system relies on 20 versioned migrations managed via `golang-migrate` and au
 | `000018` | `allow_reassignment` | Enables reassigning tests for remediations or retakes |
 | `000019` | `questions_test_id_index` | B-tree index on question foreign keys for low-latency retrieval |
 | `000020` | `password_resets` | Secure token hashes and expiry timestamps for password reset flows |
+| `000021` | `student_email` | Adds a tenant-scoped email column to students |
+| `000022` | `result_release` | Result release tracking for published exam results |
+| `000023` | `result_tokens` | Single-use tokens for public result links |
+| `000024` | `multiple_attempts` | Allows more than one attempt per assignment |
+| `000025` | `notification_scope_seen_idempotency` | Per-recipient notification scope, `seen_at` state, and idempotent `event_key` |
 
 ---
 
@@ -313,7 +318,7 @@ Protects against resource abuse by verifying tenant subscription limits before e
 - `GET  /admin/assignments/:id/video-merged` - Stream full merged proctoring video
 - `GET  /admin/tenant/settings` | `PUT /admin/tenant/settings` - Tenant settings & branding
 - `GET  /admin/subscription` | `POST /admin/subscription/checkout` - Plan subscription & checkout
-- `GET  /admin/notifications` | `PUT /admin/notifications/:id/read` - Notifications & preferences
+- `GET  /admin/notifications` | `PUT /admin/notifications/:id/read` - Own notifications, counts, seen/read state, and preferences
 
 ### Coach Endpoints (`/coach`)
 - Scoped equivalents of student management, batch assignment, test creation, SQI insights, proctoring videos, and notifications restricted to the coach's assigned subjects and students.
@@ -325,6 +330,20 @@ Protects against resource abuse by verifying tenant subscription limits before e
 - `GET  /super-admin/tenants/:id/admins` | `POST /super-admin/tenants/:id/admins` - Tenant admin provision
 - `GET  /super-admin/plans` | `POST /super-admin/plans` | `PUT /super-admin/plans/:id` - Subscription plan management
 - `PUT  /super-admin/tenants/:id/subscription` - Assign plan to tenant
+- `GET  /super-admin/notifications` | `PUT /super-admin/notifications/:id/read` - Platform notifications (tenant lifecycle, plan changes)
+
+#### Notification endpoints and seen vs read
+
+Every staff role exposes the same notification API under its own prefix (`/admin`, `/coach`, `/super-admin`):
+
+- `GET  /{role}/notifications` — own rows; filters: `event_type`, `priority`, `read=true|false`, `seen=true|false`, `unread=true`, `limit`, `offset`
+- `GET  /{role}/notifications/unread-count` — returns `unread_count` (Unread tab) and `unseen_count` (bell badge)
+- `PUT  /{role}/notifications/:id/read` | `PUT /{role}/notifications/read-all`
+- `PUT  /{role}/notifications/:id/seen` | `PUT /{role}/notifications/seen-all`
+- `DELETE /{role}/notifications/:id`
+- `GET  /{role}/notifications/preferences` | `PUT /{role}/notifications/preferences`
+
+Notifications are one row per recipient: admin and coach rows are tenant-scoped and owner-only, while super-admin rows are platform-scoped (`scope = 'platform'`, `tenant_id IS NULL`) and carry tenant lifecycle and plan-change events. Seen (`seen_at`) drives the bell badge and is stamped when a row is displayed; read (`read_at`) drives the Unread tab and is stamped only when the user explicitly marks the row read. Marking read also marks seen, so the two can only diverge in the seen-but-unread direction. Repeat creators pass an `event_key` so a replayed request or queue message cannot duplicate a row.
 
 ### Live Proctoring View (`/view`)
 - `GET /view/students/:id/live` - WebSocket connection for real-time video observation
