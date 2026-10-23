@@ -93,12 +93,13 @@ func (s *NotificationService) notifyUsers(
 			continue
 		}
 		if _, cerr := s.NotificationRepo.Create(repository.NotificationRow{
-			TenantID:  tenantID,
+			TenantID:  &tenantID,
 			UserID:    &uid,
 			EventType: eventType,
 			Title:     title,
 			Message:   message,
 			Priority:  priority,
+			Scope:     "tenant",
 			Metadata:  metaBytes,
 		}); cerr != nil {
 			log.Printf("[NOTIFICATION] failed to create notification for user %d event %s: %v", uid, eventType, cerr)

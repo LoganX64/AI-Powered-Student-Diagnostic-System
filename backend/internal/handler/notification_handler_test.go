@@ -109,12 +109,6 @@ func TestNotificationUnreadCount(t *testing.T) {
 	if got := notifUnreadCount(t, f); got != 2 {
 		t.Fatalf("unread_count=%d, want 2", got)
 	}
-
-	// A broadcast row (user_id NULL) counts for the user.
-	testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
-	if got := notifUnreadCount(t, f); got != 3 {
-		t.Fatalf("unread_count=%d after a broadcast row, want 3", got)
-	}
 }
 
 func TestNotificationMarkRead(t *testing.T) {
@@ -179,26 +173,6 @@ func TestNotificationMarkReadRefusesOtherUsers(t *testing.T) {
 	}
 }
 
-// A broadcast row (user_id NULL) is org-wide and read_at is a single column, so
-// one user marking it read would hide it from everyone. It must be refused.
-func TestNotificationMarkReadRefusesBroadcast(t *testing.T) {
-	f := newHandlerFixture(t)
-	id := testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
-
-	_, code := notifMarkRead(t, f, f.AdminUserID, id)
-	if code != http.StatusNotFound {
-		t.Fatalf("code=%d, want 404 for a broadcast row", code)
-	}
-
-	var readAt sql.NullString
-	if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, id).Scan(&readAt); err != nil {
-		t.Fatalf("read read_at: %v", err)
-	}
-	if readAt.Valid {
-		t.Fatal("a broadcast notification was marked read by one user")
-	}
-}
-
 // An unknown id is a 404, not a silent 200: the repo now reports whether a row
 // was actually touched.
 func TestNotificationMarkReadUnknownIsNotFound(t *testing.T) {
@@ -238,7 +212,6 @@ func TestNotificationMarkAllRead(t *testing.T) {
 	uid := f.AdminUserID
 	a := testutil.CreateNotification(t, f.DB, f.TenantID, &uid, "system_alert", "A", false)
 	b := testutil.CreateNotification(t, f.DB, f.TenantID, &uid, "sqi_complete", "B", false)
-	broadcast := testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
 
 	// Another user's row in the same tenant must be left alone.
 	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "coach")
@@ -267,15 +240,6 @@ func TestNotificationMarkAllRead(t *testing.T) {
 	}
 	if otherReadAt.Valid {
 		t.Fatalf("SECURITY: mark-all-read cleared user %d's notification %d", other, otherRow)
-	}
-
-	// Broadcast rows stay unread too.
-	var broadcastReadAt sql.NullString
-	if err := f.DB.QueryRow(`SELECT read_at::text FROM notifications WHERE id = $1`, broadcast).Scan(&broadcastReadAt); err != nil {
-		t.Fatalf("read broadcast: %v", err)
-	}
-	if broadcastReadAt.Valid {
-		t.Fatal("SECURITY: mark-all-read cleared a broadcast row")
 	}
 }
 
@@ -382,25 +346,6 @@ func TestNotificationDeleteRefusesOtherUsers(t *testing.T) {
 	}
 	if left == 0 {
 		t.Fatal("SECURITY: another user's notification was deleted")
-	}
-}
-
-// A broadcast row is org-wide, so one user must not be able to delete it.
-func TestNotificationDeleteRefusesBroadcast(t *testing.T) {
-	f := newHandlerFixture(t)
-	id := testutil.CreateNotification(t, f.DB, f.TenantID, nil, "system_alert", "Broadcast", false)
-
-	_, code := notifDeleteAs(t, f, f.AdminUserID, id)
-	if code != http.StatusNotFound {
-		t.Fatalf("code=%d, want 404 for a broadcast row", code)
-	}
-
-	var left int
-	if err := f.DB.QueryRow(`SELECT COUNT(*) FROM notifications WHERE id = $1`, id).Scan(&left); err != nil {
-		t.Fatalf("count: %v", err)
-	}
-	if left == 0 {
-		t.Fatal("a broadcast notification was deleted by one user")
 	}
 }
 

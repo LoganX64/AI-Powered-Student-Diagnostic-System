@@ -3,6 +3,8 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -16,13 +18,16 @@ func NewNotificationRepo(db *sql.DB) *NotificationRepo {
 
 type NotificationRow struct {
 	ID        int             `json:"id"`
-	TenantID  int             `json:"tenant_id"`
+	TenantID  *int            `json:"tenant_id"`
 	UserID    *int            `json:"user_id"`
 	EventType string          `json:"event_type"`
 	Title     string          `json:"title"`
 	Message   string          `json:"message"`
 	Priority  string          `json:"priority"`
+	Scope     string          `json:"scope"`
 	ReadAt    *string         `json:"read_at"`
+	SeenAt    *string         `json:"seen_at"`
+	EventKey  *string         `json:"event_key"`
 	Metadata  json.RawMessage `json:"metadata"`
 	CreatedAt string          `json:"created_at"`
 }
@@ -38,75 +43,141 @@ type NotificationPrefRow struct {
 type NotificationScope int
 
 const (
-	// ScopeOwn restricts a viewer to rows addressed to them. Used for coaches,
-	// who see only their own notifications and never another coach's.
+	// ScopeOwn restricts a viewer to rows addressed to them. Used for tenant
+	// admins and coaches, who see only their own notifications.
 	ScopeOwn NotificationScope = iota
-	// ScopeTenant exposes every row in the tenant. Used for the single admin who
-	// owns the organization, giving org-wide visibility without a second admin.
+	// ScopeTenant exposes every row in the tenant. Retained only for the
+	// pre-phase-4 admin view; new code should use ScopeOwn.
 	ScopeTenant
+	// ScopePlatform restricts a super admin to platform rows, which have no
+	// tenant_id.
+	ScopePlatform
 )
 
-// scopedClause appends the row-visibility predicate for a scope.
-//
-// Scope is passed explicitly rather than inferred from whether userID is nil:
-// "no user filter" (tenant-wide) and "only my rows" are different permissions,
-// and conflating them lets a coach's list widen to the whole org by accident.
-//
-// A nil userID under ScopeOwn yields a predicate matching nothing, so a caller
-// that forgets the identity sees an empty list rather than the whole tenant.
-func scopedClause(scope NotificationScope, userID *int, clause string, idx *int, args *[]interface{}) string {
-	if scope == ScopeTenant {
-		return clause
-	}
-	*idx++
-	own := -1
-	if userID != nil {
-		own = *userID
-	}
-	clause += " AND n.user_id = $" + strconv.Itoa(*idx)
-	*args = append(*args, own)
-	return clause
+// NotificationFilter describes one page of notifications. Read and Seen are
+// tri-state: nil means "any", true means "must be set", false means "must be
+// NULL".
+type NotificationFilter struct {
+	TenantID  *int
+	UserID    int
+	Scope     NotificationScope
+	EventType string
+	Priority  string
+	Read      *bool
+	Seen      *bool
+	Limit     int
+	Offset    int
 }
 
-// List returns a page of notifications plus the total matching the filters.
-//
-// priority is a separate filter from event_type on purpose: the UI's tabs are
-// severity-based (Info / Warning / Alert) while event_type is the specific
-// event, and several event types share the "info" priority, so reusing
-// event_type for the tabs would be a lossy mapping.
-func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationScope, eventType, priority string, unreadOnly bool, limit, offset int) ([]NotificationRow, int, error) {
-	var args []interface{}
-	args = append(args, tenantID)
-	clause := "WHERE n.tenant_id = $1"
-	idx := 1
-	clause = scopedClause(scope, userID, clause, &idx, &args)
-	if eventType != "" {
-		idx++
-		clause += " AND n.event_type = $" + strconv.Itoa(idx)
-		args = append(args, eventType)
+// NotificationCounts is the pair the bell needs: unseen drives the badge, unread
+// drives the Unread tab.
+type NotificationCounts struct {
+	Unread int
+	Unseen int
+}
+
+// scopePredicate returns the row-visibility predicate for a scope. The
+// placeholders start after idOffset so the same predicate can follow an id
+// argument in single-row queries.
+func scopePredicate(scope NotificationScope, tenantID *int, userID, idOffset int) (string, []interface{}, error) {
+	switch scope {
+	case ScopePlatform:
+		return "n.scope = 'platform' AND n.tenant_id IS NULL AND n.user_id = $" + strconv.Itoa(idOffset+1),
+			[]interface{}{userID}, nil
+	case ScopeTenant:
+		if tenantID == nil {
+			return "", nil, errors.New("tenant id is required for tenant-scoped notifications")
+		}
+		return "n.scope = 'tenant' AND n.tenant_id = $" + strconv.Itoa(idOffset+1),
+			[]interface{}{*tenantID}, nil
+	case ScopeOwn:
+		if tenantID == nil {
+			return "", nil, errors.New("tenant id is required for tenant-scoped notifications")
+		}
+		return "n.scope = 'tenant' AND n.tenant_id = $" + strconv.Itoa(idOffset+1) +
+				" AND n.user_id = $" + strconv.Itoa(idOffset+2),
+			[]interface{}{*tenantID, userID}, nil
+	default:
+		return "", nil, fmt.Errorf("unknown notification scope %d", scope)
 	}
-	if priority != "" {
-		idx++
-		clause += " AND n.priority = $" + strconv.Itoa(idx)
-		args = append(args, priority)
+}
+
+// actionPredicate is the write-side counterpart to scopePredicate. Seens, reads,
+// and deletes are always owner-scoped: even the legacy ScopeTenant listing is
+// wider than the set a caller may mutate, and one user must never clear another
+// user's badge or delete their row.
+func actionPredicate(scope NotificationScope, tenantID *int, userID, idOffset int) (string, []interface{}, error) {
+	switch scope {
+	case ScopePlatform:
+		return "n.scope = 'platform' AND n.tenant_id IS NULL AND n.user_id = $" + strconv.Itoa(idOffset+1),
+			[]interface{}{userID}, nil
+	case ScopeOwn, ScopeTenant:
+		if tenantID == nil {
+			return "", nil, errors.New("tenant id is required for tenant-scoped notifications")
+		}
+		return "n.scope = 'tenant' AND n.tenant_id = $" + strconv.Itoa(idOffset+1) +
+				" AND n.user_id = $" + strconv.Itoa(idOffset+2),
+			[]interface{}{*tenantID, userID}, nil
+	default:
+		return "", nil, fmt.Errorf("unknown notification scope %d", scope)
 	}
-	if unreadOnly {
-		clause += " AND n.read_at IS NULL"
+}
+
+// ListFiltered returns a page of notifications plus the total matching the
+// filters.
+func (r *NotificationRepo) ListFiltered(f NotificationFilter) ([]NotificationRow, int, error) {
+	where, args, err := scopePredicate(f.Scope, f.TenantID, f.UserID, 0)
+	if err != nil {
+		return nil, 0, err
+	}
+	idx := len(args)
+
+	if f.EventType != "" {
+		idx++
+		where += " AND n.event_type = $" + strconv.Itoa(idx)
+		args = append(args, f.EventType)
+	}
+	if f.Priority != "" {
+		idx++
+		where += " AND n.priority = $" + strconv.Itoa(idx)
+		args = append(args, f.Priority)
+	}
+	if f.Read != nil {
+		if *f.Read {
+			where += " AND n.read_at IS NOT NULL"
+		} else {
+			where += " AND n.read_at IS NULL"
+		}
+	}
+	if f.Seen != nil {
+		if *f.Seen {
+			where += " AND n.seen_at IS NOT NULL"
+		} else {
+			where += " AND n.seen_at IS NULL"
+		}
 	}
 
-	countQuery := "SELECT COUNT(*) FROM notifications n " + clause
 	var total int
-	if err := r.DB.QueryRow(countQuery, args...).Scan(&total); err != nil {
+	if err := r.DB.QueryRow(`SELECT COUNT(*) FROM notifications n WHERE `+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	offset := f.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
 	idx++
-	query := "SELECT n.id, n.tenant_id, n.user_id, n.event_type, n.title, n.message, n.priority, n.read_at, n.metadata, n.created_at FROM notifications n " +
-		clause + " ORDER BY n.created_at DESC"
-	query += " LIMIT $" + strconv.Itoa(idx)
+	query := `SELECT n.id, n.tenant_id, n.user_id, n.event_type, n.title, n.message,
+		n.priority, n.scope, n.read_at, n.seen_at, n.event_key, n.metadata, n.created_at
+		FROM notifications n WHERE ` + where + ` ORDER BY n.created_at DESC LIMIT $` + strconv.Itoa(idx)
 	args = append(args, limit)
 	idx++
-	query += " OFFSET $" + strconv.Itoa(idx)
+	query += ` OFFSET $` + strconv.Itoa(idx)
 	args = append(args, offset)
 
 	rows, err := r.DB.Query(query, args...)
@@ -117,116 +188,250 @@ func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationSco
 
 	out := []NotificationRow{}
 	for rows.Next() {
-		var n NotificationRow
-		var userID sql.NullInt64
-		var readAt sql.NullString
-		var meta []byte
-		if err := rows.Scan(&n.ID, &n.TenantID, &userID, &n.EventType, &n.Title, &n.Message, &n.Priority, &readAt, &meta, &n.CreatedAt); err != nil {
+		n, err := scanNotificationRow(rows)
+		if err != nil {
 			return nil, 0, err
 		}
-		if userID.Valid {
-			u := int(userID.Int64)
-			n.UserID = &u
-		}
-		if readAt.Valid {
-			ra := readAt.String
-			n.ReadAt = &ra
-		}
-		n.Metadata = json.RawMessage(meta)
 		out = append(out, n)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
-	if out == nil {
-		out = []NotificationRow{}
-	}
 	return out, total, nil
 }
 
-func (r *NotificationRepo) GetByID(id, tenantID int) (*NotificationRow, error) {
+// List is the legacy positional wrapper. Keep it until the handlers move to
+// NotificationFilter in phase 4.
+func (r *NotificationRepo) List(tenantID int, userID *int, scope NotificationScope, eventType, priority string, unreadOnly bool, limit, offset int) ([]NotificationRow, int, error) {
+	uid := -1
+	if userID != nil {
+		uid = *userID
+	}
+	f := NotificationFilter{
+		TenantID:  &tenantID,
+		UserID:    uid,
+		Scope:     scope,
+		EventType: eventType,
+		Priority:  priority,
+		Limit:     limit,
+		Offset:    offset,
+	}
+	if unreadOnly {
+		unread := false
+		f.Read = &unread
+	}
+	return r.ListFiltered(f)
+}
+
+type rowScanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func scanNotificationRow(scanner rowScanner) (NotificationRow, error) {
 	var n NotificationRow
-	var userID sql.NullInt64
-	var readAt sql.NullString
+	var tenantID, userID sql.NullInt64
+	var readAt, seenAt, eventKey sql.NullString
 	var meta []byte
-	query := `SELECT id, tenant_id, user_id, event_type, title, message, priority, read_at, metadata, created_at FROM notifications WHERE id = $1 AND tenant_id = $2`
-	if err := r.DB.QueryRow(query, id, tenantID).Scan(&n.ID, &n.TenantID, &userID, &n.EventType, &n.Title, &n.Message, &n.Priority, &readAt, &meta, &n.CreatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, err
+
+	if err := scanner.Scan(
+		&n.ID, &tenantID, &userID, &n.EventType, &n.Title, &n.Message,
+		&n.Priority, &n.Scope, &readAt, &seenAt, &eventKey, &meta, &n.CreatedAt,
+	); err != nil {
+		return n, err
+	}
+
+	if tenantID.Valid {
+		v := int(tenantID.Int64)
+		n.TenantID = &v
 	}
 	if userID.Valid {
-		u := int(userID.Int64)
-		n.UserID = &u
+		v := int(userID.Int64)
+		n.UserID = &v
 	}
 	if readAt.Valid {
-		ra := readAt.String
-		n.ReadAt = &ra
+		v := readAt.String
+		n.ReadAt = &v
+	}
+	if seenAt.Valid {
+		v := seenAt.String
+		n.SeenAt = &v
+	}
+	if eventKey.Valid {
+		v := eventKey.String
+		n.EventKey = &v
 	}
 	n.Metadata = json.RawMessage(meta)
+	return n, nil
+}
+
+func (r *NotificationRepo) GetByID(id, tenantID int) (*NotificationRow, error) {
+	where, args, err := scopePredicate(ScopeTenant, &tenantID, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	query := `SELECT n.id, n.tenant_id, n.user_id, n.event_type, n.title, n.message,
+		n.priority, n.scope, n.read_at, n.seen_at, n.event_key, n.metadata, n.created_at
+		FROM notifications n WHERE n.id = $1 AND ` + where
+	args = append([]interface{}{id}, args...)
+
+	n, err := scanNotificationRow(r.DB.QueryRow(query, args...))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 	return &n, nil
 }
 
 func (r *NotificationRepo) Create(n NotificationRow) (int, error) {
-	var id int
-	query := `INSERT INTO notifications (tenant_id, user_id, event_type, title, message, priority, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
-	if err := r.DB.QueryRow(query, n.TenantID, n.UserID, n.EventType, n.Title, n.Message, n.Priority, n.Metadata).Scan(&id); err != nil {
-		return 0, err
-	}
-	return id, nil
+	id, _, err := r.CreateIdempotent(n)
+	return id, err
 }
 
-// MarkRead marks one of the caller's own notifications read.
-//
-// The user_id predicate is load-bearing. Without it any user in a tenant could
-// mark anyone's notification read, and because the method reported no
-// not-found the handler answered 200 either way. Broadcast rows (user_id IS
-// NULL) are deliberately excluded: read_at is a single column, so one user
-// marking an org-wide notification read would hide it for every other user.
-//
-// Returns whether a row was updated, so the handler can distinguish "done" from
-// "not yours or not there" instead of reporting success for a no-op.
-func (r *NotificationRepo) MarkRead(id, tenantID, userID int) (bool, error) {
-	res, err := r.DB.Exec(`UPDATE notifications SET read_at = NOW()
-		WHERE id = $1 AND tenant_id = $2 AND user_id = $3`, id, tenantID, userID)
+// CreateIdempotent inserts a notification unless the same user already has a row
+// with the same event_key. A conflict is reported as created=false, not as an
+// error, so producers can retry safely.
+func (r *NotificationRepo) CreateIdempotent(n NotificationRow) (int, bool, error) {
+	if n.UserID == nil {
+		return 0, false, errors.New("notification user_id is required")
+	}
+	if n.Scope == "" {
+		n.Scope = "tenant"
+	}
+	switch n.Scope {
+	case "tenant":
+		if n.TenantID == nil {
+			return 0, false, errors.New("tenant notification requires tenant_id")
+		}
+	case "platform":
+		if n.TenantID != nil {
+			return 0, false, errors.New("platform notification must not set tenant_id")
+		}
+	default:
+		return 0, false, fmt.Errorf("invalid notification scope %q", n.Scope)
+	}
+
+	meta := n.Metadata
+	if len(meta) == 0 {
+		meta = json.RawMessage("{}")
+	}
+	eventKey := n.EventKey
+	if eventKey != nil && *eventKey == "" {
+		eventKey = nil
+	}
+
+	var id int
+	err := r.DB.QueryRow(`
+		INSERT INTO notifications (
+			tenant_id, user_id, event_type, title, message,
+			priority, metadata, scope, event_key
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (user_id, event_key) WHERE event_key IS NOT NULL DO NOTHING
+		RETURNING id`,
+		n.TenantID, *n.UserID, n.EventType, n.Title, n.Message,
+		n.Priority, meta, n.Scope, eventKey,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	return id, true, nil
+}
+
+// MarkReadScoped marks one of the caller's own notifications read. The scope
+// controls whether the row must be a tenant row or a platform row; ownership is
+// always enforced. Marking read also marks seen.
+func (r *NotificationRepo) MarkReadScoped(id int, tenantID *int, userID int, scope NotificationScope) (bool, error) {
+	where, args, err := actionPredicate(scope, tenantID, userID, 1)
+	if err != nil {
+		return false, err
+	}
+	query := `UPDATE notifications AS n
+		SET read_at = COALESCE(read_at, NOW()), seen_at = COALESCE(seen_at, NOW())
+		WHERE n.id = $1 AND ` + where
+	args = append([]interface{}{id}, args...)
+	res, err := r.DB.Exec(query, args...)
 	if err != nil {
 		return false, err
 	}
 	return rowsAffected(res)
 }
 
-// MarkAllRead marks the caller's own unread notifications read.
-//
-// Deliberately owner-scoped, matching MarkRead's rule. It used to include
-// broadcast rows (`user_id IS NULL`), which are a single shared row: with the
-// admin now holding a tenant-wide view, "mark all as read" would have stamped
-// read_at on every coach's rows and emptied their unread badges. It also meant
-// the one operation able to clear a broadcast row was reachable by any user,
-// contradicting MarkRead's refusal of them.
-//
-// The admin's view is wider than the set this touches, by design — the rows that
-// stay unread are the coaches', and only they may clear them.
-func (r *NotificationRepo) MarkAllRead(tenantID int, userID *int) error {
-	var args []interface{}
-	args = append(args, tenantID)
-	idx := 1
-	clause := "WHERE tenant_id = $1 AND read_at IS NULL"
-	clause = scopedClause(ScopeOwn, userID, clause, &idx, &args)
-	_, err := r.DB.Exec(`UPDATE notifications AS n SET read_at = NOW() `+clause, args...)
+func (r *NotificationRepo) MarkRead(id, tenantID, userID int) (bool, error) {
+	return r.MarkReadScoped(id, &tenantID, userID, ScopeOwn)
+}
+
+// MarkAllReadScoped marks the caller's own unread notifications read. It is
+// owner-scoped even when the legacy ScopeTenant listing is wider.
+func (r *NotificationRepo) MarkAllReadScoped(tenantID *int, userID int, scope NotificationScope) error {
+	where, args, err := actionPredicate(scope, tenantID, userID, 0)
+	if err != nil {
+		return err
+	}
+	_, err = r.DB.Exec(`UPDATE notifications AS n
+		SET read_at = COALESCE(read_at, NOW()), seen_at = COALESCE(seen_at, NOW())
+		WHERE n.read_at IS NULL AND `+where, args...)
 	return err
 }
 
-// Delete removes one of the caller's own notifications. Same ownership rule as
-// MarkRead: without the user_id predicate any user in a tenant could delete
-// anyone else's, and a tenant-wide broadcast row would be deletable by one
-// member. Returns whether a row was removed.
-func (r *NotificationRepo) Delete(id, tenantID, userID int) (bool, error) {
-	res, err := r.DB.Exec(`DELETE FROM notifications WHERE id = $1 AND tenant_id = $2 AND user_id = $3`, id, tenantID, userID)
+func (r *NotificationRepo) MarkAllRead(tenantID int, userID *int) error {
+	if userID == nil {
+		return errors.New("notification user_id is required")
+	}
+	return r.MarkAllReadScoped(&tenantID, *userID, ScopeOwn)
+}
+
+// MarkSeenScoped marks one of the caller's own notifications seen without
+// marking it read.
+func (r *NotificationRepo) MarkSeenScoped(id int, tenantID *int, userID int, scope NotificationScope) (bool, error) {
+	where, args, err := actionPredicate(scope, tenantID, userID, 1)
+	if err != nil {
+		return false, err
+	}
+	query := `UPDATE notifications AS n
+		SET seen_at = COALESCE(seen_at, NOW())
+		WHERE n.id = $1 AND ` + where
+	args = append([]interface{}{id}, args...)
+	res, err := r.DB.Exec(query, args...)
 	if err != nil {
 		return false, err
 	}
 	return rowsAffected(res)
+}
+
+// MarkAllSeenScoped marks all of the caller's own unseen notifications seen.
+func (r *NotificationRepo) MarkAllSeenScoped(tenantID *int, userID int, scope NotificationScope) error {
+	where, args, err := actionPredicate(scope, tenantID, userID, 0)
+	if err != nil {
+		return err
+	}
+	_, err = r.DB.Exec(`UPDATE notifications AS n
+		SET seen_at = COALESCE(seen_at, NOW())
+		WHERE n.seen_at IS NULL AND `+where, args...)
+	return err
+}
+
+// DeleteScoped removes one of the caller's own notifications.
+func (r *NotificationRepo) DeleteScoped(id int, tenantID *int, userID int, scope NotificationScope) (bool, error) {
+	where, args, err := actionPredicate(scope, tenantID, userID, 1)
+	if err != nil {
+		return false, err
+	}
+	query := `DELETE FROM notifications AS n WHERE n.id = $1 AND ` + where
+	args = append([]interface{}{id}, args...)
+	res, err := r.DB.Exec(query, args...)
+	if err != nil {
+		return false, err
+	}
+	return rowsAffected(res)
+}
+
+func (r *NotificationRepo) Delete(id, tenantID, userID int) (bool, error) {
+	return r.DeleteScoped(id, &tenantID, userID, ScopeOwn)
 }
 
 // rowsAffected reports whether an Exec actually touched a row, so callers can
@@ -240,19 +445,32 @@ func rowsAffected(res sql.Result) (bool, error) {
 	return n > 0, nil
 }
 
-// UnreadCount counts unread rows visible under the given scope. The admin's badge
-// reflects the whole tenant, a coach's only their own rows.
-func (r *NotificationRepo) UnreadCount(tenantID int, userID *int, scope NotificationScope) (int, error) {
-	var args []interface{}
-	args = append(args, tenantID)
-	clause := "WHERE n.tenant_id = $1 AND n.read_at IS NULL"
-	idx := 1
-	clause = scopedClause(scope, userID, clause, &idx, &args)
-	var count int
-	if err := r.DB.QueryRow(`SELECT COUNT(*) FROM notifications n `+clause, args...).Scan(&count); err != nil {
-		return 0, err
+// Counts returns both badge counts for a viewer. Unread drives the Unread tab;
+// unseen drives the bell badge.
+func (r *NotificationRepo) Counts(tenantID *int, userID int, scope NotificationScope) (NotificationCounts, error) {
+	where, args, err := scopePredicate(scope, tenantID, userID, 0)
+	if err != nil {
+		return NotificationCounts{}, err
 	}
-	return count, nil
+	var counts NotificationCounts
+	err = r.DB.QueryRow(`SELECT
+			COUNT(*) FILTER (WHERE n.read_at IS NULL),
+			COUNT(*) FILTER (WHERE n.seen_at IS NULL)
+		FROM notifications n WHERE `+where, args...).Scan(&counts.Unread, &counts.Unseen)
+	if err != nil {
+		return NotificationCounts{}, err
+	}
+	return counts, nil
+}
+
+// UnreadCount is the legacy single-count wrapper.
+func (r *NotificationRepo) UnreadCount(tenantID int, userID *int, scope NotificationScope) (int, error) {
+	uid := -1
+	if userID != nil {
+		uid = *userID
+	}
+	counts, err := r.Counts(&tenantID, uid, scope)
+	return counts.Unread, err
 }
 
 func (r *NotificationRepo) GetPreferences(userID int) ([]NotificationPrefRow, error) {

@@ -242,26 +242,28 @@ func CoachSubjectIDs(t *testing.T, db *sql.DB, coachID int) []int {
 	return out
 }
 
-// CreateNotification inserts a notification row for the handler tests.
+// CreateNotification inserts a personal notification row for handler tests.
 //
-// userID nil produces a broadcast row, which is a real case rather than an
-// edge: NotificationRepo.List and UnreadCount both select
-// `user_id = $n OR user_id IS NULL`, so tenants do carry org-wide notifications
-// alongside per-user ones.
+// Every notification now belongs to exactly one user, so userID must be set.
+// A read row is also seen: the migration backfills seen_at from read_at and the
+// repository sets both together.
 //
 // No cleanup is registered here. notifications.user_id and .tenant_id are both
-// `ON DELETE CASCADE` (migration 000016), so deleting the throwaway tenant
-// removes these rows exactly like every other fixture in this file.
+// `ON DELETE CASCADE`, so deleting the throwaway tenant removes these rows
+// exactly like every other fixture in this file.
 func CreateNotification(t *testing.T, db *sql.DB, tenantID int, userID *int, eventType, title string, read bool) int {
 	t.Helper()
+	if userID == nil {
+		t.Fatal("create notification: user_id is required")
+	}
 	var readAt *string
 	if read {
 		ts := time.Now().UTC().Format(time.RFC3339)
 		readAt = &ts
 	}
 	var id int
-	err := db.QueryRow(`INSERT INTO notifications (tenant_id, user_id, event_type, title, message, priority, read_at)
-		VALUES ($1, $2, $3, $4, 'fixture message', 'info', $5) RETURNING id`,
+	err := db.QueryRow(`INSERT INTO notifications (tenant_id, user_id, event_type, title, message, priority, read_at, seen_at)
+		VALUES ($1, $2, $3, $4, 'fixture message', 'info', $5, $5) RETURNING id`,
 		tenantID, userID, eventType, title, readAt).Scan(&id)
 	if err != nil {
 		t.Fatalf("create notification: %v", err)
@@ -306,4 +308,3 @@ func CreateBatch(t *testing.T, db *sql.DB, tenantID int, name string) int {
 	}
 	return id
 }
-

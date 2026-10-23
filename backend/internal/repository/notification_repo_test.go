@@ -8,6 +8,30 @@ import (
 	"ai-student-diagnostic/backend/internal/testutil"
 )
 
+func notifIntPtr(v int) *int { return &v }
+
+func notifTestUser(t *testing.T, db *sql.DB, tenantID int, email, role string) int {
+	t.Helper()
+	uid, err := NewUserRepo(db).Create(tenantID, email, "x", role)
+	if err != nil {
+		t.Fatalf("create user %s: %v", email, err)
+	}
+	return uid
+}
+
+func notifTestSuperAdmin(t *testing.T, db *sql.DB, email string) int {
+	t.Helper()
+	var uid int
+	if err := db.QueryRow(`INSERT INTO users (tenant_id, email, password, role)
+		VALUES (NULL, $1, 'x', 'super_admin') RETURNING id`, email).Scan(&uid); err != nil {
+		t.Fatalf("create super admin: %v", err)
+	}
+	t.Cleanup(func() {
+		db.Exec(`DELETE FROM users WHERE id = $1`, uid)
+	})
+	return uid
+}
+
 // notifSetup creates an isolated tenant and returns its id. Tests should defer
 // deleting the tenant so the FK cascade cleans notifications + users + prefs.
 func notifSetup(t *testing.T, db *sql.DB) int {
@@ -18,7 +42,7 @@ func notifSetup(t *testing.T, db *sql.DB) int {
 	return tid
 }
 
-// Test 3.14: unread count accuracy (per-user + NULL rows + cross-tenant isolation)
+// Test 3.14: unread count accuracy (per-user + tenant scope + cross-tenant isolation)
 func TestNotificationUnreadCount(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 	tid := notifSetup(t, db)
@@ -45,15 +69,10 @@ func TestNotificationUnreadCount(t *testing.T) {
 
 	nr := NewNotificationRepo(db)
 	// 2 unread owned by uidA.
-	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uidA, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
+	if _, err := nr.Create(NotificationRow{TenantID: notifIntPtr(tid), UserID: &uidA, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
-	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uidA, EventType: "coach_activity", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
-		t.Fatalf("create notif: %v", err)
-	}
-	// A broadcast row, which ScopeOwn must NOT surface: read_at is a single
-	// column shared by the whole org, so it cannot carry per-user read state.
-	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: nil, EventType: "system_alert", Title: "t", Message: "m", Priority: "warning", Metadata: json.RawMessage("{}")}); err != nil {
+	if _, err := nr.Create(NotificationRow{TenantID: notifIntPtr(tid), UserID: &uidA, EventType: "coach_activity", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
 	// A second user in the SAME tenant, to prove MarkRead/Delete are scoped to
@@ -63,12 +82,13 @@ func TestNotificationUnreadCount(t *testing.T) {
 		t.Fatalf("create second user: %v", err)
 	}
 	// 1 unread for the other tenant (must NOT be counted for uidA)
-	if _, err := nr.Create(NotificationRow{TenantID: otherTid, UserID: &otherUID, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
+	if _, err := nr.Create(NotificationRow{TenantID: notifIntPtr(otherTid), UserID: &otherUID, EventType: "exam_submitted", Title: "t", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
 		t.Fatalf("create notif: %v", err)
 	}
 	// A row owned by uidB in the same tenant: the isolation case. uidA must never
 	// see it under ScopeOwn.
-	if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uidB, EventType: "exam_submitted", Title: "uidB only", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")}); err != nil {
+	uidBRow, err := nr.Create(NotificationRow{TenantID: notifIntPtr(tid), UserID: &uidB, EventType: "exam_submitted", Title: "uidB only", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")})
+	if err != nil {
 		t.Fatalf("create uidB notif: %v", err)
 	}
 
@@ -80,17 +100,17 @@ func TestNotificationUnreadCount(t *testing.T) {
 		t.Fatalf("expected unread count 2 for uidA, got %d", count)
 	}
 
-	// ScopeOwn must exclude both the broadcast row and uidB's row.
+	// ScopeOwn must exclude uidB's row.
 	ownRows, _, err := nr.List(tid, &uidA, ScopeOwn, "", "", false, 50, 0)
 	if err != nil {
 		t.Fatalf("List ScopeOwn: %v", err)
 	}
+	if len(ownRows) != 2 {
+		t.Fatalf("ScopeOwn returned %d rows, want 2", len(ownRows))
+	}
 	for _, r := range ownRows {
-		if r.UserID == nil {
-			t.Fatal("ScopeOwn surfaced a broadcast row")
-		}
-		if *r.UserID != uidA {
-			t.Fatalf("ScopeOwn surfaced another user's row (user_id=%d)", *r.UserID)
+		if r.UserID == nil || *r.UserID != uidA {
+			t.Fatalf("ScopeOwn surfaced another user's row: %+v", r.UserID)
 		}
 	}
 
@@ -108,15 +128,17 @@ func TestNotificationUnreadCount(t *testing.T) {
 	if !sawUIDB {
 		t.Fatal("ScopeTenant hid another user's row from the admin")
 	}
-	// Tenant-wide unread covers uidA's 2 + uidB's 1 + the broadcast row.
+	// Tenant-wide unread covers uidA's 2 + uidB's 1.
 	allUnread, err := nr.UnreadCount(tid, &uidA, ScopeTenant)
 	if err != nil {
 		t.Fatalf("UnreadCount ScopeTenant: %v", err)
 	}
-	if allUnread != 4 {
-		t.Fatalf("tenant-scoped unread=%d, want 4 (2 uidA + 1 uidB + 1 broadcast)", allUnread)
+	if allUnread != 3 {
+		t.Fatalf("tenant-scoped unread=%d, want 3 (2 uidA + 1 uidB)", allUnread)
 	}
-	_ = allTotal
+	if allTotal != 3 {
+		t.Fatalf("tenant-scoped total=%d, want 3", allTotal)
+	}
 
 	// mark one of uidA's notifications read
 	rows, _, err := nr.List(tid, &uidA, ScopeOwn, "", "", false, 50, 0)
@@ -144,16 +166,18 @@ func TestNotificationUnreadCount(t *testing.T) {
 	} else if marked {
 		t.Fatalf("MarkRead let uidB mark uidA's notification read")
 	}
-	// A broadcast row must be refused outright: read_at is one column, so one
-	// user marking an org-wide notification read would hide it for everyone.
-	broadcastRow, err := nr.Create(NotificationRow{TenantID: tid, UserID: nil, EventType: "system_alert", Title: "broadcast2", Message: "m", Priority: "warning", Metadata: json.RawMessage("{}")})
-	if err != nil {
-		t.Fatalf("create broadcast: %v", err)
-	}
-	if marked, err := nr.MarkRead(broadcastRow, tid, uidA); err != nil {
-		t.Fatalf("MarkRead on broadcast: %v", err)
+	// Even the wide ScopeTenant listing must not widen write access.
+	if marked, err := nr.MarkReadScoped(uidBRow, &tid, uidA, ScopeTenant); err != nil {
+		t.Fatalf("MarkReadScoped ScopeTenant: %v", err)
 	} else if marked {
-		t.Fatalf("MarkRead let a single user mark a broadcast notification read")
+		t.Fatalf("ScopeTenant let uidA mark uidB's row read")
+	}
+	stored, err := nr.GetByID(uidARow, tid)
+	if err != nil || stored == nil {
+		t.Fatalf("GetByID: %v row=%v", err, stored)
+	}
+	if stored.ReadAt == nil || stored.SeenAt == nil {
+		t.Fatalf("MarkRead must set both read_at and seen_at: read=%v seen=%v", stored.ReadAt, stored.SeenAt)
 	}
 	count, _ = nr.UnreadCount(tid, &uidA, ScopeOwn)
 	if count != 1 {
@@ -178,7 +202,7 @@ func TestNotificationPriorityFilter(t *testing.T) {
 
 	nr := NewNotificationRepo(db)
 	for _, p := range []string{"info", "info", "info", "warning", "alert"} {
-		if _, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uid, EventType: "exam_submitted", Title: p, Message: "m", Priority: p, Metadata: json.RawMessage("{}")}); err != nil {
+		if _, err := nr.Create(NotificationRow{TenantID: notifIntPtr(tid), UserID: &uid, EventType: "exam_submitted", Title: p, Message: "m", Priority: p, Metadata: json.RawMessage("{}")}); err != nil {
 			t.Fatalf("create %s row: %v", p, err)
 		}
 	}
@@ -258,11 +282,11 @@ func TestNotificationMarkReadAndDelete(t *testing.T) {
 	}
 
 	nr := NewNotificationRepo(db)
-	id1, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uid, EventType: "exam_submitted", Title: "t1", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")})
+	id1, err := nr.Create(NotificationRow{TenantID: notifIntPtr(tid), UserID: &uid, EventType: "exam_submitted", Title: "t1", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	id2, err := nr.Create(NotificationRow{TenantID: tid, UserID: &uid, EventType: "coach_activity", Title: "t2", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")})
+	id2, err := nr.Create(NotificationRow{TenantID: notifIntPtr(tid), UserID: &uid, EventType: "coach_activity", Title: "t2", Message: "m", Priority: "info", Metadata: json.RawMessage("{}")})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -279,8 +303,8 @@ func TestNotificationMarkReadAndDelete(t *testing.T) {
 	if err != nil || row == nil {
 		t.Fatalf("GetByID: %v row=%v", err, row)
 	}
-	if row.ReadAt == nil {
-		t.Fatalf("expected ReadAt to be set after MarkRead")
+	if row.ReadAt == nil || row.SeenAt == nil {
+		t.Fatalf("expected ReadAt and SeenAt to be set after MarkRead: read=%v seen=%v", row.ReadAt, row.SeenAt)
 	}
 
 	// MarkAllRead for the user (only their own rows)
@@ -358,5 +382,207 @@ func TestNotificationPreferences(t *testing.T) {
 	}
 	if len(prefs) < 2 {
 		t.Fatalf("expected >=2 preference rows, got %d", len(prefs))
+	}
+}
+
+func notifBoolPtr(v bool) *bool { return &v }
+
+// Seen clears the bell badge without removing the row from the Unread tab.
+func TestNotificationSeenAndReadFilters(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid := notifSetup(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+	uid := notifTestUser(t, db, tid, "notif_states@test.local", "admin")
+
+	nr := NewNotificationRepo(db)
+	create := func(title string) int {
+		id, err := nr.Create(NotificationRow{
+			TenantID: notifIntPtr(tid), UserID: &uid,
+			EventType: "exam_submitted", Title: title, Message: "m",
+			Priority: "info", Metadata: json.RawMessage("{}"),
+		})
+		if err != nil {
+			t.Fatalf("create %s: %v", title, err)
+		}
+		return id
+	}
+	unseenID := create("unseen")
+	seenID := create("seen")
+	readID := create("read")
+
+	if ok, err := nr.MarkSeenScoped(seenID, &tid, uid, ScopeOwn); err != nil || !ok {
+		t.Fatalf("MarkSeen: ok=%v err=%v", ok, err)
+	}
+	if ok, err := nr.MarkReadScoped(readID, &tid, uid, ScopeOwn); err != nil || !ok {
+		t.Fatalf("MarkRead: ok=%v err=%v", ok, err)
+	}
+
+	counts, err := nr.Counts(&tid, uid, ScopeOwn)
+	if err != nil {
+		t.Fatalf("Counts: %v", err)
+	}
+	if counts.Unread != 2 || counts.Unseen != 1 {
+		t.Fatalf("counts = unread:%d unseen:%d, want unread:2 unseen:1", counts.Unread, counts.Unseen)
+	}
+
+	list := func(read, seen *bool) []NotificationRow {
+		t.Helper()
+		rows, _, err := nr.ListFiltered(NotificationFilter{
+			TenantID: &tid, UserID: uid, Scope: ScopeOwn,
+			Read: read, Seen: seen, Limit: 50,
+		})
+		if err != nil {
+			t.Fatalf("ListFiltered: %v", err)
+		}
+		return rows
+	}
+	if got := len(list(notifBoolPtr(true), nil)); got != 1 {
+		t.Fatalf("read filter returned %d rows, want 1", got)
+	}
+	if got := len(list(notifBoolPtr(false), nil)); got != 2 {
+		t.Fatalf("unread filter returned %d rows, want 2", got)
+	}
+	if got := len(list(nil, notifBoolPtr(true))); got != 2 {
+		t.Fatalf("seen filter returned %d rows, want 2", got)
+	}
+	if got := len(list(nil, notifBoolPtr(false))); got != 1 {
+		t.Fatalf("unseen filter returned %d rows, want 1", got)
+	}
+
+	if err := nr.MarkAllSeenScoped(&tid, uid, ScopeOwn); err != nil {
+		t.Fatalf("MarkAllSeen: %v", err)
+	}
+	counts, err = nr.Counts(&tid, uid, ScopeOwn)
+	if err != nil {
+		t.Fatalf("Counts after mark all seen: %v", err)
+	}
+	if counts.Unseen != 0 || counts.Unread != 2 {
+		t.Fatalf("counts after mark all seen = unread:%d unseen:%d, want unread:2 unseen:0", counts.Unread, counts.Unseen)
+	}
+	_ = unseenID
+}
+
+func TestNotificationCreateIdempotent(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid := notifSetup(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+	uidA := notifTestUser(t, db, tid, "notif_idem_a@test.local", "admin")
+	uidB := notifTestUser(t, db, tid, "notif_idem_b@test.local", "coach")
+
+	nr := NewNotificationRepo(db)
+	key := "exam_submitted:attempt:123"
+	row := NotificationRow{
+		TenantID: notifIntPtr(tid), UserID: &uidA,
+		EventType: "exam_submitted", Title: "Submitted", Message: "m",
+		Priority: "info", Metadata: json.RawMessage("{}"), EventKey: &key,
+	}
+
+	id, created, err := nr.CreateIdempotent(row)
+	if err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	if !created || id == 0 {
+		t.Fatalf("first create: created=%v id=%d, want created=true and a row id", created, id)
+	}
+
+	againID, created, err := nr.CreateIdempotent(row)
+	if err != nil {
+		t.Fatalf("duplicate create: %v", err)
+	}
+	if created || againID != 0 {
+		t.Fatalf("duplicate create: created=%v id=%d, want created=false id=0", created, againID)
+	}
+
+	row.UserID = &uidB
+	otherID, created, err := nr.CreateIdempotent(row)
+	if err != nil {
+		t.Fatalf("create for second user: %v", err)
+	}
+	if !created || otherID == 0 {
+		t.Fatalf("second user must get their own row: created=%v id=%d", created, otherID)
+	}
+
+	rows, _, err := nr.List(tid, &uidA, ScopeOwn, "", "", false, 50, 0)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("uidA has %d rows, want 1", len(rows))
+	}
+	if rows[0].EventKey == nil || *rows[0].EventKey != key {
+		t.Fatalf("event_key did not round-trip: %v", rows[0].EventKey)
+	}
+}
+
+func TestNotificationPlatformScopeIsolation(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	tid := notifSetup(t, db)
+	defer db.Exec(`DELETE FROM tenants WHERE id = $1`, tid)
+	uid := notifTestUser(t, db, tid, "notif_platform_admin@test.local", "admin")
+	superID := notifTestSuperAdmin(t, db, "notif_platform_super@test.local")
+
+	nr := NewNotificationRepo(db)
+	tenantID, _, err := nr.CreateIdempotent(NotificationRow{
+		TenantID: notifIntPtr(tid), UserID: &uid,
+		EventType: "exam_submitted", Title: "Tenant row", Message: "m",
+		Priority: "info", Metadata: json.RawMessage("{}"),
+	})
+	if err != nil {
+		t.Fatalf("create tenant row: %v", err)
+	}
+	platformKey := "tenant_created:1"
+	platformID, _, err := nr.CreateIdempotent(NotificationRow{
+		TenantID: nil, UserID: &superID, Scope: "platform",
+		EventType: "tenant_created", Title: "Platform row", Message: "m",
+		Priority: "info", Metadata: json.RawMessage("{}"), EventKey: &platformKey,
+	})
+	if err != nil {
+		t.Fatalf("create platform row: %v", err)
+	}
+
+	platformRows, total, err := nr.ListFiltered(NotificationFilter{
+		UserID: superID, Scope: ScopePlatform, Limit: 50,
+	})
+	if err != nil {
+		t.Fatalf("platform list: %v", err)
+	}
+	if total != 1 || len(platformRows) != 1 || platformRows[0].TenantID != nil {
+		t.Fatalf("platform list = %d rows of %d, want exactly 1 with tenant_id NULL", len(platformRows), total)
+	}
+
+	tenantRows, _, err := nr.ListFiltered(NotificationFilter{
+		TenantID: &tid, UserID: uid, Scope: ScopeOwn, Limit: 50,
+	})
+	if err != nil {
+		t.Fatalf("tenant list: %v", err)
+	}
+	if len(tenantRows) != 1 {
+		t.Fatalf("tenant admin sees %d rows, want 1", len(tenantRows))
+	}
+
+	if ok, err := nr.MarkReadScoped(platformID, &tid, uid, ScopeOwn); err != nil {
+		t.Fatalf("tenant action on platform row: %v", err)
+	} else if ok {
+		t.Fatal("tenant user marked a platform notification read")
+	}
+	if ok, err := nr.MarkReadScoped(platformID, nil, superID, ScopePlatform); err != nil || !ok {
+		t.Fatalf("platform MarkRead: ok=%v err=%v", ok, err)
+	}
+	if ok, err := nr.MarkSeenScoped(tenantID, &tid, uid, ScopeOwn); err != nil || !ok {
+		t.Fatalf("tenant MarkSeen: ok=%v err=%v", ok, err)
+	}
+
+	if _, _, err := nr.CreateIdempotent(NotificationRow{
+		UserID: &uid, EventType: "exam_submitted", Title: "bad", Message: "m",
+		Priority: "info", Metadata: json.RawMessage("{}"),
+	}); err == nil {
+		t.Fatal("tenant notification without tenant_id must fail")
+	}
+	if _, _, err := nr.CreateIdempotent(NotificationRow{
+		TenantID: notifIntPtr(tid), UserID: &uid, Scope: "platform",
+		EventType: "tenant_created", Title: "bad", Message: "m",
+		Priority: "info", Metadata: json.RawMessage("{}"),
+	}); err == nil {
+		t.Fatal("platform notification with tenant_id must fail")
 	}
 }
