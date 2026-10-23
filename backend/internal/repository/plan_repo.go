@@ -1,6 +1,9 @@
 package repository
 
-import "database/sql"
+import (
+	"database/sql"
+	"encoding/json"
+)
 
 type PlanRepo struct {
 	DB *sql.DB
@@ -11,19 +14,19 @@ func NewPlanRepo(db *sql.DB) *PlanRepo {
 }
 
 type PlanRow struct {
-	ID                             int    `json:"id"`
-	Name                           string `json:"name"`
-	Slug                           string `json:"slug"`
-	StudentLimit                   int    `json:"student_limit"`
-	CoachLimit                     int    `json:"coach_limit"`
-	StorageLimitBytes              int64  `json:"storage_limit_bytes"`
-	TestLimit                      int    `json:"test_limit"`
-	SQIAccess                      bool   `json:"sqi_access"`
-	VideoProctoringIncluded        bool   `json:"video_proctoring_included"`
-	VideoProctoringLimit           int    `json:"video_proctoring_limit"`
-	VideoProctoringPricePerStudent int64  `json:"video_proctoring_price_per_student"`
-	PriceMonthly                   int64  `json:"price_monthly"`
-	Features                       []byte `json:"features"`
+	ID                             int             `json:"id"`
+	Name                           string          `json:"name"`
+	Slug                           string          `json:"slug"`
+	StudentLimit                   int             `json:"student_limit"`
+	CoachLimit                     int             `json:"coach_limit"`
+	StorageLimitBytes              int64           `json:"storage_limit_bytes"`
+	TestLimit                      int             `json:"test_limit"`
+	SQIAccess                      bool            `json:"sqi_access"`
+	VideoProctoringIncluded        bool            `json:"video_proctoring_included"`
+	VideoProctoringLimit           int             `json:"video_proctoring_limit"`
+	VideoProctoringPricePerStudent int64           `json:"video_proctoring_price_per_student"`
+	PriceMonthly                   int64           `json:"price_monthly"`
+	Features                       json.RawMessage `json:"features"`
 }
 
 func (r *PlanRepo) List() ([]PlanRow, error) {
@@ -97,7 +100,7 @@ func (r *PlanRepo) GetBySlug(slug string) (*PlanRow, error) {
 
 func (r *PlanRepo) Create(p PlanRow) (int, error) {
 	if p.Features == nil {
-		p.Features = []byte("[]")
+		p.Features = json.RawMessage("[]")
 	}
 	var id int
 	err := r.DB.QueryRow(`
@@ -117,7 +120,7 @@ func (r *PlanRepo) Create(p PlanRow) (int, error) {
 
 func (r *PlanRepo) Update(p PlanRow) error {
 	if p.Features == nil {
-		p.Features = []byte("[]")
+		p.Features = json.RawMessage("[]")
 	}
 	_, err := r.DB.Exec(`
 		UPDATE subscription_plans SET

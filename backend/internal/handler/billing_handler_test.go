@@ -41,6 +41,37 @@ func TestBillingListPlans(t *testing.T) {
 	}
 }
 
+// TestBillingListPlansFeaturesArray guards against serializing the JSONB
+// features column as a base64 string (the []byte default), which makes the
+// billing page crash on features.map().
+func TestBillingListPlansFeaturesArray(t *testing.T) {
+	db := testutil.OpenTestDB(t)
+	h := newBillingHandler(db)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	h.ListPlans(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("ListPlans expected 200, got %d", w.Code)
+	}
+
+	var resp struct {
+		Data []struct {
+			Features json.RawMessage `json:"features"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(resp.Data) == 0 {
+		t.Fatal("expected at least one plan")
+	}
+	var features []string
+	if err := json.Unmarshal(resp.Data[0].Features, &features); err != nil {
+		t.Fatalf("features is not a JSON array: %v (raw=%q)", err, string(resp.Data[0].Features))
+	}
+}
+
 func TestBillingGetSubscription(t *testing.T) {
 	db := testutil.OpenTestDB(t)
 	h := newBillingHandler(db)
