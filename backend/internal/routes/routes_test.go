@@ -116,6 +116,20 @@ func TestSetupRouterRegistersCoreRoutes(t *testing.T) {
 		{"GET", "/super-admin/stats"},
 		{"GET", "/super-admin/tenants"},
 		{"GET", "/super-admin/plans"},
+		// notifications (admin, coach and platform scopes)
+		{"GET", "/admin/notifications"},
+		{"GET", "/admin/notifications/unread-count"},
+		{"PUT", "/admin/notifications/:id/read"},
+		{"PUT", "/admin/notifications/read-all"},
+		{"PUT", "/admin/notifications/:id/seen"},
+		{"PUT", "/admin/notifications/seen-all"},
+		{"GET", "/coach/notifications"},
+		{"PUT", "/coach/notifications/:id/seen"},
+		{"PUT", "/coach/notifications/seen-all"},
+		{"GET", "/super-admin/notifications"},
+		{"GET", "/super-admin/notifications/unread-count"},
+		{"PUT", "/super-admin/notifications/:id/seen"},
+		{"PUT", "/super-admin/notifications/seen-all"},
 	}
 	for _, req := range required {
 		if !hasRoute(table, req.method, req.path) {

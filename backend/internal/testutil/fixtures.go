@@ -272,15 +272,39 @@ func CreateNotification(t *testing.T, db *sql.DB, tenantID int, userID *int, eve
 	if userID == nil {
 		t.Fatal("create notification: user_id is required")
 	}
-	var readAt *string
+	return CreateNotificationWithState(t, db, &tenantID, "tenant", *userID, eventType, title, read, read)
+}
+
+// CreatePlatformNotification addresses a notification to a super admin. Platform
+// rows carry scope='platform' and a NULL tenant_id, which is the only shape
+// scopeFor(super_admin) reads.
+func CreatePlatformNotification(t *testing.T, db *sql.DB, userID int, eventType, title string, read bool) int {
+	t.Helper()
+	return CreateNotificationWithState(t, db, nil, "platform", userID, eventType, title, read, read)
+}
+
+// CreateNotificationWithState is the general insert: independent read and seen
+// timestamps and an explicit scope. The product stamps both timestamps together
+// when a row is opened, but the badge (seen) and the Unread tab (read) are
+// independent filters, so tests need rows that are seen but still unread.
+//
+// No cleanup is registered here either: the tenant cascade covers tenant rows
+// and deleting the recipient covers platform rows.
+func CreateNotificationWithState(t *testing.T, db *sql.DB, tenantID *int, scope string, userID int, eventType, title string, read, seen bool) int {
+	t.Helper()
+	var readAt, seenAt *string
 	if read {
 		ts := time.Now().UTC().Format(time.RFC3339)
 		readAt = &ts
 	}
+	if seen {
+		ts := time.Now().UTC().Format(time.RFC3339)
+		seenAt = &ts
+	}
 	var id int
-	err := db.QueryRow(`INSERT INTO notifications (tenant_id, user_id, event_type, title, message, priority, read_at, seen_at)
-		VALUES ($1, $2, $3, $4, 'fixture message', 'info', $5, $5) RETURNING id`,
-		tenantID, userID, eventType, title, readAt).Scan(&id)
+	err := db.QueryRow(`INSERT INTO notifications (tenant_id, scope, user_id, event_type, title, message, priority, read_at, seen_at)
+		VALUES ($1, $2, $3, $4, $5, 'fixture message', 'info', $6, $7) RETURNING id`,
+		tenantID, scope, userID, eventType, title, readAt, seenAt).Scan(&id)
 	if err != nil {
 		t.Fatalf("create notification: %v", err)
 	}

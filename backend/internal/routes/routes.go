@@ -211,6 +211,19 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		superAdmin.PUT("/plans/:id", billingHandler.UpdatePlan)
 		superAdmin.DELETE("/plans/:id", billingHandler.DeletePlan)
 		superAdmin.PUT("/tenants/:id/subscription", billingHandler.AssignPlan)
+
+		// Platform notifications. scopeFor routes super_admin to ScopePlatform,
+		// so these read the scope='platform' rows addressed to this admin and
+		// never any tenant's rows.
+		superAdmin.GET("/notifications", notifHandler.ListNotifications)
+		superAdmin.GET("/notifications/unread-count", notifHandler.UnreadCount)
+		superAdmin.PUT("/notifications/:id/read", notifHandler.MarkRead)
+		superAdmin.PUT("/notifications/read-all", notifHandler.MarkAllRead)
+		superAdmin.PUT("/notifications/:id/seen", notifHandler.MarkSeen)
+		superAdmin.PUT("/notifications/seen-all", notifHandler.MarkAllSeen)
+		superAdmin.DELETE("/notifications/:id", notifHandler.DeleteNotification)
+		superAdmin.GET("/notifications/preferences", notifHandler.GetPreferences)
+		superAdmin.PUT("/notifications/preferences", notifHandler.UpdatePreferences)
 	}
 
 	profile := r.Group("")
@@ -304,6 +317,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		admin.GET("/notifications/unread-count", notifHandler.UnreadCount)
 		admin.PUT("/notifications/:id/read", notifHandler.MarkRead)
 		admin.PUT("/notifications/read-all", notifHandler.MarkAllRead)
+		admin.PUT("/notifications/:id/seen", notifHandler.MarkSeen)
+		admin.PUT("/notifications/seen-all", notifHandler.MarkAllSeen)
 		admin.DELETE("/notifications/:id", notifHandler.DeleteNotification)
 		admin.GET("/notifications/preferences", notifHandler.GetPreferences)
 		admin.PUT("/notifications/preferences", notifHandler.UpdatePreferences)
@@ -390,6 +405,8 @@ func SetupRouter(db *sql.DB, cfg *config.Config, allowedOrigins []string, truste
 		coach.GET("/notifications/unread-count", notifHandler.UnreadCount)
 		coach.PUT("/notifications/:id/read", notifHandler.MarkRead)
 		coach.PUT("/notifications/read-all", notifHandler.MarkAllRead)
+		coach.PUT("/notifications/:id/seen", notifHandler.MarkSeen)
+		coach.PUT("/notifications/seen-all", notifHandler.MarkAllSeen)
 		coach.DELETE("/notifications/:id", notifHandler.DeleteNotification)
 		coach.GET("/notifications/preferences", notifHandler.GetPreferences)
 		coach.PUT("/notifications/preferences", notifHandler.UpdatePreferences)

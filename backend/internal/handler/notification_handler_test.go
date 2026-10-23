@@ -12,14 +12,15 @@ import (
 	"ai-student-diagnostic/backend/internal/testutil"
 )
 
-// notification_handler.go was the last handler file with no tests at all.
+// notification_handler.go tests.
 //
-// The important finding here is not a missing test but a missing authorization
-// check: NotificationRepo.MarkRead and .Delete filter on `id AND tenant_id` and
-// never on `user_id`, so any authenticated user in a tenant can mark another
-// user's notification read or delete it. Both report no not-found, so they return
-// 200 either way. TestNotificationMarkReadAcrossUsers pins that behaviour by
-// name so the hole cannot be mistaken for working authorization.
+// The first version of this file existed to pin a missing authorization check:
+// MarkRead/Delete filtered on id AND tenant_id and never on user_id, so any user
+// in a tenant could act on another user's rows. Every mutation is now scoped to
+// the caller (and admins no longer read tenant-wide), so the tests below assert
+// refusal by name: TestNotificationMarkReadRefusesOtherUsers,
+// TestNotificationDeleteRefusesOtherUsers and
+// TestNotificationAdminActsOnlyOnOwnRows.
 
 func TestNotificationListNotifications(t *testing.T) {
 	f := newHandlerFixture(t)
@@ -108,6 +109,61 @@ func TestNotificationUnreadCount(t *testing.T) {
 
 	if got := notifUnreadCount(t, f); got != 2 {
 		t.Fatalf("unread_count=%d, want 2", got)
+	}
+}
+
+// The badge counts unseen rows, the Unread tab counts unread rows, and the two
+// differ as soon as a row is seen without being read.
+func TestNotificationUnreadAndUnseenCounts(t *testing.T) {
+	f := newHandlerFixture(t)
+	uid := f.AdminUserID
+	testutil.CreateNotificationWithState(t, f.DB, &f.TenantID, "tenant", uid, "exam_submitted", "Read", true, true)
+	testutil.CreateNotificationWithState(t, f.DB, &f.TenantID, "tenant", uid, "exam_submitted", "Seen Only", false, true)
+	testutil.CreateNotificationWithState(t, f.DB, &f.TenantID, "tenant", uid, "exam_submitted", "Unseen", false, false)
+
+	unread, unseen := notifUnreadCounts(t, f, "admin", uid)
+	if unread != 2 {
+		t.Fatalf("unread_count=%d, want 2 (seen-only and unseen rows)", unread)
+	}
+	if unseen != 1 {
+		t.Fatalf("unseen_count=%d, want 1 (only the unseen row)", unseen)
+	}
+}
+
+// read= and seen= filter independently; unread=true is sugar for read=false.
+func TestNotificationListReadSeenFilters(t *testing.T) {
+	f := newHandlerFixture(t)
+	uid := f.AdminUserID
+	testutil.CreateNotificationWithState(t, f.DB, &f.TenantID, "tenant", uid, "exam_submitted", "Unread Unseen", false, false)
+	testutil.CreateNotificationWithState(t, f.DB, &f.TenantID, "tenant", uid, "exam_submitted", "Seen Only", false, true)
+	testutil.CreateNotificationWithState(t, f.DB, &f.TenantID, "tenant", uid, "exam_submitted", "Read Row", true, true)
+
+	cases := []struct {
+		query   string
+		want    []string
+		notWant []string
+	}{
+		{"read=false", []string{"Unread Unseen", "Seen Only"}, []string{"Read Row"}},
+		{"read=true", []string{"Read Row"}, []string{"Unread Unseen", "Seen Only"}},
+		{"unread=true", []string{"Unread Unseen", "Seen Only"}, []string{"Read Row"}},
+		{"seen=false", []string{"Unread Unseen"}, []string{"Seen Only", "Read Row"}},
+		{"seen=true", []string{"Seen Only", "Read Row"}, []string{"Unread Unseen"}},
+	}
+	for _, tc := range cases {
+		body, code := notifGet(t, f, "event_type=exam_submitted&"+tc.query)
+		if code != http.StatusOK {
+			t.Fatalf("%s code=%d body=%s", tc.query, code, body)
+		}
+		for _, want := range tc.want {
+			if !strings.Contains(body, want) {
+				t.Fatalf("%s missed %q: %s", tc.query, want, body)
+			}
+		}
+		for _, notWant := range tc.notWant {
+			if strings.Contains(body, notWant) {
+				t.Fatalf("%s leaked %q: %s", tc.query, notWant, body)
+			}
+		}
 	}
 }
 
@@ -202,11 +258,89 @@ func TestNotificationMarkReadCrossTenant(t *testing.T) {
 	}
 }
 
-// Mark-all-read is owner-scoped. The admin holds a tenant-wide list, so a wider
-// predicate here would stamp read_at on every coach's rows and silently clear
-// their unread badges. Broadcast rows are excluded for the same reason: one
-// shared row cannot carry per-user read state, which is also why MarkRead
-// refuses them.
+// MarkSeen clears the badge without touching read_at, so a row can leave the
+// bell badge while staying in the Unread tab.
+func TestNotificationMarkSeen(t *testing.T) {
+	f := newHandlerFixture(t)
+	uid := f.AdminUserID
+	id := testutil.CreateNotification(t, f.DB, f.TenantID, &uid, "exam_submitted", "Seen Only", false)
+
+	_, code := notifMarkSeen(t, f, uid, id)
+	if code != http.StatusOK {
+		t.Fatalf("code=%d", code)
+	}
+	var readAt, seenAt sql.NullString
+	if err := f.DB.QueryRow(`SELECT read_at::text, seen_at::text FROM notifications WHERE id = $1`, id).Scan(&readAt, &seenAt); err != nil {
+		t.Fatalf("read timestamps: %v", err)
+	}
+	if !seenAt.Valid {
+		t.Fatal("seen_at still NULL after MarkSeen")
+	}
+	if readAt.Valid {
+		t.Fatal("MarkSeen must not set read_at")
+	}
+	unread, unseen := notifUnreadCounts(t, f, "admin", uid)
+	if unread != 1 || unseen != 0 {
+		t.Fatalf("unread=%d unseen=%d, want 1 and 0", unread, unseen)
+	}
+}
+
+// MarkSeen must be owner-scoped exactly like MarkRead: another user's row is a
+// 404 and stays unseen.
+func TestNotificationMarkSeenRefusesOtherUsers(t *testing.T) {
+	f := newHandlerFixture(t)
+	owner := f.AdminUserID
+	id := testutil.CreateNotification(t, f.DB, f.TenantID, &owner, "exam_submitted", "Owner's", false)
+	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "admin")
+
+	_, code := notifMarkSeen(t, f, other, id)
+	if code != http.StatusNotFound {
+		t.Fatalf("code=%d, want 404 when another user targets the notification", code)
+	}
+
+	var seenAt sql.NullString
+	if err := f.DB.QueryRow(`SELECT seen_at::text FROM notifications WHERE id = $1`, id).Scan(&seenAt); err != nil {
+		t.Fatalf("read seen_at: %v", err)
+	}
+	if seenAt.Valid {
+		t.Fatal("SECURITY: another user's notification was marked seen")
+	}
+}
+
+// Mark-all-seen clears the caller's badge only; another user's unseen row
+// survives and their badge is unaffected.
+func TestNotificationMarkAllSeen(t *testing.T) {
+	f := newHandlerFixture(t)
+	uid := f.AdminUserID
+	a := testutil.CreateNotification(t, f.DB, f.TenantID, &uid, "exam_submitted", "A", false)
+	b := testutil.CreateNotification(t, f.DB, f.TenantID, &uid, "sqi_complete", "B", false)
+	other := testutil.CreateUser(t, f.DB, f.TenantID, testutil.UniqueEmail(t, "other"), "coach")
+	otherRow := testutil.CreateNotification(t, f.DB, f.TenantID, &other, "exam_submitted", "Other's", false)
+
+	if _, code := notifMarkAllSeen(t, f); code != http.StatusOK {
+		t.Fatalf("code=%d", code)
+	}
+
+	for _, id := range []int{a, b} {
+		var seenAt sql.NullString
+		if err := f.DB.QueryRow(`SELECT seen_at::text FROM notifications WHERE id = $1`, id).Scan(&seenAt); err != nil {
+			t.Fatalf("read %d: %v", id, err)
+		}
+		if !seenAt.Valid {
+			t.Fatalf("notification %d still unseen after mark-all-seen", id)
+		}
+	}
+	var otherSeenAt sql.NullString
+	if err := f.DB.QueryRow(`SELECT seen_at::text FROM notifications WHERE id = $1`, otherRow).Scan(&otherSeenAt); err != nil {
+		t.Fatalf("read other row: %v", err)
+	}
+	if otherSeenAt.Valid {
+		t.Fatalf("SECURITY: mark-all-seen cleared user %d's notification %d", other, otherRow)
+	}
+}
+
+// Mark-all-read is owner-scoped. A wider predicate would stamp read_at on every
+// colleague's rows and silently empty their Unread tab.
 func TestNotificationMarkAllRead(t *testing.T) {
 	f := newHandlerFixture(t)
 	uid := f.AdminUserID
@@ -301,6 +435,50 @@ func TestNotificationCoachSeesOnlyOwnRows(t *testing.T) {
 	_ = adminRow
 	_ = peerRow
 	_ = ownRow
+}
+
+// A super admin reads platform rows only. The same row must be invisible and
+// untouchable from a tenant context, and tenant rows must not leak upward.
+func TestNotificationSuperAdminPlatformScope(t *testing.T) {
+	f := newHandlerFixture(t)
+	superID := testutil.CreateSuperAdmin(t, f.DB)
+	defer f.DB.Exec(`DELETE FROM users WHERE id = $1`, superID)
+
+	platformRow := testutil.CreatePlatformNotification(t, f.DB, superID, "tenant_created", "Platform Only", false)
+	testutil.CreateNotification(t, f.DB, f.TenantID, &f.AdminUserID, "exam_submitted", "Tenant Row", false)
+
+	body, code := notifGetAsSuperAdmin(t, f, superID, "")
+	if code != http.StatusOK {
+		t.Fatalf("code=%d body=%s", code, body)
+	}
+	if !strings.Contains(body, "Platform Only") {
+		t.Fatalf("platform list missed the platform row: %s", body)
+	}
+	if strings.Contains(body, "Tenant Row") {
+		t.Fatalf("platform list leaked a tenant row: %s", body)
+	}
+	unread, unseen := notifUnreadCounts(t, f, "super_admin", superID)
+	if unread != 1 || unseen != 1 {
+		t.Fatalf("platform counts unread=%d unseen=%d, want 1 and 1", unread, unseen)
+	}
+
+	// A tenant admin never sees the platform row and cannot act on it.
+	tenantBody, _ := notifGet(t, f, "")
+	if strings.Contains(tenantBody, "Platform Only") {
+		t.Fatalf("tenant list leaked a platform row: %s", tenantBody)
+	}
+	if _, code := notifMarkRead(t, f, f.AdminUserID, platformRow); code != http.StatusNotFound {
+		t.Fatalf("tenant MarkRead on a platform row = %d, want 404", code)
+	}
+
+	// Its owner can, under platform scope.
+	if _, code := notifMarkReadAsSuperAdmin(t, f, superID, platformRow); code != http.StatusOK {
+		t.Fatalf("platform MarkRead = %d, want 200", code)
+	}
+	unread, unseen = notifUnreadCounts(t, f, "super_admin", superID)
+	if unread != 0 || unseen != 0 {
+		t.Fatalf("platform counts after read unread=%d unseen=%d, want 0 and 0", unread, unseen)
+	}
 }
 
 func TestNotificationDelete(t *testing.T) {
@@ -399,7 +577,7 @@ func TestNotificationPreferences(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", code, body)
 	}
-	if !strings.Contains(body, "exam_submitted") || !strings.Contains(body, "storage_warning") {
+	if !strings.Contains(body, "exam_submitted") || !strings.Contains(body, "coach_activity") {
 		t.Fatalf("preferences not persisted: %s", body)
 	}
 
@@ -432,6 +610,27 @@ func TestNotificationUpdatePreferencesBadPayload(t *testing.T) {
 	f.Notifications.UpdatePreferences(malformed)
 	if wMalformed.Code != http.StatusBadRequest {
 		t.Fatalf("malformed code=%d, want 400", wMalformed.Code)
+	}
+}
+
+// Retired and unknown event types are rejected rather than stored as dead
+// preferences that can never fire.
+func TestNotificationUpdatePreferencesRejectsUnknownEventType(t *testing.T) {
+	f := newHandlerFixture(t)
+
+	if _, code := notifUpdatePrefs(t, f, f.AdminUserID, `{"preferences":{"system_alert":true}}`); code != http.StatusBadRequest {
+		t.Fatalf("retired event type code=%d, want 400", code)
+	}
+	if _, code := notifUpdatePrefs(t, f, f.AdminUserID, `{"preferences":{"not_a_real_event":false}}`); code != http.StatusBadRequest {
+		t.Fatalf("unknown event type code=%d, want 400", code)
+	}
+
+	var rows int
+	if err := f.DB.QueryRow(`SELECT COUNT(*) FROM notification_preferences WHERE user_id = $1 AND event_type IN ('system_alert', 'not_a_real_event')`, f.AdminUserID).Scan(&rows); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if rows != 0 {
+		t.Fatalf("rejected event types were persisted: %d rows", rows)
 	}
 }
 
@@ -510,8 +709,9 @@ func notifUnreadCount(t *testing.T, f *handlerFixture) int {
 }
 
 // notifPrefsBody sets two event types, one enabled and one disabled, so the
-// round-trip proves the value is stored rather than defaulted to true.
-const notifPrefsBody = `{"preferences":{"exam_submitted":true,"storage_warning":false}}`
+// round-trip proves the value is stored rather than defaulted to true. Both are
+// live event types: UpdatePreferences rejects retired or unknown keys.
+const notifPrefsBody = `{"preferences":{"exam_submitted":true,"coach_activity":false}}`
 
 // notifMarkRead calls MarkRead with the id path param set, the way the router
 // does. The param has to be seeded explicitly: the handler reads c.Param("id"),
@@ -559,4 +759,69 @@ func notifDeleteAs(t *testing.T, f *handlerFixture, userID, id int) (string, int
 
 func notifReadPath(id int) string {
 	return "/admin/notifications/" + strconv.Itoa(id) + "/read"
+}
+
+// notifGetAsSuperAdmin lists under /super-admin, where scopeFor maps the role to
+// ScopePlatform. userID must be a real super admin: the platform predicate
+// filters on the recipient's user_id.
+func notifGetAsSuperAdmin(t *testing.T, f *handlerFixture, superID int, query string) (string, int) {
+	t.Helper()
+	target := "/super-admin/notifications"
+	if query != "" {
+		target += "?" + query
+	}
+	c, w := f.ctx(t, "super_admin")
+	c.Set("user_id", superID)
+	c.Request = httptest.NewRequest(http.MethodGet, target, nil)
+	f.Notifications.ListNotifications(c)
+	return w.Body.String(), w.Code
+}
+
+// notifUnreadCounts returns both counts the bell needs, so tests can prove the
+// badge (unseen) moves independently of the Unread tab (unread).
+func notifUnreadCounts(t *testing.T, f *handlerFixture, role string, userID int) (unread, unseen int) {
+	t.Helper()
+	c, w := f.ctx(t, role)
+	c.Set("user_id", userID)
+	c.Request = httptest.NewRequest(http.MethodGet, "/notifications/unread-count", nil)
+	f.Notifications.UnreadCount(c)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unread count code=%d body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Unread int `json:"unread_count"`
+		Unseen int `json:"unseen_count"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return resp.Unread, resp.Unseen
+}
+
+func notifMarkSeen(t *testing.T, f *handlerFixture, userID, id int) (string, int) {
+	t.Helper()
+	c, w := f.ctx(t, "admin")
+	c.Set("user_id", userID)
+	c.Request = httptest.NewRequest(http.MethodPut, "/admin/notifications/"+strconv.Itoa(id)+"/seen", nil)
+	withParam(c, "id", strconv.Itoa(id))
+	f.Notifications.MarkSeen(c)
+	return w.Body.String(), w.Code
+}
+
+func notifMarkAllSeen(t *testing.T, f *handlerFixture) (string, int) {
+	t.Helper()
+	c, w := f.ctx(t, "admin")
+	c.Request = httptest.NewRequest(http.MethodPut, "/admin/notifications/seen-all", nil)
+	f.Notifications.MarkAllSeen(c)
+	return w.Body.String(), w.Code
+}
+
+func notifMarkReadAsSuperAdmin(t *testing.T, f *handlerFixture, superID, id int) (string, int) {
+	t.Helper()
+	c, w := f.ctx(t, "super_admin")
+	c.Set("user_id", superID)
+	c.Request = httptest.NewRequest(http.MethodPut, "/super-admin/notifications/"+strconv.Itoa(id)+"/read", nil)
+	withParam(c, "id", strconv.Itoa(id))
+	f.Notifications.MarkRead(c)
+	return w.Body.String(), w.Code
 }
