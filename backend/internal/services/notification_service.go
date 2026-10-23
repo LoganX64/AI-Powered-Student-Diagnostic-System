@@ -21,8 +21,8 @@ func NewNotificationService(notifRepo *repository.NotificationRepo, userRepo *re
 //
 // system_alert and storage_warning were dropped: neither had a producer, so
 // nothing could create them, and the preference rows seeded for them by
-// migration 000016 could never be exercised. SettingsPage still renders toggles
-// for both — see the note there.
+// migration 000016 could never be exercised. The SettingsPage no longer
+// exposes toggles for them.
 const (
 	EventExamSubmitted     = "exam_submitted"
 	EventCoachActivity     = "coach_activity"
