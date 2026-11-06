@@ -17,7 +17,7 @@ export function PublicHeader() {
   const dashboard = session ? dashboardForRole(session.role) : null;
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
+    <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2">
           <BarChart3Icon className="size-6 text-primary" />

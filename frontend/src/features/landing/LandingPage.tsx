@@ -155,7 +155,7 @@ export function LandingPage() {
       {/* Features */}
       <motion.section
         id="features"
-        className="border-t bg-muted/40"
+        className="bg-muted/40"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-100px" }}
