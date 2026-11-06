@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Trash2Icon, UserPlusIcon, RotateCcwIcon, PencilIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -194,16 +195,30 @@ export function CoachesPage() {
             All Coaches
           </h2>
           <div className="flex items-center gap-3">
-            <Button
-              variant={includeDeactivated ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setIncludeDeactivated(!includeDeactivated);
-                setOffset(0);
-              }}
-            >
-              {includeDeactivated ? "Showing Deactivated" : "Show Deactivated"}
-            </Button>
+            <ButtonGroup aria-label="Filter coaches by status">
+              <Button
+                variant={!includeDeactivated ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIncludeDeactivated(false);
+                  setOffset(0);
+                }}
+                aria-pressed={!includeDeactivated}
+              >
+                Show Active
+              </Button>
+              <Button
+                variant={includeDeactivated ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIncludeDeactivated(true);
+                  setOffset(0);
+                }}
+                aria-pressed={includeDeactivated}
+              >
+                Show Deactivated
+              </Button>
+            </ButtonGroup>
             <Badge variant="secondary">{total}</Badge>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { Trash2Icon, UserPlusIcon, RotateCcwIcon, SearchIcon, PencilIcon } from 
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Table,
   TableBody,
@@ -175,16 +176,30 @@ export function StudentsPage() {
                 className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <Button
-              variant={includeDeactivated ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setIncludeDeactivated(!includeDeactivated);
-                setOffset(0);
-              }}
-            >
-              {includeDeactivated ? "Showing Deactivated" : "Show Deactivated"}
-            </Button>
+            <ButtonGroup aria-label="Filter students by status">
+              <Button
+                variant={!includeDeactivated ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIncludeDeactivated(false);
+                  setOffset(0);
+                }}
+                aria-pressed={!includeDeactivated}
+              >
+                Show Active
+              </Button>
+              <Button
+                variant={includeDeactivated ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIncludeDeactivated(true);
+                  setOffset(0);
+                }}
+                aria-pressed={includeDeactivated}
+              >
+                Show Deactivated
+              </Button>
+            </ButtonGroup>
             <Badge variant="secondary">{total}</Badge>
           </div>
         </div>

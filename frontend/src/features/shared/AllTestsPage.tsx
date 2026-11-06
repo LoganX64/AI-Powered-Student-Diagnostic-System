@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useRole } from "@/hooks/useRole";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -61,7 +62,7 @@ function StatusFilter({
   onChange: (next: TestView) => void;
 }) {
   return (
-    <div className="flex items-center gap-2" role="group" aria-label="Filter tests by status">
+    <ButtonGroup aria-label="Filter tests by status">
       <Button
         variant={view === "active" ? "default" : "outline"}
         size="sm"
@@ -78,7 +79,7 @@ function StatusFilter({
       >
         Show Deactivated
       </Button>
-    </div>
+    </ButtonGroup>
   );
 }
 

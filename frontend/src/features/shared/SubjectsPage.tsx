@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Trash2Icon, BookOpenIcon, PencilIcon, RotateCcwIcon, SearchIcon } from "lucide-react";
 import { DashboardLayout } from "@/components/shared/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -229,16 +230,30 @@ export function SubjectsPage() {
                 className="flex h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               />
             </div>
-            <Button
-              variant={includeDeactivated ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setIncludeDeactivated(!includeDeactivated);
-                setOffset(0);
-              }}
-            >
-              {includeDeactivated ? "Showing Deactivated" : "Show Deactivated"}
-            </Button>
+            <ButtonGroup aria-label="Filter subjects by status">
+              <Button
+                variant={!includeDeactivated ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIncludeDeactivated(false);
+                  setOffset(0);
+                }}
+                aria-pressed={!includeDeactivated}
+              >
+                Show Active
+              </Button>
+              <Button
+                variant={includeDeactivated ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setIncludeDeactivated(true);
+                  setOffset(0);
+                }}
+                aria-pressed={includeDeactivated}
+              >
+                Show Deactivated
+              </Button>
+            </ButtonGroup>
             <Badge variant="secondary">{total}</Badge>
           </div>
         </div>
